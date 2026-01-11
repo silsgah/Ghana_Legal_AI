@@ -45,7 +45,7 @@ echo "AIRFLOW_UID=$(id -u)" > .env
 docker-compose up -d --build
 
 # 3. Access Airflow UI
-# Open http://localhost:8080 (User: admin, Pass: admin)
+# Open http://localhost:8081 (User: admin, Pass: admin)
 # Trigger 'ghana_legal_pipeline' DAG to start ingestion.
 ```
 
