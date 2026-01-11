@@ -33,9 +33,25 @@ git clone <repo-url>
 cd ghana-legal-ai
 ```
 
-### 2. Quick Start (Makefile)
 
-The easiest way to get started is using the included `Makefile`.
+### Option B: Professional Docker Setup (Recommended)
+This method runs the entire stack (Airflow, MongoDB, Postgres) in containers.
+
+```bash
+# 1. Create .env file for Docker
+echo "AIRFLOW_UID=$(id -u)" > .env
+
+# 2. Build and Start Services
+docker-compose up -d --build
+
+# 3. Access Airflow UI
+# Open http://localhost:8080 (User: admin, Pass: admin)
+# Trigger 'ghana_legal_pipeline' DAG to start ingestion.
+```
+
+### Option C: Manual Script Setup (Educational)
+This runs the lightweight version on your host machine.
+
 
 ```bash
 # 1. Install all dependencies (Backend & Frontend)
@@ -57,6 +73,19 @@ You will need two terminal windows:
 ```bash
 make start-backend
 # Runs at http://localhost:8000
+```
+
+### 4. Automated Data Factory (Airflow)
+To run the automated ingestion pipeline (fetch -> index daily):
+```bash
+# 1. Initialize Airflow directory
+export AIRFLOW_HOME=$(pwd)/airflow
+airflow db init
+
+# 2. Start Scheduler & Webserver
+airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com
+airflow webserver -p 8081 & airflow scheduler
+# Access UI at http://localhost:8081
 ```
 
 **Terminal 2 (Frontend):**
