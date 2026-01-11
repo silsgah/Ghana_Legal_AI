@@ -33,44 +33,39 @@ git clone <repo-url>
 cd ghana-legal-ai
 ```
 
-### 2. Backend Setup
-```bash
-cd legal-api
-pip install -r requirements.txt
+### 2. Quick Start (Makefile)
 
-# Create .env file based on .env.example
-cp src/.env.example src/.env
-# Edit src/.env with your API keys
+The easiest way to get started is using the included `Makefile`.
+
+```bash
+# 1. Install all dependencies (Backend & Frontend)
+make install
+
+# 2. Configure Environment
+cp legal-api/src/.env.example legal-api/src/.env
+# Edit legal-api/src/.env with your API keys (Groq, MongoDB, etc.)
+
+# 3. Ingest Data (Populate Vector DB)
+make ingest
 ```
 
-### 3. Frontend Setup
+### 3. Running Locally
+
+You will need two terminal windows:
+
+**Terminal 1 (Backend):**
 ```bash
-cd ../legal-web
-npm install
+make start-backend
+# Runs at http://localhost:8000
 ```
 
-### 4. Data Ingestion
-Populate the knowledge base with legal documents:
+**Terminal 2 (Frontend):**
 ```bash
-cd ../legal-api/src
-# Ensure MONGO_URI is set in your environment or .env
-python -m ghana_legal.application.data.ingest
+make start-frontend
+# Runs at http://localhost:3000
 ```
 
-### 5. Running Locally
-**Backend:**
-```bash
-# In legal-api/src
-python -m ghana_legal.infrastructure.api
-# Server runs at http://localhost:8000
-```
 
-**Frontend:**
-```bash
-# In legal-web
-npm run dev
-# App runs at http://localhost:3000
-```
 
 ## Testing & Evaluation
 Run the DeepEval test suite to verify agent performance:
