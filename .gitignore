@@ -29,5 +29,12 @@ dist/
 .idea/
 .DS_Store
 
+
 # Logs
 *.log
+
+# Documentation
+*.md
+!README.md
+!legal-api/README.md
+!legal-web/README.md
