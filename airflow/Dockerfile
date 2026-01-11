@@ -27,6 +27,8 @@ RUN pip install --no-cache-dir \
     sentence-transformers \
     loguru \
     python-dotenv \
-    pypdf
+    python-dotenv \
+    pypdf \
+    datasketch
 
 # Ensure ghana_legal package is importable via python path in docker-compose

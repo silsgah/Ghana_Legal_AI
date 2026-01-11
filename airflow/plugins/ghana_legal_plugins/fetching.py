@@ -7,12 +7,13 @@ from bs4 import BeautifulSoup
 from pathlib import Path
 from urllib.parse import urljoin
 from datetime import datetime
+from typing import List, Dict, Optional
 
 # Configuration
 BASE_URL = "https://ghalii.org"
 CASES_URL = "https://ghalii.org/judgments/GHASC/?q=&sort=-date"
 
-def get_case_links(page_url: str, max_cases: int = 10) -> list[dict]:
+def get_case_links(page_url: str, max_cases: int = 10) -> List[Dict]:
     """Extract case page links from the listing page."""
     print(f"📄 Fetching case listing from: {page_url}")
     
@@ -57,7 +58,7 @@ def get_case_links(page_url: str, max_cases: int = 10) -> list[dict]:
     print(f"✅ Found {len(unique_cases)} unique cases")
     return unique_cases
 
-def download_pdf(case: dict, output_dir: Path) -> str | None:
+def download_pdf(case: dict, output_dir: Path) -> Optional[str]:
     """Download a single PDF and return filepath if successful."""
     # Create safe filename from title
     safe_title = re.sub(r'[^\w\s-]', '', case['title'])[:80]
@@ -86,7 +87,7 @@ def download_pdf(case: dict, output_dir: Path) -> str | None:
         print(f"❌ Error downloading {filename}: {e}")
         return None
 
-def fetch_new_cases(output_dir: str, limit: int = 10) -> list[str]:
+def fetch_new_cases(output_dir: str, limit: int = 10) -> List[str]:
     """
     Main function to download new cases.
     Returns list of paths to newly downloaded files.

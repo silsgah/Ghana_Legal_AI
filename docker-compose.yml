@@ -16,8 +16,8 @@ x-airflow-common: &airflow-common
     PROJECT_ROOT: /opt/airflow/dags/ghana_legal_root
     MONGO_URI: mongodb://ghana_legal:ghana_legal@mongodb:27017
     # Pass through keys if needed
-    GROQ_API_KEY: ${GROQ_API_KEY}
     OPENAI_API_KEY: ${OPENAI_API_KEY}
+    # PYTHONPATH removed for debugging
   volumes:
     - ./airflow/dags:/opt/airflow/dags
     - ./airflow/plugins:/opt/airflow/plugins
