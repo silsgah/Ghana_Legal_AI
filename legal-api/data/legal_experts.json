@@ -1,0 +1,20 @@
+[
+    {
+        "id": "constitutional",
+        "urls": [
+            "https://en.wikipedia.org/wiki/Constitution_of_Ghana"
+        ]
+    },
+    {
+        "id": "case_law",
+        "urls": [
+            "https://en.wikipedia.org/wiki/Judiciary_of_Ghana"
+        ]
+    },
+    {
+        "id": "legal_historian",
+        "urls": [
+            "https://en.wikipedia.org/wiki/Legal_system_of_Ghana"
+        ]
+    }
+]

@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+
+# Environment
+.env
+.env.local
+
+# Data (Don't commit large models or PDFs)
+data/cases/*.pdf
+data/*.gguf
+data/*.bin
+data/ghana_legal_finetune_expanded.json
+!data/cases/.keep
+
+# Node
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# Logs
+*.log
