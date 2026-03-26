@@ -1,0 +1,122 @@
+{
+  "timestamp": "2026-02-14T08:30:57.517175",
+  "dataset_version": "0.1.0",
+  "dataset_size": 10,
+  "runners": [
+    {
+      "name": "Llama-3-70B (zero-shot)",
+      "avg_scores": {
+        "AnswerRelevancyMetric": 0.972857142857143,
+        "ContextualPrecisionMetric": 1.0,
+        "ContextualRecallMetric": 0.8,
+        "FaithfulnessMetric": 0.8800757575757576,
+        "Legal Accuracy": 0.6205153210083396,
+        "Legal Authority": 0.726779204499109,
+        "Legal Relevance": 0.8240279694108488
+      },
+      "avg_latency": 1.781936349100033,
+      "pass_rates": {
+        "AnswerRelevancyMetric": 0.9,
+        "ContextualPrecisionMetric": 1.0,
+        "ContextualRecallMetric": 0.6,
+        "FaithfulnessMetric": 0.8,
+        "Legal Accuracy": 0.0,
+        "Legal Authority": 0.4,
+        "Legal Relevance": 0.6
+      },
+      "question_count": 10
+    },
+    {
+      "name": "Llama-3-8B (zero-shot)",
+      "avg_scores": {
+        "AnswerRelevancyMetric": 0.9302777777777778,
+        "ContextualPrecisionMetric": 1.0,
+        "ContextualRecallMetric": 0.8266666666666665,
+        "FaithfulnessMetric": 0.7604761904761904,
+        "Legal Accuracy": 0.5498253085104162,
+        "Legal Authority": 0.5276522296090783,
+        "Legal Relevance": 0.7331754536594063
+      },
+      "avg_latency": 1.0767658063999987,
+      "pass_rates": {
+        "AnswerRelevancyMetric": 0.9,
+        "ContextualPrecisionMetric": 1.0,
+        "ContextualRecallMetric": 0.6,
+        "FaithfulnessMetric": 0.5,
+        "Legal Accuracy": 0.0,
+        "Legal Authority": 0.5,
+        "Legal Relevance": 0.4
+      },
+      "question_count": 10
+    },
+    {
+      "name": "GPT-4o (zero-shot)",
+      "avg_scores": {
+        "AnswerRelevancyMetric": 0.8131313131313131,
+        "ContextualPrecisionMetric": 1.0,
+        "ContextualRecallMetric": 0.8666666666666668,
+        "FaithfulnessMetric": 0.9069230769230769,
+        "Legal Accuracy": 0.7743057550046704,
+        "Legal Authority": 0.6890211441081163,
+        "Legal Relevance": 0.8861556560244346
+      },
+      "avg_latency": 5.207684983299987,
+      "pass_rates": {
+        "AnswerRelevancyMetric": 0.6,
+        "ContextualPrecisionMetric": 1.0,
+        "ContextualRecallMetric": 0.8,
+        "FaithfulnessMetric": 0.8,
+        "Legal Accuracy": 0.2,
+        "Legal Authority": 0.4,
+        "Legal Relevance": 0.9
+      },
+      "question_count": 10
+    },
+    {
+      "name": "Llama-3-70B + RAG",
+      "avg_scores": {
+        "AnswerRelevancyMetric": 0.9333333333333332,
+        "ContextualPrecisionMetric": 1.0,
+        "ContextualRecallMetric": 0.725,
+        "FaithfulnessMetric": 0.9073809523809524,
+        "Legal Accuracy": 0.7453104591284602,
+        "Legal Authority": 0.6704724071786764,
+        "Legal Relevance": 0.813730894801466
+      },
+      "avg_latency": 0.8900530589999107,
+      "pass_rates": {
+        "AnswerRelevancyMetric": 0.8,
+        "ContextualPrecisionMetric": 1.0,
+        "ContextualRecallMetric": 0.5,
+        "FaithfulnessMetric": 0.9,
+        "Legal Accuracy": 0.0,
+        "Legal Authority": 0.3,
+        "Legal Relevance": 0.3
+      },
+      "question_count": 10
+    },
+    {
+      "name": "GPT-4o + RAG",
+      "avg_scores": {
+        "AnswerRelevancyMetric": 0.9199999999999999,
+        "ContextualPrecisionMetric": 1.0,
+        "ContextualRecallMetric": 0.825,
+        "FaithfulnessMetric": 0.9444444444444443,
+        "Legal Accuracy": 0.8200043803549699,
+        "Legal Authority": 0.5285415795688595,
+        "Legal Relevance": 0.8758394706772263
+      },
+      "avg_latency": 3.215369174099942,
+      "pass_rates": {
+        "AnswerRelevancyMetric": 0.8,
+        "ContextualPrecisionMetric": 1.0,
+        "ContextualRecallMetric": 0.7,
+        "FaithfulnessMetric": 0.8,
+        "Legal Accuracy": 0.1,
+        "Legal Authority": 0.4,
+        "Legal Relevance": 0.7
+      },
+      "question_count": 10
+    }
+  ]
+}

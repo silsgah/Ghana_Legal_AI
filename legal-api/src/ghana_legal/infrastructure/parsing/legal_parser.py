@@ -62,10 +62,36 @@ class LegalDocumentLoader:
                 page_content=content,
                 metadata={"source": str(file_path), "filename": file_path.name},
             )
-        
-        # TODO: Add PDF parsing support (Phase 3)
+
+        # PDF parsing support
         if file_path.suffix.lower() == ".pdf":
-            logger.warning(f"PDF parsing not yet implemented for {file_path.name}")
-            return None
+            try:
+                from langchain_community.document_loaders import PyPDFLoader
+
+                logger.info(f"Parsing PDF: {file_path.name}")
+                loader = PyPDFLoader(str(file_path))
+                pages = loader.load()
+
+                # Combine all pages into single document
+                combined_content = "\n\n".join([page.page_content for page in pages])
+
+                # Extract metadata from first page if available
+                metadata = {
+                    "source": str(file_path),
+                    "filename": file_path.name,
+                    "total_pages": len(pages),
+                }
+
+                # Try to get metadata from first page
+                if pages and pages[0].metadata:
+                    metadata.update(pages[0].metadata)
+
+                return Document(
+                    page_content=combined_content,
+                    metadata=metadata
+                )
+            except Exception as e:
+                logger.error(f"Failed to parse PDF {file_path.name}: {e}")
+                return None
 
         return None

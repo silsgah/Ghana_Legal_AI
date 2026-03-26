@@ -1,67 +1,54 @@
 @import "tailwindcss";
 
 /* ========================================
-   PhiloAgents Design System
+   Ghana Legal AI SaaS — Design System
    ======================================== */
 
 :root {
-  /* Core Colors */
-  --background: #fafafa;
-  --foreground: #18181b;
-  --card: #ffffff;
-  --card-foreground: #18181b;
-  --muted: #f4f4f5;
-  --muted-foreground: #71717a;
-  --border: #e4e4e7;
+  /* Core Palette — Refined dark theme inspired by premium legal SaaS */
+  --background: #0c0e14;
+  --foreground: #e8eaf0;
+  --card: #141720;
+  --card-foreground: #e8eaf0;
+  --muted: #1c2030;
+  --muted-foreground: #8892a8;
+  --border: #1e2438;
+  --border-hover: #2a3350;
 
-  /* Accent Colors - Ghana Theme */
-  --primary: #006b3f;
-  /* Ghana Green */
+  /* Ghana National Colors — Refined for digital */
+  --ghana-gold: #f7c948;
+  --ghana-green: #22a05b;
+  --ghana-red: #e54848;
+
+  /* Primary Accent — Deep legal blue-indigo */
+  --primary: #5b6af0;
+  --primary-hover: #6d7bf8;
+  --primary-muted: rgba(91,106,240,0.12);
   --primary-foreground: #ffffff;
-  --secondary: #f4f4f5;
-  --secondary-foreground: #18181b;
 
-  /* Semantic Colors */
-  --success: #10b981;
-  --warning: #f59e0b;
-  --error: #ef4444;
+  /* Surface Levels */
+  --surface-0: #0c0e14;
+  --surface-1: #141720;
+  --surface-2: #1c2030;
+  --surface-3: #242a3c;
 
-  /* Gradients */
-  --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --gradient-secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  --gradient-dark: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  /* Semantic */
+  --success: #22a05b;
+  --warning: #f7c948;
+  --error: #e54848;
+  --info: #5b9cf0;
 
   /* Shadows */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  --shadow-glow: 0 0 20px rgb(99 102 241 / 0.3);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.35);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.4);
+  --shadow-glow: 0 0 24px rgba(91,106,240,0.15);
 
-  /* Glass Effect */
-  --glass-bg: rgba(255, 255, 255, 0.8);
-  --glass-border: rgba(255, 255, 255, 0.2);
-
-  /* Spacing */
-  --radius: 0.75rem;
-}
-
-.dark,
-[data-theme="dark"] {
-  --background: #09090b;
-  --foreground: #fafafa;
-  --card: #18181b;
-  --card-foreground: #fafafa;
-  --muted: #27272a;
-  --muted-foreground: #a1a1aa;
-  --border: #27272a;
-
-  --primary: #818cf8;
-  --primary-foreground: #000000;
-  --secondary: #27272a;
-  --secondary-foreground: #fafafa;
-
-  --glass-bg: rgba(24, 24, 27, 0.8);
-  --glass-border: rgba(255, 255, 255, 0.1);
+  /* Radius */
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
 }
 
 @theme inline {
@@ -72,8 +59,8 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
   --color-primary: var(--primary);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 }
 
 /* ========================================
@@ -91,26 +78,20 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-/* Dark mode background gradient */
-.dark body,
-[data-theme="dark"] body {
-  background: var(--gradient-dark);
-  background-attachment: fixed;
+  letter-spacing: -0.011em;
 }
 
 /* ========================================
-   Scrollbar Styling
+   Scrollbar Styling (Minimal)
    ======================================== */
 
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -118,29 +99,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--muted-foreground);
-  border-radius: 4px;
+  background: var(--surface-3);
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--foreground);
-}
-
-/* ========================================
-   Glass Morphism Utilities
-   ======================================== */
-
-.glass {
-  background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--glass-border);
-}
-
-.glass-subtle {
-  background: var(--glass-bg);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: var(--muted-foreground);
 }
 
 /* ========================================
@@ -148,73 +112,54 @@ body {
    ======================================== */
 
 @keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes slide-in-left {
-  from {
-    opacity: 0;
-    transform: translateX(-16px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
 }
 
 @keyframes pulse-dot {
-
-  0%,
-  60%,
-  100% {
-    transform: scale(1);
-    opacity: 0.6;
-  }
-
-  30% {
-    transform: scale(1.2);
-    opacity: 1;
-  }
+  0%, 60%, 100% { transform: scale(1); opacity: 0.4; }
+  30% { transform: scale(1.3); opacity: 1; }
 }
 
-@keyframes gradient-shift {
-  0% {
-    background-position: 0% 50%;
-  }
-
-  50% {
-    background-position: 100% 50%;
-  }
-
-  100% {
-    background-position: 0% 50%;
-  }
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
-/* Animation utility classes */
+@keyframes gradient-border {
+  0%, 100% { border-color: rgba(91,106,240,0.3); }
+  50% { border-color: rgba(91,106,240,0.6); }
+}
+
+@keyframes float-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 .animate-fade-in {
-  animation: fade-in 0.3s ease-out forwards;
+  animation: fade-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .animate-slide-in-left {
-  animation: slide-in-left 0.3s ease-out forwards;
+  animation: slide-in-left 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-float-in {
+  animation: float-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* ========================================
-   Typography
+   Typography — Chat Messages
    ======================================== */
 
 .prose-chat {
-  line-height: 1.7;
+  line-height: 1.75;
+  font-size: 0.9375rem;
 }
 
 .prose-chat p {
@@ -226,28 +171,31 @@ body {
 }
 
 .prose-chat code {
-  background: var(--muted);
-  padding: 0.125rem 0.375rem;
-  border-radius: 0.25rem;
-  font-size: 0.875em;
-  font-family: var(--font-mono, 'Geist Mono', monospace);
+  background: var(--surface-2);
+  padding: 0.15rem 0.4rem;
+  border-radius: 5px;
+  font-size: 0.85em;
+  font-family: var(--font-mono, monospace);
+  color: var(--ghana-gold);
 }
 
 .prose-chat pre {
-  background: var(--muted);
-  padding: 1rem;
+  background: var(--surface-2);
+  padding: 1rem 1.25rem;
   border-radius: var(--radius);
   overflow-x: auto;
   margin: 0.75em 0;
+  border: 1px solid var(--border);
 }
 
 .prose-chat pre code {
   background: transparent;
   padding: 0;
+  color: var(--foreground);
 }
 
 /* ========================================
-   Focus States
+   Focus & Interaction States
    ======================================== */
 
 :focus-visible {
@@ -255,10 +203,39 @@ body {
   outline-offset: 2px;
 }
 
-/* ========================================
-   Transitions
-   ======================================== */
-
 .transition-smooth {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ========================================
+   Utility Classes
+   ======================================== */
+
+.glass {
+  background: rgba(20, 23, 32, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+}
+
+.glass-subtle {
+  background: rgba(20, 23, 32, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Gold accent underline for branding */
+.accent-underline {
+  position: relative;
+}
+
+.accent-underline::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, var(--ghana-gold), transparent);
+  border-radius: 1px;
 }

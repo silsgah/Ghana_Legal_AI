@@ -5,6 +5,8 @@ langchain-community
 langchain-core
 langchain-groq
 langchain-mongodb
+langchain-chroma
+langchain-huggingface
 langgraph
 langgraph-checkpoint-mongodb
 pydantic
@@ -18,3 +20,7 @@ python-dotenv
 loguru
 motor
 pypdf
+chromadb
+cohere
+rich
+tqdm

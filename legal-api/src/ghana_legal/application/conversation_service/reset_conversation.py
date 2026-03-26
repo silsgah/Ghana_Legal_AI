@@ -1,5 +1,6 @@
 from loguru import logger
 from pymongo import MongoClient
+import certifi
 
 from ghana_legal.config import settings
 
@@ -18,7 +19,7 @@ async def reset_conversation_state() -> dict:
         Exception: If there's an error connecting to MongoDB or deleting collections
     """
     try:
-        client = MongoClient(settings.MONGO_URI)
+        client = MongoClient(settings.MONGO_URI, tlsCAFile=certifi.where())
         db = client[settings.MONGO_DB_NAME]
 
         collections_deleted = []

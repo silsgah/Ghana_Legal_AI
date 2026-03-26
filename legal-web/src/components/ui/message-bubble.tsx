@@ -22,43 +22,50 @@ export function MessageBubble({ role, content, expert, timestamp }: MessageBubbl
 
     return (
         <div
-            className={cn(
-                'flex w-full p-6 animate-fade-in',
-                isUser ? 'bg-white dark:bg-zinc-900' : 'bg-zinc-50 dark:bg-zinc-800/50'
-            )}
+            className="animate-fade-in"
+            style={{
+                padding: '1.5rem 1.75rem',
+                background: isUser ? 'var(--surface-0)' : 'var(--surface-1)',
+                borderBottom: '1px solid var(--border)',
+            }}
         >
-            <div className="max-w-3xl mx-auto flex gap-5 w-full">
+            <div className="max-w-3xl mx-auto flex gap-4 w-full">
                 {/* Avatar */}
-                <div className="flex-shrink-0">
+                <div className="flex-shrink-0 pt-0.5">
                     {isUser ? (
-                        <div className="w-9 h-9 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center">
-                            <User size={18} className="text-zinc-600 dark:text-zinc-300" />
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+                             style={{ background: 'var(--surface-3)' }}>
+                            <User size={16} style={{ color: 'var(--muted-foreground)' }} />
                         </div>
                     ) : (
                         <div
-                            className="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-sm shadow-md"
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-sm shadow-sm"
                             style={{
                                 background: expert
-                                    ? `linear-gradient(135deg, ${expert.accentColor}88, ${expert.accentColor})`
-                                    : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                    ? `linear-gradient(135deg, ${expert.accentColor}66, ${expert.accentColor})`
+                                    : 'linear-gradient(135deg, var(--primary), #8b5cf6)',
                             }}
                         >
-                            {expert?.icon || expert?.name.charAt(0) || 'E'}
+                            {expert?.icon || '⚖️'}
                         </div>
                     )}
                 </div>
 
                 {/* Message Content */}
                 <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-2 mb-1.5">
-                        <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                    <div className="flex items-baseline gap-2 mb-1">
+                        <span className="font-semibold text-[13px]"
+                              style={{ color: isUser ? 'var(--foreground)' : expert?.accentColor || 'var(--primary)' }}>
                             {isUser ? 'You' : expert?.name || 'Legal Expert'}
                         </span>
                         {timestamp && (
-                            <span className="text-xs text-zinc-400">{formatTime(timestamp)}</span>
+                            <span className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
+                                {formatTime(timestamp)}
+                            </span>
                         )}
                     </div>
-                    <div className="prose-chat text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap leading-relaxed">
+                    <div className="prose-chat whitespace-pre-wrap leading-relaxed"
+                         style={{ color: 'var(--foreground)', opacity: isUser ? 0.9 : 1 }}>
                         {content}
                     </div>
                 </div>

@@ -1,0 +1,650 @@
+{
+    "version": "0.1.0",
+    "description": "LegalBench-GH: Ghanaian Legal QA Benchmark — Seed Dataset v0.1",
+    "questions": [
+        {
+            "id": "CONST-F-001",
+            "category": "constitutional_factual",
+            "difficulty": "easy",
+            "question": "In whom does the sovereignty of Ghana reside according to the 1992 Constitution?",
+            "gold_answer": "According to Article 1(1) of the 1992 Constitution, the sovereignty of Ghana resides in the people of Ghana, in whose name and for whose welfare the powers of government are to be exercised.",
+            "required_citations": [
+                "Article 1(1)"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 1(1) of the 1992 Constitution states: The Sovereignty of Ghana resides in the people of Ghana in whose name and for whose welfare the powers of government are to be exercised."
+            ]
+        },
+        {
+            "id": "CONST-F-002",
+            "category": "constitutional_factual",
+            "difficulty": "easy",
+            "question": "What is the supreme law of Ghana?",
+            "gold_answer": "The 1992 Constitution is the supreme law of Ghana. Article 1(2) provides that the Constitution shall be the supreme law of Ghana and any other law found to be inconsistent with any provision of the Constitution shall, to the extent of the inconsistency, be void.",
+            "required_citations": [
+                "Article 1(2)"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 1(2): The Constitution shall be the supreme law of Ghana and any other law found to be inconsistent with any provision of this Constitution shall, to the extent of the inconsistency, be void."
+            ]
+        },
+        {
+            "id": "CONST-F-003",
+            "category": "constitutional_factual",
+            "difficulty": "easy",
+            "question": "Which chapter of the 1992 Constitution deals with Fundamental Human Rights and Freedoms?",
+            "gold_answer": "Chapter Five of the 1992 Constitution deals with Fundamental Human Rights and Freedoms, spanning Articles 12 through 33.",
+            "required_citations": [
+                "Chapter 5",
+                "Article 12"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Chapter Five of the 1992 Constitution is titled 'Fundamental Human Rights and Freedoms'. Article 12(1) states: The fundamental human rights and freedoms enshrined in this chapter shall be respected and upheld by the Executive, Legislature and Judiciary and all other organs of government."
+            ]
+        },
+        {
+            "id": "CONST-F-004",
+            "category": "constitutional_factual",
+            "difficulty": "easy",
+            "question": "What does Article 21 of the 1992 Constitution guarantee?",
+            "gold_answer": "Article 21 of the 1992 Constitution guarantees general fundamental freedoms, including freedom of speech and expression, freedom of the press, freedom of assembly, freedom of association, and freedom of religion.",
+            "required_citations": [
+                "Article 21"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 21(1): All persons shall have the right to (a) freedom of speech and expression, which shall include freedom of the press and other media; (b) freedom of thought, conscience and belief; (c) freedom to practise any religion; (d) freedom of assembly including freedom to take part in processions and demonstrations; (e) freedom of association."
+            ]
+        },
+        {
+            "id": "CONST-F-005",
+            "category": "constitutional_factual",
+            "difficulty": "easy",
+            "question": "What is the minimum age to be eligible for the office of President of Ghana?",
+            "gold_answer": "According to Article 62(b) of the 1992 Constitution, a person is not qualified for election as President unless they have attained the age of forty years.",
+            "required_citations": [
+                "Article 62(b)"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 62: A person shall not be qualified for election as the President of Ghana unless (a) he is a citizen of Ghana by birth; (b) he has attained the age of forty years."
+            ]
+        },
+        {
+            "id": "CONST-F-006",
+            "category": "constitutional_factual",
+            "difficulty": "easy",
+            "question": "How many members does the Council of State have under the 1992 Constitution?",
+            "gold_answer": "The Council of State comprises twenty-five members as provided under Article 89 of the 1992 Constitution.",
+            "required_citations": [
+                "Article 89"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 89 establishes the Council of State consisting of twenty-five members who advise the President in the performance of his functions."
+            ]
+        },
+        {
+            "id": "CONST-F-007",
+            "category": "constitutional_factual",
+            "difficulty": "easy",
+            "question": "Which chapter of the 1992 Constitution addresses the Armed Forces of Ghana?",
+            "gold_answer": "Chapter Seventeen of the 1992 Constitution addresses the Armed Forces of Ghana.",
+            "required_citations": [
+                "Chapter 17"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Chapter Seventeen of the 1992 Constitution is titled 'Armed Forces of Ghana' and covers the establishment, composition, and regulation of Ghana's military services."
+            ]
+        },
+        {
+            "id": "CONST-F-008",
+            "category": "constitutional_factual",
+            "difficulty": "easy",
+            "question": "What does Article 20 of the 1992 Constitution say about compulsory acquisition of property?",
+            "gold_answer": "Article 20 provides that no property shall be compulsorily taken possession of or acquired by the State unless the taking or acquisition is necessary in the interest of public safety, public order, public morality, public health, town and country planning, or the development or utilisation of property in a manner to promote the public benefit, and provision is made for the prompt payment of fair and adequate compensation.",
+            "required_citations": [
+                "Article 20"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 20(1): No property of any description or interest in or right over any property shall be compulsorily taken possession of or acquired by the State unless the acquisition is necessary in the interest of public safety, public order, public morality, public health, town and country planning or the development or utilisation of property in a manner to promote the public benefit; and provision is made for the prompt payment of fair and adequate compensation."
+            ]
+        },
+        {
+            "id": "CONST-F-009",
+            "category": "constitutional_factual",
+            "difficulty": "easy",
+            "question": "What are the three branches of government in Ghana according to the 1992 Constitution?",
+            "gold_answer": "The 1992 Constitution establishes three branches of government: the Executive (Chapter Eight, headed by the President), the Legislature (Chapter Ten, being Parliament), and the Judiciary (Chapter Eleven, headed by the Chief Justice and the Supreme Court).",
+            "required_citations": [
+                "Chapter 8",
+                "Chapter 10",
+                "Chapter 11"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "The 1992 Constitution establishes a separation of powers with three branches: the Executive (Chapter 8), the Legislature (Chapter 10), and the Judiciary (Chapter 11)."
+            ]
+        },
+        {
+            "id": "CONST-F-010",
+            "category": "constitutional_factual",
+            "difficulty": "easy",
+            "question": "Does the 1992 Constitution provide for free and compulsory basic education?",
+            "gold_answer": "Yes. Article 25(1)(a) of the 1992 Constitution provides that all persons shall have the right to equal educational opportunities and facilities, and basic education shall be free, compulsory and available to all.",
+            "required_citations": [
+                "Article 25(1)(a)"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 25(1): All persons shall have the right to equal educational opportunities and facilities and with a view to achieving full realisation of that right — (a) basic education shall be free, compulsory and available to all."
+            ]
+        },
+        {
+            "id": "CONST-F-011",
+            "category": "constitutional_factual",
+            "difficulty": "easy",
+            "question": "What is the term of office for the President of Ghana?",
+            "gold_answer": "Under Article 66 of the 1992 Constitution, the President shall hold office for a term of four years beginning from the date on which he is sworn in as President. A person shall not be elected to hold office as President of Ghana for more than two terms.",
+            "required_citations": [
+                "Article 66"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 66(1): The President shall hold office for a term of four years beginning from the date on which he is sworn in as President. (2) A person shall not be elected to hold office as President of Ghana for more than two terms."
+            ]
+        },
+        {
+            "id": "CONST-F-012",
+            "category": "constitutional_factual",
+            "difficulty": "easy",
+            "question": "What court is at the apex of Ghana's judicial hierarchy?",
+            "gold_answer": "The Supreme Court of Ghana is at the apex of Ghana's judicial hierarchy, as established under Article 125 and Article 126 of the 1992 Constitution. It is the final court of appeal and has original jurisdiction in all matters relating to the enforcement or interpretation of the Constitution.",
+            "required_citations": [
+                "Article 125",
+                "Article 126"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 125(1): Justice emanates from the people and shall be administered in the name of the Republic by the Judiciary. Article 126(1): The Superior Courts of Judicature shall consist of (a) the Supreme Court; (b) the Court of Appeal; (c) the High Court and Regional Tribunals."
+            ]
+        },
+        {
+            "id": "CONST-I-001",
+            "category": "constitutional_interpretive",
+            "difficulty": "medium",
+            "question": "Can the President of Ghana execute a treaty without the involvement of Parliament?",
+            "gold_answer": "No. While Article 75(1) empowers the President to execute or cause to be executed treaties, agreements, or conventions in the name of Ghana, Article 75(2) requires that a treaty, agreement, or convention executed by or under the authority of the President shall be subject to ratification by Act of Parliament or by a resolution of Parliament supported by the votes of more than one-half of all the members of Parliament.",
+            "required_citations": [
+                "Article 75(1)",
+                "Article 75(2)"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 75(1): The President may execute or cause to be executed treaties, agreements or conventions in the name of Ghana. (2) A treaty, agreement or convention executed by or under authority of the President shall be subject to ratification by (a) Act of Parliament; or (b) a resolution of Parliament supported by the votes of more than one-half of all the members of Parliament."
+            ]
+        },
+        {
+            "id": "CONST-I-002",
+            "category": "constitutional_interpretive",
+            "difficulty": "medium",
+            "question": "Under what circumstances can the President of Ghana be removed from office?",
+            "gold_answer": "The President may be removed from office under Article 69 of the 1992 Constitution. A motion for the removal must be supported by the votes of not less than two-thirds of all the members of Parliament on the grounds of (a) acting in wilful violation of the oath of allegiance and the Presidential oath; (b) acting in wilful violation of any provision of the Constitution; or (c) conduct that brings or is likely to bring the office of President into disrepute, ridicule or contempt.",
+            "required_citations": [
+                "Article 69"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 69(1): The President shall be removed from office if a motion for his removal is supported by the votes of not less than two-thirds of all the members of Parliament on grounds of (a) acting in wilful violation of the oath of allegiance and the Presidential oath; (b) acting in wilful violation of any provision of this Constitution; or (c) misconduct."
+            ]
+        },
+        {
+            "id": "CONST-I-003",
+            "category": "constitutional_interpretive",
+            "difficulty": "medium",
+            "question": "Does a citizen of Ghana have the right to information held by government bodies?",
+            "gold_answer": "Yes. Article 21(1)(f) of the 1992 Constitution provides that every person shall have the right to information, subject to such qualifications and laws as are necessary in a democratic society. This right to information enables citizens to access information held by government agencies and public bodies, though it may be subject to reasonable restrictions.",
+            "required_citations": [
+                "Article 21(1)(f)"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 21(1)(f): All persons shall have the right to information subject to such qualifications and laws as are necessary in a democratic society."
+            ]
+        },
+        {
+            "id": "CONST-I-004",
+            "category": "constitutional_interpretive",
+            "difficulty": "medium",
+            "question": "Can Parliament amend any provision of the 1992 Constitution? What is required?",
+            "gold_answer": "Parliament may amend provisions of the Constitution, but the process differs depending on which provisions are involved. Under Article 289, entrenched provisions (such as those dealing with sovereignty, fundamental rights, and the executive) require a national referendum after being passed by at least two-thirds of Parliament. Non-entrenched provisions can be amended by a two-thirds majority of Parliament without a referendum, as provided in Article 290.",
+            "required_citations": [
+                "Article 289",
+                "Article 290"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 289: Entrenched provisions of this Constitution shall not be amended unless the amendment has been approved at a referendum. Article 290: A bill to amend a provision of this Constitution which is not an entrenched provision shall not be introduced in Parliament unless it has been published twice in the Gazette."
+            ]
+        },
+        {
+            "id": "CONST-I-005",
+            "category": "constitutional_interpretive",
+            "difficulty": "medium",
+            "question": "Is dual citizenship permitted under the 1992 Constitution of Ghana?",
+            "gold_answer": "The original 1992 Constitution did not permit dual citizenship. However, the Citizenship Act 2000 (Act 591) and subsequent amendments have modified this position. Under Article 8, a citizen of Ghana may hold the citizenship of any other country in addition to citizenship of Ghana, following legislative amendments that recognised the rights of the Ghanaian diaspora.",
+            "required_citations": [
+                "Article 8",
+                "Citizenship Act 2000 (Act 591)"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 8 of the Constitution, as amended, provides for citizenship by birth, registration, and naturalisation, and permits dual citizenship under conditions specified by law."
+            ]
+        },
+        {
+            "id": "CONST-I-006",
+            "category": "constitutional_interpretive",
+            "difficulty": "medium",
+            "question": "What is the role of the Attorney-General under the 1992 Constitution?",
+            "gold_answer": "Under Article 88 of the 1992 Constitution, the Attorney-General is the principal legal adviser to the Government. The Attorney-General is responsible for the institution and conduct of all civil cases on behalf of the State, and may institute criminal prosecutions. All offences prosecuted in the name of the Republic of Ghana shall be at the suit of the Attorney-General or any other person authorised by the Attorney-General.",
+            "required_citations": [
+                "Article 88"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 88(1): There shall be an Attorney-General of Ghana who shall be a Minister of State and the principal legal adviser to the Government. (2) The Attorney-General shall be responsible for the institution and conduct of all civil cases on behalf of the State."
+            ]
+        },
+        {
+            "id": "CONST-I-007",
+            "category": "constitutional_interpretive",
+            "difficulty": "medium",
+            "question": "Does the 1992 Constitution prohibit the establishment of a one-party state in Ghana?",
+            "gold_answer": "Yes. Article 3(1) of the 1992 Constitution explicitly prohibits the establishment of a one-party state, declaring that Parliament shall have no power to enact a law establishing a one-party state. Furthermore, Article 3(4) provides that all citizens of Ghana shall have the right and duty to defend the Constitution and to resist any person or group of persons seeking to overthrow or suspend the Constitution or any part thereof.",
+            "required_citations": [
+                "Article 3(1)",
+                "Article 3(4)"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 3(1): Parliament shall have no power to enact a law establishing a one-party state. Article 3(4): All citizens of Ghana shall have the right and duty at all times to defend this Constitution."
+            ]
+        },
+        {
+            "id": "CONST-I-008",
+            "category": "constitutional_interpretive",
+            "difficulty": "hard",
+            "question": "How does the 1992 Constitution balance the right to property with public interest acquisition?",
+            "gold_answer": "The 1992 Constitution strikes a balance through Article 18 (right to property) and Article 20 (compulsory acquisition). Article 18(1) guarantees every person the right to own property, either alone or in association with others. However, Article 20 permits compulsory acquisition by the State only when it is necessary in the interest of public safety, public order, public health, town and country planning, or for promoting public benefit — provided that prompt payment of fair and adequate compensation is made. Article 20(2) further requires that compulsory acquisition must be made under a law giving a right of access to the High Court for determination of interests and compensation.",
+            "required_citations": [
+                "Article 18(1)",
+                "Article 20(1)",
+                "Article 20(2)"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 18(1): Every person has the right to own property either alone or in association with others. Article 20(1): No property shall be compulsorily taken without adequate compensation. Article 20(2): Compulsory acquisition shall be made under a law which provides a right of access to the High Court."
+            ]
+        },
+        {
+            "id": "CL-001",
+            "category": "case_law_precedent",
+            "difficulty": "hard",
+            "question": "What was the significance of Tuffuor v Attorney General [1980] GLR 637?",
+            "gold_answer": "Tuffuor v Attorney General [1980] GLR 637 is a landmark decision of the Supreme Court of Ghana that established the principle of constitutional supremacy. The Court held that the Constitution is the supreme law of Ghana and any law found to be inconsistent with any provision of the Constitution is void to the extent of the inconsistency. This case is frequently cited as authority for the supremacy clause and has been foundational in subsequent constitutional interpretation.",
+            "required_citations": [
+                "Tuffuor v Attorney General [1980] GLR 637"
+            ],
+            "source_document": "Ghana Supreme Court Case Law",
+            "retrieval_context": [
+                "In Tuffuor v Attorney General [1980] GLR 637, the Supreme Court held that the Constitution is the supreme law of Ghana and any law inconsistent with it is void to the extent of the inconsistency."
+            ]
+        },
+        {
+            "id": "CL-002",
+            "category": "case_law_precedent",
+            "difficulty": "hard",
+            "question": "What is the doctrine of stare decisis and how does it apply in Ghana's court system?",
+            "gold_answer": "Stare decisis is the legal doctrine requiring courts to follow precedents established by higher courts in similar cases. In Ghana's hierarchical court system, decisions of the Supreme Court are binding on all lower courts, including the Court of Appeal and the High Court. Decisions of the Court of Appeal bind the High Court and lower courts but not the Supreme Court. The Supreme Court may depart from its own previous decisions if satisfied that the earlier decision was wrongly decided, as provided under Article 129(3) of the 1992 Constitution.",
+            "required_citations": [
+                "Article 129(3)"
+            ],
+            "source_document": "Ghana Supreme Court Case Law",
+            "retrieval_context": [
+                "The doctrine of stare decisis requires courts to follow precedents set by higher courts in similar cases. Article 129(3): The Supreme Court may depart from a previous decision of its own when it appears right to do so."
+            ]
+        },
+        {
+            "id": "CL-003",
+            "category": "case_law_precedent",
+            "difficulty": "hard",
+            "question": "Can the Supreme Court of Ghana depart from its own previous decisions?",
+            "gold_answer": "Yes. Under Article 129(3) of the 1992 Constitution, the Supreme Court may depart from a previous decision of its own when it appears right to do so. This gives the Supreme Court the flexibility to correct errors in previous judgments and adapt the law to changing circumstances, while still maintaining stability through the general application of stare decisis.",
+            "required_citations": [
+                "Article 129(3)"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 129(3): The Supreme Court may, while treating its own previous decisions as normally binding, depart from a previous decision when it appears right to do so."
+            ]
+        },
+        {
+            "id": "CL-004",
+            "category": "case_law_precedent",
+            "difficulty": "hard",
+            "question": "What is the original jurisdiction of the Supreme Court of Ghana?",
+            "gold_answer": "Under Article 130(1) of the 1992 Constitution, the Supreme Court has exclusive original jurisdiction in all matters relating to the enforcement or interpretation of the Constitution and in all matters where a question arises whether an enactment was made in excess of the powers conferred on Parliament or any other authority or person by law or under the Constitution.",
+            "required_citations": [
+                "Article 130(1)"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 130(1): Subject to the jurisdiction of the High Court in the enforcement of the Fundamental Human Rights and Freedoms, the Supreme Court shall have exclusive original jurisdiction in all matters relating to the enforcement or interpretation of this Constitution."
+            ]
+        },
+        {
+            "id": "CL-005",
+            "category": "case_law_precedent",
+            "difficulty": "hard",
+            "question": "Explain the hierarchy of courts in Ghana and the binding nature of their decisions.",
+            "gold_answer": "Ghana's court hierarchy, from highest to lowest, comprises: (1) the Supreme Court (apex court with original constitutional jurisdiction and final appellate jurisdiction); (2) the Court of Appeal (intermediate appellate court); (3) the High Court (court of first instance with unlimited original jurisdiction); (4) Regional Tribunals; and (5) Lower Courts (Circuit Courts, District Courts). Decisions of higher courts are binding on all lower courts under the doctrine of stare decisis. The Supreme Court's decisions bind all other courts, while the Court of Appeal binds the High Court and below.",
+            "required_citations": [
+                "Article 126",
+                "Article 129"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 126(1): The Superior Courts of Judicature shall consist of (a) the Supreme Court; (b) the Court of Appeal; (c) the High Court and Regional Tribunals."
+            ]
+        },
+        {
+            "id": "CL-006",
+            "category": "case_law_precedent",
+            "difficulty": "hard",
+            "question": "What is the principle established in NPP v Inspector General of Police regarding the right to demonstrate?",
+            "gold_answer": "In New Patriotic Party v Inspector General of Police [1993-94] 2 GLR 459, the Supreme Court held that the right to demonstrate is a fundamental constitutional right guaranteed under Article 21(1)(d). The Court ruled that the requirement for police permits before demonstrations was unconstitutional, as the Constitution only requires prior notification, not permission. This landmark case affirmed the primacy of constitutional rights over administrative convenience.",
+            "required_citations": [
+                "Article 21(1)(d)",
+                "NPP v Inspector General of Police [1993-94] 2 GLR 459"
+            ],
+            "source_document": "Ghana Supreme Court Case Law",
+            "retrieval_context": [
+                "In NPP v Inspector General of Police, the Supreme Court held that the right to demonstrate is fundamental and constitutionally protected under Article 21(1)(d). Police permits for demonstrations were held to be unconstitutional."
+            ]
+        },
+        {
+            "id": "CL-007",
+            "category": "case_law_precedent",
+            "difficulty": "hard",
+            "question": "How have Ghanaian courts interpreted the right to personal liberty under Article 14?",
+            "gold_answer": "Article 14 of the 1992 Constitution provides that every person shall be entitled to their personal liberty and no person shall be deprived thereof except in accordance with law. Ghanaian courts have interpreted this right broadly, holding that deprivation of liberty includes both arrest and any form of unlawful detention. Article 14(2) provides that a person arrested, restricted or detained shall be informed immediately, in a language that he understands, of the reasons for his arrest, restriction or detention and of his right to a lawyer of his choice.",
+            "required_citations": [
+                "Article 14(1)",
+                "Article 14(2)"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 14(1): Every person shall be entitled to his personal liberty and no person shall be deprived of his personal liberty except in accordance with law. Article 14(2): A person who is arrested or detained shall be informed immediately, in a language he understands, of the reasons for his arrest or detention and of his right to a lawyer."
+            ]
+        },
+        {
+            "id": "PROC-001",
+            "category": "procedural",
+            "difficulty": "medium",
+            "question": "What is the procedure for amending an entrenched provision of the 1992 Constitution?",
+            "gold_answer": "Under Article 289, amending an entrenched provision requires: (1) publication of the proposed amendment bill in the Gazette at least six months before its introduction in Parliament; (2) passage of the bill by at least two-thirds of all members of Parliament; (3) approval by at least 40% of registered voters at a national referendum, with at least 75% of those voting in favour of the amendment. This arduous process reflects the foundational importance of entrenched provisions.",
+            "required_citations": [
+                "Article 289",
+                "Article 290"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 289: Entrenched provisions may be amended through a bill published in the Gazette at least six months prior, passed by two-thirds of all members of Parliament, and approved at a national referendum."
+            ]
+        },
+        {
+            "id": "PROC-002",
+            "category": "procedural",
+            "difficulty": "medium",
+            "question": "How does one bring a constitutional action to enforce fundamental human rights in Ghana?",
+            "gold_answer": "Under Article 33(1) of the 1992 Constitution, where a person alleges that a provision of the Constitution on fundamental human rights and freedoms has been, is being, or is likely to be contravened in relation to him, that person may apply to the High Court for redress. Article 33(1) provides the High Court with original jurisdiction to hear and determine applications for enforcement of fundamental rights. The applicant does not need to demonstrate that they are a direct victim — any person can bring an action in the public interest.",
+            "required_citations": [
+                "Article 33(1)"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 33(1): Where a person alleges that a provision of this Constitution on the fundamental human rights and freedoms has been, or is being or is likely to be contravened in relation to him, then, without prejudice to any other action that is lawfully available, that person may apply to the High Court for redress."
+            ]
+        },
+        {
+            "id": "PROC-003",
+            "category": "procedural",
+            "difficulty": "medium",
+            "question": "What is the procedure for the impeachment of a Justice of the Superior Court in Ghana?",
+            "gold_answer": "Under Article 146 of the 1992 Constitution, a Justice of the Superior Court may be removed for stated misbehaviour, incompetence, or on the ground of inability to perform the functions of his office arising from infirmity of body or mind. The procedure involves a petition to the President who shall refer the matter to the Chief Justice (or another senior Justice if the Chief Justice is the subject) to appoint a committee of inquiry. If the committee recommends removal, the President shall remove the Justice.",
+            "required_citations": [
+                "Article 146"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 146: A Justice of the Superior Court or a Chairman of a Regional Tribunal shall not be removed from office except for stated misbehaviour or incompetence or inability to perform his functions arising from infirmity of body or mind."
+            ]
+        },
+        {
+            "id": "PROC-004",
+            "category": "procedural",
+            "difficulty": "medium",
+            "question": "How does a bill become law in Ghana under the 1992 Constitution?",
+            "gold_answer": "Under Article 106, a bill passed by Parliament shall be presented to the President for assent. The President shall assent to the bill within seven days after the bill is presented to him, failing which the President shall be deemed to have assented to the bill at the expiration of the seven days. No bill other than one certified by the Speaker as an urgent bill may be presented to the President for assent unless it has been gazetted at least fourteen days before proceedings on the bill begin in Parliament.",
+            "required_citations": [
+                "Article 106"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 106(1): A bill passed by Parliament shall be presented to the President for his assent. The President shall signify his assent or refusal within seven days."
+            ]
+        },
+        {
+            "id": "PROC-005",
+            "category": "procedural",
+            "difficulty": "medium",
+            "question": "What are the qualifications for appointment as a Justice of the Supreme Court of Ghana?",
+            "gold_answer": "Under Article 128(4) of the 1992 Constitution, a person shall not be qualified for appointment as a Justice of the Supreme Court unless he is of high moral character and proven integrity, and has been a lawyer for at least fifteen years, or is a distinguished jurist. Appointment is made by the President acting on the advice of the Judicial Council, in consultation with the Council of State, and with the approval of Parliament.",
+            "required_citations": [
+                "Article 128(4)"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 128(4): A person shall not qualify for appointment as a Justice of the Supreme Court unless he has been a lawyer for at least fifteen years."
+            ]
+        },
+        {
+            "id": "PROC-006",
+            "category": "procedural",
+            "difficulty": "medium",
+            "question": "What role does the Judicial Council play in the appointment of judges in Ghana?",
+            "gold_answer": "Under Article 153 of the 1992 Constitution, the Judicial Council advises the President on the appointment of judges and judicial officers. It is also responsible for reviewing and making recommendations on terms and conditions of service for judges, and proposing reforms for more efficient administration of justice. The Chief Justice chairs the Judicial Council.",
+            "required_citations": [
+                "Article 153"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 153: The Judicial Council shall advise the President on matters relating to the appointment of Justices and other judicial officers and the administration of the Judiciary."
+            ]
+        },
+        {
+            "id": "PROC-007",
+            "category": "procedural",
+            "difficulty": "medium",
+            "question": "What is the procedure for declaring a state of emergency in Ghana?",
+            "gold_answer": "Under Article 31 of the 1992 Constitution, the President may, acting in accordance with the advice of the Council of State, by Proclamation published in the Gazette, declare a state of emergency in Ghana or any part of Ghana. The proclamation ceases to have effect at the end of seven days unless approved by Parliament by a resolution passed by two-thirds of all members of Parliament. A state of emergency may be extended by Parliament for periods of no more than three months at a time.",
+            "required_citations": [
+                "Article 31"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 31(1): The President may, acting in accordance with the advice of the Council of State, by Proclamation declare a state of emergency in Ghana or any part of Ghana."
+            ]
+        },
+        {
+            "id": "ADV-001",
+            "category": "adversarial",
+            "difficulty": "hard",
+            "question": "Is it constitutional for the Government of Ghana to charge fees for basic education?",
+            "gold_answer": "No. Article 25(1)(a) of the 1992 Constitution explicitly provides that basic education shall be free, compulsory and available to all. Any attempt by the Government to charge fees for basic education would be in direct contravention of this constitutional provision and could be challenged in the High Court under Article 33 as a violation of a fundamental right.",
+            "required_citations": [
+                "Article 25(1)(a)",
+                "Article 33"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 25(1)(a): Basic education shall be free, compulsory and available to all."
+            ]
+        },
+        {
+            "id": "ADV-002",
+            "category": "adversarial",
+            "difficulty": "hard",
+            "question": "Can the Government of Ghana legally prevent citizens from leaving the country?",
+            "gold_answer": "Generally, no. Article 21(1)(g) of the 1992 Constitution guarantees the right of every citizen to move freely throughout Ghana and to leave and enter Ghana. However, this right is not absolute — Article 21(4) provides that the rights and freedoms in Article 21 may be restricted by law that is reasonably required in the interest of defence, public safety, public health, or the running of essential services. In practice, courts would apply a proportionality test to determine whether any restriction is constitutionally justified.",
+            "required_citations": [
+                "Article 21(1)(g)",
+                "Article 21(4)"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 21(1)(g): All persons shall have the right to freedom of movement which includes the right to move freely in Ghana, the right to leave and the right to enter Ghana. Article 21(4): Nothing in this section shall be taken to be inconsistent with any restrictions that are reasonably required in the interest of defence, public safety or public health."
+            ]
+        },
+        {
+            "id": "ADV-003",
+            "category": "adversarial",
+            "difficulty": "hard",
+            "question": "Can the President of Ghana pardon himself for any criminal offence?",
+            "gold_answer": "This is a complex constitutional question. Article 72(1) grants the President the prerogative of mercy — the power to grant pardons, reprieves, respites, or remissions of punishment. However, the Constitution does not explicitly address whether the President can exercise this power in relation to himself. Constitutional scholars have argued that permitting self-pardon would violate the fundamental principle in Article 1(1) that sovereignty resides in the people, and the principle that no person is above the law. The matter has not been authoritatively decided by the Supreme Court of Ghana.",
+            "required_citations": [
+                "Article 72(1)",
+                "Article 1(1)"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 72(1): The President may, acting in consultation with the Council of State, grant to a person convicted of an offence a pardon, respite, reprieve or remission of punishment."
+            ],
+            "notes": "This is an adversarial question designed to test boundary awareness. The model should acknowledge uncertainty."
+        },
+        {
+            "id": "ADV-004",
+            "category": "adversarial",
+            "difficulty": "hard",
+            "question": "Does the 1992 Constitution protect the rights of non-citizens within Ghana?",
+            "gold_answer": "Yes, partially. While certain rights in the 1992 Constitution are reserved for citizens (such as the right to vote under Article 42 and the right to own property under Article 18), many fundamental rights under Chapter 5 extend to 'every person' or 'all persons,' regardless of citizenship. For example, Article 12(2) states that every person in Ghana shall be entitled to the fundamental human rights and freedoms. Article 14 (personal liberty) and Article 15 (human dignity) apply to 'every person,' not only citizens.",
+            "required_citations": [
+                "Article 12(2)",
+                "Article 14",
+                "Article 15",
+                "Article 42"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 12(2): Every person in Ghana, whatever his race, place of origin, political opinion, colour, religion, creed or gender shall be entitled to the fundamental human rights and freedoms of the individual."
+            ]
+        },
+        {
+            "id": "ADV-005",
+            "category": "adversarial",
+            "difficulty": "hard",
+            "question": "Can Parliament pass a law that retroactively criminalises conduct that was legal at the time it was done?",
+            "gold_answer": "No. Article 19(5) of the 1992 Constitution prohibits retroactive criminal legislation, providing that no person shall be charged with or held to be guilty of a criminal offence which is founded on an act or omission that did not, at the time of the act or omission, constitute such an offence. This protection against ex post facto criminal laws is an entrenched provision and forms part of the right to a fair trial.",
+            "required_citations": [
+                "Article 19(5)"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 19(5): No person shall be charged with or held to be guilty of a criminal offence which is founded on an act or omission that did not, at the time of the act or omission, constitute such an offence."
+            ]
+        },
+        {
+            "id": "ADV-006",
+            "category": "adversarial",
+            "difficulty": "hard",
+            "question": "Is the death penalty constitutional in Ghana under the 1992 Constitution?",
+            "gold_answer": "Yes, constitutionally permissible but subject to restrictions. Article 13(1) guarantees the right to life but Article 13(1) itself states that no person shall be deprived of his life intentionally except in the exercise of the execution of a sentence of a court in respect of a criminal offence under the laws of Ghana of which he has been convicted. Thus the Constitution permits the death penalty as a lawful exception to the right to life, though its application has been subject to evolving judicial and legislative practice. Ghana has maintained a de facto moratorium on executions since 1993.",
+            "required_citations": [
+                "Article 13(1)"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 13(1): No person shall be deprived of his life intentionally except in the exercise of the execution of a sentence of a court in respect of a criminal offence under the laws of Ghana of which he has been convicted."
+            ],
+            "notes": "Tests nuanced understanding — death penalty is constitutionally permitted but practically suspended."
+        },
+        {
+            "id": "ADV-007",
+            "category": "adversarial",
+            "difficulty": "hard",
+            "question": "Can a sitting President of Ghana be sued in court for acts done in his personal capacity?",
+            "gold_answer": "Article 57(4) of the 1992 Constitution provides that the President shall not, while in office, be liable to proceedings in any court for any act done or omitted to be done in the performance of the functions of his office. However, this immunity relates to acts performed in an official capacity. The Constitution does not explicitly extend this immunity to acts done in a purely personal capacity, and constitutional scholars have debated whether personal liability can attach during a President's term. The Supreme Court has not definitively ruled on this distinction.",
+            "required_citations": [
+                "Article 57(4)"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 57(4): The President shall not, while in office, be liable to proceedings in any court for any act done or omitted to be done by him in the performance of the functions of his office."
+            ],
+            "notes": "Tests the model's ability to distinguish official vs personal capacity and acknowledge uncertainty."
+        },
+        {
+            "id": "ADV-008",
+            "category": "adversarial",
+            "difficulty": "hard",
+            "question": "Can customary law override a provision of the 1992 Constitution?",
+            "gold_answer": "No. Under Article 1(2), the Constitution is the supreme law of Ghana and any other law found to be inconsistent with any provision of the Constitution shall, to the extent of the inconsistency, be void. While Article 11(2) recognises customary law as part of the laws of Ghana, it remains subordinate to the Constitution. Article 26(2) further provides that all customary practices which dehumanise or are injurious to the physical and mental well-being of a person are prohibited.",
+            "required_citations": [
+                "Article 1(2)",
+                "Article 11(2)",
+                "Article 26(2)"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 1(2): This Constitution shall be the supreme law of Ghana and any other law found to be inconsistent with any provision of this Constitution shall, to the extent of the inconsistency, be void. Article 11(2): The common law of Ghana shall comprise the rules of law generally known as the common law, the rules generally known as the doctrines of equity, and the rules of customary law."
+            ]
+        },
+        {
+            "id": "ADV-009",
+            "category": "adversarial",
+            "difficulty": "hard",
+            "question": "Can the Speaker of Parliament be removed from office, and if so, by what procedure?",
+            "gold_answer": "Yes. Under Article 95(1)(c) of the 1992 Constitution, the Speaker may be removed from office by a resolution of not less than two-thirds of all the members of Parliament. Additionally, the Speaker vacates office when Parliament first meets after a dissolution (Article 95(1)(a)), or if they are elected as President or Vice President.",
+            "required_citations": [
+                "Article 95(1)(c)"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 95(1): The Speaker shall vacate his office (a) when Parliament first meets after a dissolution of Parliament; (b) if he is elected as President or Vice-President; (c) if a resolution supported by the votes of not less than two-thirds of all the members of Parliament is passed for his removal."
+            ]
+        },
+        {
+            "id": "ADV-010",
+            "category": "adversarial",
+            "difficulty": "hard",
+            "question": "Does Ghana's Constitution protect against discrimination based on sexual orientation?",
+            "gold_answer": "The 1992 Constitution does not explicitly mention sexual orientation as a protected ground. Article 17(1) provides that all persons shall be equal before the law, and Article 17(2) prohibits discrimination on grounds of gender, race, colour, ethnic origin, religion, creed, or social or economic status. Sexual orientation is not enumerated among these protected categories. There is a lively legal and academic debate about whether the general equality clause in Article 17(1) could be interpreted to encompass sexual orientation, but the Supreme Court has not ruled on this question and current Ghanaian criminal law (Criminal Offences Act 1960, Section 104) criminalises certain same-sex activities.",
+            "required_citations": [
+                "Article 17(1)",
+                "Article 17(2)",
+                "Criminal Offences Act 1960, Section 104"
+            ],
+            "source_document": "1992 Constitution of Ghana",
+            "retrieval_context": [
+                "Article 17(1): All persons shall be equal before the law. Article 17(2): A person shall not be discriminated against on grounds of gender, race, colour, ethnic origin, religion, creed, or social or economic status."
+            ],
+            "notes": "Sensitive adversarial question testing the model's ability to state law without advocacy."
+        }
+    ]
+}

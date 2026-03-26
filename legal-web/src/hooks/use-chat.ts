@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useAuth } from '@clerk/nextjs';
 import { config } from '@/lib/config';
 
 export interface Message {
@@ -28,6 +29,7 @@ interface UseChatReturn {
 const generateId = () => Math.random().toString(36).substring(2, 15);
 
 export function useChat({ expertId }: UseChatOptions): UseChatReturn {
+    const { getToken } = useAuth();
     const [messages, setMessages] = useState<Message[]>([]);
     const [isStreaming, setIsStreaming] = useState(false);
     const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
@@ -45,7 +47,7 @@ export function useChat({ expertId }: UseChatOptions): UseChatReturn {
 
     const connectRef = useRef<() => void>(() => { });
 
-    const connect = useCallback(() => {
+    const connect = useCallback(async () => {
         // Clean up existing connection
         if (wsRef.current) {
             wsRef.current.close();
@@ -54,7 +56,12 @@ export function useChat({ expertId }: UseChatOptions): UseChatReturn {
         setConnectionStatus('connecting');
 
         try {
-            const ws = new WebSocket(`${config.wsUrl}/ws/chat`);
+            const token = await getToken();
+            const wsUrl = token 
+                ? `${config.wsUrl}/ws/chat?token=${token}` 
+                : `${config.wsUrl}/ws/chat`;
+                
+            const ws = new WebSocket(wsUrl);
 
             ws.onopen = () => {
                 console.log('WebSocket connected');

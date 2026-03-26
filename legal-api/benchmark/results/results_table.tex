@@ -1,0 +1,17 @@
+\begin{table*}[t]
+\centering
+\small
+\begin{tabular}{lccccccc}
+\toprule
+\textbf{System} & \textbf{Ans. Rel.} & \textbf{Faith.} & \textbf{Ctx. Prec.} & \textbf{Ctx. Rec.} & \textbf{Legal Acc.} & \textbf{Legal Rel.} & \textbf{Legal Auth.} \\
+\midrule
+Llama-3-70B (zero-shot) & \textbf{0.97} & 0.88 & \textbf{1.00} & 0.80 & 0.62 & 0.82 & \textbf{0.73} \\
+Llama-3-8B (zero-shot) & 0.93 & 0.76 & \textbf{1.00} & 0.83 & 0.55 & 0.73 & 0.53 \\
+GPT-4o (zero-shot) & 0.81 & 0.91 & \textbf{1.00} & \textbf{0.87} & 0.77 & \textbf{0.89} & 0.69 \\
+Llama-3-70B + RAG & 0.93 & 0.91 & \textbf{1.00} & 0.72 & 0.75 & 0.81 & 0.67 \\
+GPT-4o + RAG & 0.92 & \textbf{0.94} & \textbf{1.00} & 0.82 & \textbf{0.82} & 0.88 & 0.53 \\
+\bottomrule
+\end{tabular}
+\caption{LegalBench-GH benchmark results. Best results per metric in \textbf{bold}.}
+\label{tab:benchmark-results}
+\end{table*}

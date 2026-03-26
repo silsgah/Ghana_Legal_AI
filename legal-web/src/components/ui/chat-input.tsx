@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, KeyboardEvent, useRef, useEffect } from 'react';
-import { Send, Sparkles } from 'lucide-react';
+import { ArrowUp, Scale } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ChatInputProps {
@@ -27,7 +27,6 @@ export function ChatInput({ onSend, disabled, expertName }: ChatInputProps) {
         if (input.trim() && !disabled) {
             onSend(input.trim());
             setInput('');
-            // Reset height
             if (textareaRef.current) {
                 textareaRef.current.style.height = 'auto';
             }
@@ -42,7 +41,8 @@ export function ChatInput({ onSend, disabled, expertName }: ChatInputProps) {
     };
 
     return (
-        <div className="border-t border-zinc-200 dark:border-zinc-800 p-4 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm">
+        <div className="p-4 pb-5"
+             style={{ borderTop: '1px solid var(--border)', background: 'var(--surface-1)' }}>
             <div className="max-w-3xl mx-auto">
                 <div className="relative flex items-end gap-2">
                     <div className="flex-1 relative">
@@ -51,39 +51,58 @@ export function ChatInput({ onSend, disabled, expertName }: ChatInputProps) {
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
                             onKeyDown={handleKeyDown}
-                            placeholder={`Message ${expertName || 'the legal expert'}...`}
+                            placeholder={
+                                disabled
+                                    ? 'Connecting to server...'
+                                    : `Ask ${expertName || 'the legal expert'} a question...`
+                            }
                             disabled={disabled}
                             rows={1}
                             className={cn(
-                                'w-full px-4 py-3.5 pr-12 rounded-2xl resize-none',
-                                'bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700',
-                                'text-zinc-900 dark:text-zinc-100 placeholder-zinc-400',
-                                'focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent',
-                                'disabled:opacity-50 disabled:cursor-not-allowed',
+                                'w-full px-5 py-4 pr-14 resize-none',
+                                'text-[15px] leading-relaxed',
+                                'focus:outline-none',
+                                'disabled:opacity-40 disabled:cursor-not-allowed',
                                 'transition-all duration-200'
                             )}
+                            style={{
+                                background: 'var(--surface-2)',
+                                color: 'var(--foreground)',
+                                border: '1px solid var(--border)',
+                                borderRadius: 'var(--radius-lg)',
+                                caretColor: 'var(--primary)',
+                            }}
+                            onFocus={(e) => {
+                                e.currentTarget.style.borderColor = 'var(--primary)';
+                                e.currentTarget.style.boxShadow = '0 0 0 3px var(--primary-muted)';
+                            }}
+                            onBlur={(e) => {
+                                e.currentTarget.style.borderColor = 'var(--border)';
+                                e.currentTarget.style.boxShadow = 'none';
+                            }}
                         />
                         <button
                             onClick={handleSend}
                             disabled={!input.trim() || disabled}
-                            className={cn(
-                                'absolute right-2 bottom-2 p-2 rounded-xl',
-                                'bg-indigo-600 text-white shadow-md',
-                                'hover:bg-indigo-700 active:scale-95',
-                                'disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-indigo-600',
-                                'transition-all duration-200'
-                            )}
+                            className="absolute right-2.5 bottom-2.5 p-2.5 rounded-xl transition-all duration-200"
+                            style={{
+                                background: input.trim() && !disabled ? 'var(--primary)' : 'var(--surface-3)',
+                                color: input.trim() && !disabled ? '#fff' : 'var(--muted-foreground)',
+                                cursor: !input.trim() || disabled ? 'not-allowed' : 'pointer',
+                                opacity: !input.trim() || disabled ? 0.5 : 1,
+                            }}
                         >
-                            <Send size={18} />
+                            <ArrowUp size={18} />
                         </button>
                     </div>
                 </div>
-                <div className="flex items-center justify-between mt-3 text-xs text-zinc-400">
+                <div className="flex items-center justify-between mt-3 text-[11px] px-1"
+                     style={{ color: 'var(--muted-foreground)' }}>
                     <div className="flex items-center gap-1.5">
-                        <Sparkles size={12} />
-                        <span>Powered by Groq LLM</span>
+                        <Scale size={11} />
+                        <span>Ghana Legal AI &bull; Powered by EED Soft Consult</span>
                     </div>
-                    <span>Press Enter to send, Shift+Enter for new line</span>
+                    <span>Enter to send &bull; Shift+Enter for new line</span>
                 </div>
             </div>
         </div>

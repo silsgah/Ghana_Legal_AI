@@ -18,14 +18,30 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str
 
     # --- MongoDB Configuration ---
-    MONGO_URI: str = Field(
-        default="mongodb://ghana_legal:ghana_legal@local_dev_atlas:27017/?directConnection=true",
-        description="Connection URI for the local MongoDB Atlas instance.",
+    MONGO_MODE: str = Field(
+        default="local",
+        description="MongoDB connection mode: 'local' for local MongoDB, 'atlas' for MongoDB Atlas"
+    )
+    MONGO_LOCAL_URI: str = Field(
+        default="mongodb://localhost:27017/ghana_legal",
+        description="Connection URI for local MongoDB instance.",
+    )
+    MONGO_ATLAS_URI: str = Field(
+        default="mongodb+srv://ghana_legal:ghana_legal@local_dev_atlas:27017/?directConnection=true",
+        description="Connection URI for the MongoDB Atlas instance.",
     )
     MONGO_DB_NAME: str = "ghana_legal"
     MONGO_STATE_CHECKPOINT_COLLECTION: str = "legal_expert_state_checkpoints"
     MONGO_STATE_WRITES_COLLECTION: str = "legal_expert_state_writes"
     MONGO_LONG_TERM_MEMORY_COLLECTION: str = "legal_expert_long_term_memory"
+
+    @property
+    def MONGO_URI(self) -> str:
+        """Return the appropriate MongoDB URI based on the connection mode"""
+        if self.MONGO_MODE == "local":
+            return getattr(self, 'MONGO_LOCAL_URI_OVERRIDE', None) or self.MONGO_LOCAL_URI
+        else:  # atlas mode
+            return getattr(self, 'MONGO_ATLAS_URI_OVERRIDE', None) or self.MONGO_ATLAS_URI
 
     # --- Comet ML & Opik Configuration ---
     COMET_API_KEY: str | None = Field(
@@ -46,6 +62,18 @@ class Settings(BaseSettings):
     RAG_TOP_K: int = 3
     RAG_DEVICE: str = "cpu"
     RAG_CHUNK_SIZE: int = 256
+
+    # --- Vector Database Configuration ---
+    VECTOR_DB_MODE: str = Field(
+        default="chroma",
+        description="Vector database mode: 'chroma' for local dev, 'qdrant' for production",
+    )
+    QDRANT_URL: str = Field(default="", description="Qdrant Cloud cluster URL")
+    QDRANT_API_KEY: str = Field(default="", description="Qdrant Cloud API key")
+
+    # --- PostgreSQL Configuration ---
+    DATABASE_URL: str = Field(default="", description="PostgreSQL connection string")
+    FREE_TIER_DAILY_LIMIT: int = Field(default=5, description="Number of free queries per day")
 
     # --- LFM2/Ollama Configuration ---
     USE_LOCAL_LLM: bool = Field(

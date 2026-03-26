@@ -1,0 +1,150 @@
+{
+  "version": "0.1.0",
+  "description": "LegalBench-GH: Ghanaian Legal QA Benchmark \u2014 Seed Dataset v0.1 (Small Subset N=10)",
+  "questions": [
+    {
+      "id": "CONST-F-001",
+      "category": "constitutional_factual",
+      "difficulty": "easy",
+      "question": "In whom does the sovereignty of Ghana reside according to the 1992 Constitution?",
+      "gold_answer": "According to Article 1(1) of the 1992 Constitution, the sovereignty of Ghana resides in the people of Ghana, in whose name and for whose welfare the powers of government are to be exercised.",
+      "required_citations": [
+        "Article 1(1)"
+      ],
+      "source_document": "1992 Constitution of Ghana",
+      "retrieval_context": [
+        "Article 1(1) of the 1992 Constitution states: The Sovereignty of Ghana resides in the people of Ghana in whose name and for whose welfare the powers of government are to be exercised."
+      ]
+    },
+    {
+      "id": "CONST-F-002",
+      "category": "constitutional_factual",
+      "difficulty": "easy",
+      "question": "What is the supreme law of Ghana?",
+      "gold_answer": "The 1992 Constitution is the supreme law of Ghana. Article 1(2) provides that the Constitution shall be the supreme law of Ghana and any other law found to be inconsistent with any provision of the Constitution shall, to the extent of the inconsistency, be void.",
+      "required_citations": [
+        "Article 1(2)"
+      ],
+      "source_document": "1992 Constitution of Ghana",
+      "retrieval_context": [
+        "Article 1(2): The Constitution shall be the supreme law of Ghana and any other law found to be inconsistent with any provision of this Constitution shall, to the extent of the inconsistency, be void."
+      ]
+    },
+    {
+      "id": "CONST-I-001",
+      "category": "constitutional_interpretive",
+      "difficulty": "medium",
+      "question": "Can the President of Ghana execute a treaty without the involvement of Parliament?",
+      "gold_answer": "No. While Article 75(1) empowers the President to execute or cause to be executed treaties, agreements, or conventions in the name of Ghana, Article 75(2) requires that a treaty, agreement, or convention executed by or under the authority of the President shall be subject to ratification by Act of Parliament or by a resolution of Parliament supported by the votes of more than one-half of all the members of Parliament.",
+      "required_citations": [
+        "Article 75(1)",
+        "Article 75(2)"
+      ],
+      "source_document": "1992 Constitution of Ghana",
+      "retrieval_context": [
+        "Article 75(1): The President may execute or cause to be executed treaties, agreements or conventions in the name of Ghana. (2) A treaty, agreement or convention executed by or under authority of the President shall be subject to ratification by (a) Act of Parliament; or (b) a resolution of Parliament supported by the votes of more than one-half of all the members of Parliament."
+      ]
+    },
+    {
+      "id": "CONST-I-002",
+      "category": "constitutional_interpretive",
+      "difficulty": "medium",
+      "question": "Under what circumstances can the President of Ghana be removed from office?",
+      "gold_answer": "The President may be removed from office under Article 69 of the 1992 Constitution. A motion for the removal must be supported by the votes of not less than two-thirds of all the members of Parliament on the grounds of (a) acting in wilful violation of the oath of allegiance and the Presidential oath; (b) acting in wilful violation of any provision of the Constitution; or (c) conduct that brings or is likely to bring the office of President into disrepute, ridicule or contempt.",
+      "required_citations": [
+        "Article 69"
+      ],
+      "source_document": "1992 Constitution of Ghana",
+      "retrieval_context": [
+        "Article 69(1): The President shall be removed from office if a motion for his removal is supported by the votes of not less than two-thirds of all the members of Parliament on grounds of (a) acting in wilful violation of the oath of allegiance and the Presidential oath; (b) acting in wilful violation of any provision of this Constitution; or (c) misconduct."
+      ]
+    },
+    {
+      "id": "CL-001",
+      "category": "case_law_precedent",
+      "difficulty": "hard",
+      "question": "What was the significance of Tuffuor v Attorney General [1980] GLR 637?",
+      "gold_answer": "Tuffuor v Attorney General [1980] GLR 637 is a landmark decision of the Supreme Court of Ghana that established the principle of constitutional supremacy. The Court held that the Constitution is the supreme law of Ghana and any law found to be inconsistent with any provision of the Constitution is void to the extent of the inconsistency. This case is frequently cited as authority for the supremacy clause and has been foundational in subsequent constitutional interpretation.",
+      "required_citations": [
+        "Tuffuor v Attorney General [1980] GLR 637"
+      ],
+      "source_document": "Ghana Supreme Court Case Law",
+      "retrieval_context": [
+        "In Tuffuor v Attorney General [1980] GLR 637, the Supreme Court held that the Constitution is the supreme law of Ghana and any law inconsistent with it is void to the extent of the inconsistency."
+      ]
+    },
+    {
+      "id": "CL-002",
+      "category": "case_law_precedent",
+      "difficulty": "hard",
+      "question": "What is the doctrine of stare decisis and how does it apply in Ghana's court system?",
+      "gold_answer": "Stare decisis is the legal doctrine requiring courts to follow precedents established by higher courts in similar cases. In Ghana's hierarchical court system, decisions of the Supreme Court are binding on all lower courts, including the Court of Appeal and the High Court. Decisions of the Court of Appeal bind the High Court and lower courts but not the Supreme Court. The Supreme Court may depart from its own previous decisions if satisfied that the earlier decision was wrongly decided, as provided under Article 129(3) of the 1992 Constitution.",
+      "required_citations": [
+        "Article 129(3)"
+      ],
+      "source_document": "Ghana Supreme Court Case Law",
+      "retrieval_context": [
+        "The doctrine of stare decisis requires courts to follow precedents set by higher courts in similar cases. Article 129(3): The Supreme Court may depart from a previous decision of its own when it appears right to do so."
+      ]
+    },
+    {
+      "id": "PROC-001",
+      "category": "procedural",
+      "difficulty": "medium",
+      "question": "What is the procedure for amending an entrenched provision of the 1992 Constitution?",
+      "gold_answer": "Under Article 289, amending an entrenched provision requires: (1) publication of the proposed amendment bill in the Gazette at least six months before its introduction in Parliament; (2) passage of the bill by at least two-thirds of all members of Parliament; (3) approval by at least 40% of registered voters at a national referendum, with at least 75% of those voting in favour of the amendment. This arduous process reflects the foundational importance of entrenched provisions.",
+      "required_citations": [
+        "Article 289",
+        "Article 290"
+      ],
+      "source_document": "1992 Constitution of Ghana",
+      "retrieval_context": [
+        "Article 289: Entrenched provisions may be amended through a bill published in the Gazette at least six months prior, passed by two-thirds of all members of Parliament, and approved at a national referendum."
+      ]
+    },
+    {
+      "id": "PROC-002",
+      "category": "procedural",
+      "difficulty": "medium",
+      "question": "How does one bring a constitutional action to enforce fundamental human rights in Ghana?",
+      "gold_answer": "Under Article 33(1) of the 1992 Constitution, where a person alleges that a provision of the Constitution on fundamental human rights and freedoms has been, is being, or is likely to be contravened in relation to him, that person may apply to the High Court for redress. Article 33(1) provides the High Court with original jurisdiction to hear and determine applications for enforcement of fundamental rights. The applicant does not need to demonstrate that they are a direct victim \u2014 any person can bring an action in the public interest.",
+      "required_citations": [
+        "Article 33(1)"
+      ],
+      "source_document": "1992 Constitution of Ghana",
+      "retrieval_context": [
+        "Article 33(1): Where a person alleges that a provision of this Constitution on the fundamental human rights and freedoms has been, or is being or is likely to be contravened in relation to him, then, without prejudice to any other action that is lawfully available, that person may apply to the High Court for redress."
+      ]
+    },
+    {
+      "id": "ADV-001",
+      "category": "adversarial",
+      "difficulty": "hard",
+      "question": "Is it constitutional for the Government of Ghana to charge fees for basic education?",
+      "gold_answer": "No. Article 25(1)(a) of the 1992 Constitution explicitly provides that basic education shall be free, compulsory and available to all. Any attempt by the Government to charge fees for basic education would be in direct contravention of this constitutional provision and could be challenged in the High Court under Article 33 as a violation of a fundamental right.",
+      "required_citations": [
+        "Article 25(1)(a)",
+        "Article 33"
+      ],
+      "source_document": "1992 Constitution of Ghana",
+      "retrieval_context": [
+        "Article 25(1)(a): Basic education shall be free, compulsory and available to all."
+      ]
+    },
+    {
+      "id": "ADV-002",
+      "category": "adversarial",
+      "difficulty": "hard",
+      "question": "Can the Government of Ghana legally prevent citizens from leaving the country?",
+      "gold_answer": "Generally, no. Article 21(1)(g) of the 1992 Constitution guarantees the right of every citizen to move freely throughout Ghana and to leave and enter Ghana. However, this right is not absolute \u2014 Article 21(4) provides that the rights and freedoms in Article 21 may be restricted by law that is reasonably required in the interest of defence, public safety, public health, or the running of essential services. In practice, courts would apply a proportionality test to determine whether any restriction is constitutionally justified.",
+      "required_citations": [
+        "Article 21(1)(g)",
+        "Article 21(4)"
+      ],
+      "source_document": "1992 Constitution of Ghana",
+      "retrieval_context": [
+        "Article 21(1)(g): All persons shall have the right to freedom of movement which includes the right to move freely in Ghana, the right to leave and the right to enter Ghana. Article 21(4): Nothing in this section shall be taken to be inconsistent with any restrictions that are reasonably required in the interest of defence, public safety or public health."
+      ]
+    }
+  ]
+}

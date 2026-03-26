@@ -1,69 +1,59 @@
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_mongodb import MongoDBAtlasVectorSearch
-from langchain_mongodb.retrievers import (
-    MongoDBAtlasHybridSearchRetriever,
-)
+"""Retriever factory module for the Ghana Legal AI RAG system.
+
+Routes between ChromaDB (local development) and Qdrant Cloud (production)
+based on the VECTOR_DB_MODE environment variable.
+"""
+
 from loguru import logger
 
+from ghana_legal.application.rag.base_retriever import Retriever
 from ghana_legal.config import settings
-
-from .embeddings import get_embedding_model
-
-Retriever = MongoDBAtlasHybridSearchRetriever
 
 
 def get_retriever(
-    embedding_model_id: str,
+    embedding_model_id: str = "sentence-transformers/all-MiniLM-L6-v2",
     k: int = 3,
     device: str = "cpu",
 ) -> Retriever:
-    """Creates and returns a hybrid search retriever with the specified embedding model.
+    """Creates and returns a legal-specific retriever based on the configured vector DB mode.
+
+    Supports 'chroma' (local dev) and 'qdrant' (production cloud) via VECTOR_DB_MODE env var.
 
     Args:
-        embedding_model_id (str): The identifier for the embedding model to use.
-        k (int, optional): Number of documents to retrieve. Defaults to 3.
-        device (str, optional): Device to run the embedding model on. Defaults to "cpu".
+        embedding_model_id: The identifier for the embedding model to use.
+        k: Number of documents to retrieve.
+        device: Device to run the embedding model on ('cpu' or 'cuda').
 
     Returns:
-        Retriever: A configured hybrid search retriever.
+        A configured legal-specific retriever implementing the Retriever protocol.
     """
-    logger.info(
-        f"Initializing retriever | model: {embedding_model_id} | device: {device} | top_k: {k}"
-    )
+    mode = settings.VECTOR_DB_MODE.lower()
 
-    embedding_model = get_embedding_model(embedding_model_id, device)
+    if mode == "qdrant":
+        logger.info(
+            f"Initializing Qdrant Cloud retriever | model: {embedding_model_id} | "
+            f"device: {device} | top_k: {k}"
+        )
+        from ghana_legal.application.rag.qdrant_retriever import get_qdrant_retriever
 
-    return get_hybrid_search_retriever(embedding_model, k)
+        return get_qdrant_retriever(
+            collection_name="legal_docs",
+            embedding_model_id=embedding_model_id,
+            k=k,
+            device=device,
+            use_reranker=True,
+        )
+    else:
+        logger.info(
+            f"Initializing local ChromaDB retriever | model: {embedding_model_id} | "
+            f"device: {device} | top_k: {k}"
+        )
+        from ghana_legal.application.rag.chroma_retriever import get_chroma_retriever
 
-
-def get_hybrid_search_retriever(
-    embedding_model: HuggingFaceEmbeddings, k: int
-) -> MongoDBAtlasHybridSearchRetriever:
-    """Creates a MongoDB Atlas hybrid search retriever with the given embedding model.
-
-    Args:
-        embedding_model (HuggingFaceEmbeddings): The embedding model to use for vector search.
-        k (int): Number of documents to retrieve.
-
-    Returns:
-        MongoDBAtlasHybridSearchRetriever: A configured hybrid search retriever using both
-            vector and text search capabilities.
-    """
-    vectorstore = MongoDBAtlasVectorSearch.from_connection_string(
-        connection_string=settings.MONGO_URI,
-        embedding=embedding_model,
-        namespace=f"{settings.MONGO_DB_NAME}.{settings.MONGO_LONG_TERM_MEMORY_COLLECTION}",
-        text_key="chunk",
-        embedding_key="embedding",
-        relevance_score_fn="dotProduct",
-    )
-
-    retriever = MongoDBAtlasHybridSearchRetriever(
-        vectorstore=vectorstore,
-        search_index_name="hybrid_search_index",
-        top_k=k,
-        vector_penalty=50,
-        fulltext_penalty=50,
-    )
-
-    return retriever
+        return get_chroma_retriever(
+            collection_name="legal_docs",
+            embedding_model_id=embedding_model_id,
+            k=k,
+            device=device,
+            use_reranker=True,
+        )

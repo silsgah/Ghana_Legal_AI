@@ -1,5 +1,6 @@
 import asyncio
 import uuid
+import certifi
 from typing import Any, AsyncGenerator, Union
 
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
@@ -45,11 +46,13 @@ async def get_response(
     graph_builder = create_workflow_graph()
 
     try:
+        # Use certifi for SSL validation
         with MongoDBSaver.from_conn_string(
             conn_string=settings.MONGO_URI,
             db_name=settings.MONGO_DB_NAME,
             checkpoint_collection_name=settings.MONGO_STATE_CHECKPOINT_COLLECTION,
             writes_collection_name=settings.MONGO_STATE_WRITES_COLLECTION,
+            tlsCAFile=certifi.where()
         ) as checkpointer:
             graph = graph_builder.compile(checkpointer=checkpointer)
             opik_tracer = OpikTracer(graph=graph.get_graph(xray=True))
@@ -123,11 +126,13 @@ async def get_streaming_response(
     graph_builder = create_workflow_graph()
 
     try:
+        # Use certifi for SSL validation
         with MongoDBSaver.from_conn_string(
             conn_string=settings.MONGO_URI,
             db_name=settings.MONGO_DB_NAME,
             checkpoint_collection_name=settings.MONGO_STATE_CHECKPOINT_COLLECTION,
             writes_collection_name=settings.MONGO_STATE_WRITES_COLLECTION,
+            tlsCAFile=certifi.where()
         ) as checkpointer:
             graph = graph_builder.compile(checkpointer=checkpointer)
             opik_tracer = OpikTracer(graph=graph.get_graph(xray=True))

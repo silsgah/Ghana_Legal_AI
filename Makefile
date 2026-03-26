@@ -30,6 +30,15 @@ ingest:
 	@echo "Running Data Ingestion..."
 	cd legal-api/src && python -m ghana_legal.application.data.ingest
 
+ingest-cases:
+	@echo "Ingesting Ghana Supreme Court Cases to ChromaDB..."
+	@echo "This will load all PDFs from data/cases/ directory"
+	cd legal-api/src && python scripts/ingest_cases_to_chroma.py
+
+verify-ingestion:
+	@echo "Verifying ChromaDB Ingestion..."
+	cd legal-api/src && python scripts/verify_ingestion.py
+
 test:
 	@echo "Running Tests..."
 	cd legal-api && deepeval test run tests/test_legal_ai_eval.py

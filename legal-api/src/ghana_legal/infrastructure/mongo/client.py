@@ -1,4 +1,5 @@
 from typing import Generic, Type, TypeVar
+import certifi
 
 from bson import ObjectId
 from loguru import logger
@@ -59,7 +60,20 @@ class MongoClientWrapper(Generic[T]):
         self.mongodb_uri = mongodb_uri
 
         try:
-            self.client = MongoClient(mongodb_uri, appname="ghana_legal")
+            # Determine if this is a local connection (no SSL needed) by checking the URI
+            # Local connections typically use mongodb:// protocol, Atlas uses mongodb+srv://
+            is_atlas = mongodb_uri.startswith('mongodb+srv://')
+
+            if is_atlas:
+                # Use certifi for SSL verification with MongoDB Atlas
+                self.client = MongoClient(
+                    mongodb_uri,
+                    appname="ghana_legal",
+                    tlsCAFile=certifi.where()
+                )
+            else:
+                # Connect without SSL for local MongoDB
+                self.client = MongoClient(mongodb_uri, appname="ghana_legal")
             self.client.admin.command("ping")
         except Exception as e:
             logger.error(f"Failed to initialize MongoDBService: {e}")

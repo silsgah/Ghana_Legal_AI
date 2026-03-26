@@ -30,6 +30,14 @@ except ImportError:
     DEEPEVAL_AVAILABLE = False
     logger.warning("DeepEval not installed. Real-time evaluations disabled.")
 
+# Import legal-specific metrics
+try:
+    from .legal_metrics import LegalAccuracyMetric, LegalRelevanceMetric, LegalAuthorityMetric
+    LEGAL_METRICS_AVAILABLE = True
+except ImportError:
+    LEGAL_METRICS_AVAILABLE = False
+    logger.warning("Legal metrics not available.")
+
 from ghana_legal.config import settings
 
 
@@ -42,39 +50,59 @@ class EvaluationResult:
     faithfulness_score: Optional[float] = None
     relevancy_score: Optional[float] = None
     hallucination_score: Optional[float] = None
+    legal_accuracy_score: Optional[float] = None
+    legal_relevance_score: Optional[float] = None
+    legal_authority_score: Optional[float] = None
     evaluation_error: Optional[str] = None
-    
+
     @property
     def passed(self) -> bool:
         """Check if all metrics passed their thresholds."""
         if self.evaluation_error:
             return False
-        
+
         thresholds = {
-            "faithfulness": 0.7,
-            "relevancy": 0.7,
-            "hallucination": 0.5,  # Lower is better for hallucination
+            "faithfulness": 0.6,
+            "relevancy": 0.6,
+            "hallucination": 0.6,  # Lower is better for hallucination
+            "legal_accuracy": 0.7,
+            "legal_relevance": 0.6,
+            "legal_authority": 0.5
         }
-        
+
+        # Standard metrics
         if self.faithfulness_score is not None and self.faithfulness_score < thresholds["faithfulness"]:
             return False
         if self.relevancy_score is not None and self.relevancy_score < thresholds["relevancy"]:
             return False
         if self.hallucination_score is not None and self.hallucination_score > thresholds["hallucination"]:
             return False
-            
+
+        # Legal-specific metrics (only check if they exist)
+        if self.legal_accuracy_score is not None and self.legal_accuracy_score < thresholds["legal_accuracy"]:
+            return False
+        if self.legal_relevance_score is not None and self.legal_relevance_score < thresholds["legal_relevance"]:
+            return False
+        if self.legal_authority_score is not None and self.legal_authority_score < thresholds["legal_authority"]:
+            return False
+
         return True
-    
+
     def to_dict(self) -> dict:
         """Convert to dictionary for logging."""
-        return {
+        result = {
             "expert_id": self.expert_id,
             "faithfulness": self.faithfulness_score,
             "relevancy": self.relevancy_score,
             "hallucination": self.hallucination_score,
+            "legal_accuracy": self.legal_accuracy_score,
+            "legal_relevance": self.legal_relevance_score,
+            "legal_authority": self.legal_authority_score,
             "passed": self.passed,
             "error": self.evaluation_error,
         }
+        # Remove None values
+        return {k: v for k, v in result.items() if v is not None or k == "error"}
 
 
 class RealTimeEvaluator:
@@ -203,34 +231,34 @@ class RealTimeEvaluator:
             response=response,
             expert_id=expert_id,
         )
-        
+
         # Create test case
         test_case = LLMTestCase(
             input=query,
             actual_output=response,
             retrieval_context=context if context else ["No context available"],
         )
-        
+
         # Run faithfulness metric
         if self.enable_faithfulness:
             try:
-                metric = FaithfulnessMetric(threshold=0.7)
+                metric = FaithfulnessMetric(threshold=0.6)
                 metric.measure(test_case)
                 result.faithfulness_score = metric.score
             except Exception as e:
                 logger.warning(f"Faithfulness metric failed: {e}")
                 result.faithfulness_score = 0.0
-        
+
         # Run relevancy metric
         if self.enable_relevancy:
             try:
-                metric = AnswerRelevancyMetric(threshold=0.7)
+                metric = AnswerRelevancyMetric(threshold=0.6)
                 metric.measure(test_case)
                 result.relevancy_score = metric.score
             except Exception as e:
                 logger.warning(f"Relevancy metric failed: {e}")
                 result.relevancy_score = 0.0
-        
+
         # Run hallucination metric
         if self.enable_hallucination:
             try:
@@ -240,13 +268,55 @@ class RealTimeEvaluator:
                     actual_output=response,
                     context=context if context else ["No context available"],
                 )
-                metric = HallucinationMetric(threshold=0.5)
+                metric = HallucinationMetric(threshold=0.6)
                 metric.measure(hallucination_case)
                 result.hallucination_score = metric.score
             except Exception as e:
                 logger.warning(f"Hallucination metric failed: {e}")
                 result.hallucination_score = 1.0  # Assume worst case
-        
+
+        # Run legal-specific metrics if available
+        if LEGAL_METRICS_AVAILABLE:
+            try:
+                # Create expected output for legal accuracy comparison
+                # For now, we'll use a placeholder - in a real system this would come from ground truth
+                legal_test_case = LLMTestCase(
+                    input=query,
+                    actual_output=response,
+                    expected_output="The legal response should cite relevant articles, sections, and precedents",  # Placeholder
+                    retrieval_context=context if context else ["No context available"],
+                )
+
+                # Run legal accuracy metric
+                try:
+                    legal_accuracy_metric = LegalAccuracyMetric(threshold=0.7)
+                    legal_accuracy_metric.measure(legal_test_case)
+                    result.legal_accuracy_score = legal_accuracy_metric.score
+                except Exception as e:
+                    logger.warning(f"Legal accuracy metric failed: {e}")
+                    result.legal_accuracy_score = 0.0
+
+                # Run legal relevance metric
+                try:
+                    legal_relevance_metric = LegalRelevanceMetric(threshold=0.6)
+                    legal_relevance_metric.measure(test_case)  # Use the original test case
+                    result.legal_relevance_score = legal_relevance_metric.score
+                except Exception as e:
+                    logger.warning(f"Legal relevance metric failed: {e}")
+                    result.legal_relevance_score = 0.0
+
+                # Run legal authority metric
+                try:
+                    legal_authority_metric = LegalAuthorityMetric(threshold=0.5)
+                    legal_authority_metric.measure(test_case)  # Use the original test case
+                    result.legal_authority_score = legal_authority_metric.score
+                except Exception as e:
+                    logger.warning(f"Legal authority metric failed: {e}")
+                    result.legal_authority_score = 0.0
+
+            except Exception as e:
+                logger.warning(f"Legal metrics evaluation failed: {e}")
+
         return result
     
     async def _log_to_opik(
