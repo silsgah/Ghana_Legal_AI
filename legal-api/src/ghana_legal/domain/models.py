@@ -11,11 +11,13 @@ from sqlalchemy import (
     Column,
     DateTime,
     Enum,
+    Float,
     ForeignKey,
     Integer,
     String,
     Text,
     Index,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship
 
@@ -146,3 +148,29 @@ class Subscription(Base):
 
     def __repr__(self) -> str:
         return f"<Subscription id={self.id} clerk_id={self.clerk_id} plan={self.plan} status={self.status}>"
+
+
+class PlatformConfig(Base):
+    """Live-editable platform configuration (pricing, quotas).
+
+    Stored as key-value rows so admins can update limits and prices
+    from the admin dashboard without a code redeploy.
+
+    Canonical keys:
+        free_tier_daily_limit      (int)    — daily query cap for free users
+        pro_monthly_price_ghs      (float)  — Pro plan price in GHS
+        enterprise_monthly_price_ghs (float) — Enterprise plan price in GHS
+    """
+    __tablename__ = "platform_config"
+
+    key = Column(String(100), primary_key=True, comment="Config key")
+    value = Column(String(500), nullable=False, comment="Config value (always stored as string)")
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    def __repr__(self) -> str:
+        return f"<PlatformConfig key={self.key} value={self.value}>"

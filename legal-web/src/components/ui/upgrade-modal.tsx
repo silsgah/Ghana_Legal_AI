@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { X, Check, Zap, Shield, Scale, ArrowRight } from 'lucide-react';
 import { useUser } from '@clerk/nextjs';
 import { useUsage } from '@/hooks/use-usage';
+import { usePricing } from '@/hooks/use-pricing';
 import { cn } from '@/lib/utils';
 import Script from 'next/script';
 
@@ -15,6 +16,7 @@ interface UpgradeModalProps {
 export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
     const { usage } = useUsage();
     const { user } = useUser();
+    const { pricing, loading: pricingLoading } = usePricing();
     const [isMounted, setIsMounted] = useState(false);
 
     useEffect(() => {
@@ -28,20 +30,19 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
     const handleUpgradeClick = (e: React.MouseEvent) => {
         e.preventDefault();
         
-        // Ensure Paystack JS is loaded
+        // Amount in pesewas (GHS × 100)
+        const amountPesewas = Math.round(pricing.pro_monthly_price_ghs * 100);
+
         // @ts-ignore
         if (typeof window.PaystackPop !== 'undefined') {
             // @ts-ignore
             const handler = window.PaystackPop.setup({
-                key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '', // TODO: Add your Paystack Public Key here!
+                key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
                 email: user?.primaryEmailAddress?.emailAddress || 'user@ghanalegal.ai',
-                amount: 15000, // 150 GHS in pesewas
+                amount: amountPesewas,
                 currency: 'GHS',
-                // plan: process.env.NEXT_PUBLIC_PAYSTACK_PRO_PLAN, // Add this if it's a recurring subscription plan code
                 callback: function(response: any) {
                     console.log('Payment complete! Reference: ' + response.reference);
-                    // The backend Paystack Webhook will automatically provision the user.
-                    // You could also poll /api/usage here to show immediate success.
                     onClose();
                 },
                 onClose: function() {
@@ -50,7 +51,6 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
             });
             handler.openIframe();
         } else {
-            // Fallback to payment link if script failed
             window.open('https://paystack.com/pay/ghana-legal-pro', '_blank');
         }
     };
@@ -110,7 +110,7 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
                         <ul className="space-y-4 mb-8">
                             <li className="flex gap-3 text-sm">
                                 <Check size={18} style={{ color: 'var(--muted-foreground)' }} />
-                                <span>5 legal queries per day</span>
+                                <span>{pricingLoading ? '…' : pricing.free_tier_daily_limit} legal queries per day</span>
                             </li>
                             <li className="flex gap-3 text-sm">
                                 <Check size={18} style={{ color: 'var(--muted-foreground)' }} />
@@ -147,8 +147,18 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
                             <h3 className="text-xl font-bold" style={{ color: 'var(--primary)' }}>Professional</h3>
                         </div>
                         <div className="flex items-baseline gap-1 mb-6">
-                            <span className="text-4xl font-bold text-white">₵150</span>
-                            <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>/month</span>
+                            {pricingLoading ? (
+                                <span className="h-10 w-20 rounded-lg inline-block animate-pulse"
+                                      style={{ background: 'rgba(255,255,255,0.1)' }} />
+                            ) : (
+                                <>
+                                    <span className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>GHS</span>
+                                    <span className="text-4xl font-bold text-white">
+                                        {pricing.pro_monthly_price_ghs.toFixed(0)}
+                                    </span>
+                                    <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>/month</span>
+                                </>
+                            )}
                         </div>
                         <p className="text-sm mb-8 flex-1 text-white/80">
                             Unrestricted AI assistance built specifically for legal practitioners and law students.

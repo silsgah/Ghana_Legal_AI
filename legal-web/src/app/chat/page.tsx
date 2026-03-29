@@ -1,34 +1,35 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { UserButton } from '@clerk/nextjs';
 import { Sidebar } from '@/components/ui/sidebar';
 import { MessageBubble } from '@/components/ui/message-bubble';
 import { ChatInput } from '@/components/ui/chat-input';
 import { TypingIndicator } from '@/components/ui/typing-indicator';
 import { UpgradeModal } from '@/components/ui/upgrade-modal';
-import { Menu, Scale, BookOpen, Gavel, ScrollText } from 'lucide-react';
+import { Menu, Scale, BookOpen, Gavel, ScrollText, Sparkles, Zap, Crown } from 'lucide-react';
 import { useChat } from '@/hooks/use-chat';
+import { useUsage } from '@/hooks/use-usage';
 import { LEGAL_EXPERTS, getLegalExpert } from '@/lib/legal-experts';
 
 const SUGGESTED_PROMPTS = [
     {
-        icon: <BookOpen size={15} />,
+        icon: <BookOpen size={14} />,
         label: 'Constitutional Rights',
         prompt: 'What does the 1992 Constitution say about fundamental human rights and freedoms?',
     },
     {
-        icon: <Gavel size={15} />,
+        icon: <Gavel size={14} />,
         label: 'Landmark Case',
         prompt: 'Summarize the Tuffuor v Attorney General case and its significance',
     },
     {
-        icon: <ScrollText size={15} />,
+        icon: <ScrollText size={14} />,
         label: 'Court Hierarchy',
         prompt: 'Explain the hierarchy of courts in Ghana and their jurisdictions',
     },
     {
-        icon: <Scale size={15} />,
+        icon: <Scale size={14} />,
         label: 'Chief Justice',
         prompt: 'How is the Chief Justice appointed and what are the qualifications?',
     },
@@ -37,9 +38,17 @@ const SUGGESTED_PROMPTS = [
 export default function ChatPage() {
     const [selectedExpertId, setSelectedExpertId] = useState('constitutional');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
 
     const selectedExpert = getLegalExpert(selectedExpertId);
+
+    const { usage, fetchUsage } = useUsage();
+
+    const handleStreamComplete = useCallback(() => {
+        // Refresh usage count after each response completes
+        fetchUsage();
+    }, [fetchUsage]);
 
     const {
         messages,
@@ -48,7 +57,7 @@ export default function ChatPage() {
         isStreaming,
         connectionStatus,
         reconnect,
-    } = useChat({ expertId: selectedExpertId });
+    } = useChat({ expertId: selectedExpertId, onStreamComplete: handleStreamComplete });
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -63,29 +72,28 @@ export default function ChatPage() {
 
     return (
         <div className="flex h-screen" style={{ background: 'var(--background)' }}>
-            <UpgradeModal 
-                isOpen={isUpgradeModalOpen} 
-                onClose={() => setIsUpgradeModalOpen(false)} 
+            <UpgradeModal
+                isOpen={isUpgradeModalOpen}
+                onClose={() => setIsUpgradeModalOpen(false)}
             />
-            
+
             {/* Mobile Sidebar Toggle */}
             <button
-                className="lg:hidden fixed top-4 left-4 z-50 p-2.5 rounded-xl shadow-lg"
+                className="lg:hidden fixed top-3 left-3 z-50 p-2.5 rounded-xl"
                 style={{
                     background: 'var(--surface-2)',
                     border: '1px solid var(--border)',
+                    boxShadow: 'var(--shadow-md)',
                 }}
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                 aria-label="Toggle sidebar"
             >
-                <Menu size={20} style={{ color: 'var(--foreground)' }} />
+                <Menu size={18} style={{ color: 'var(--foreground)' }} />
             </button>
 
-            {/* Sidebar */}
-            <div
-                className={`${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-                    } lg:translate-x-0 fixed lg:relative z-40 h-full transition-transform duration-300 ease-out`}
-            >
+            {/* Sidebar — desktop: always visible, collapsible; mobile: slide in/out */}
+            <div className={`${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+                } lg:translate-x-0 fixed lg:relative z-40 h-full transition-transform duration-300 ease-out`}>
                 <Sidebar
                     experts={LEGAL_EXPERTS}
                     selectedExpertId={selectedExpertId}
@@ -94,6 +102,8 @@ export default function ChatPage() {
                     connectionStatus={connectionStatus}
                     onReconnect={reconnect}
                     onUpgradeClick={() => setIsUpgradeModalOpen(true)}
+                    collapsed={isSidebarCollapsed}
+                    onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
                 />
             </div>
 
@@ -109,28 +119,88 @@ export default function ChatPage() {
             {/* Main Chat Area */}
             <div className="flex-1 flex flex-col h-full w-full relative overflow-hidden">
                 {/* Header */}
-                <header
-                    className="h-14 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-10"
-                    style={{
-                        background: 'var(--surface-1)',
-                        borderBottom: '1px solid var(--border)',
-                    }}
-                >
+                <header className="h-13 flex items-center justify-between px-4 lg:px-6 flex-shrink-0"
+                        style={{
+                            background: 'var(--surface-1)',
+                            borderBottom: '1px solid var(--border)',
+                        }}>
                     <div className="lg:pl-0 pl-12 flex items-center gap-3">
-                        <div
-                            className="w-2.5 h-2.5 rounded-full"
-                            style={{ backgroundColor: selectedExpert?.accentColor }}
-                        />
-                        <h1 className="font-semibold text-[14px]"
-                            style={{ color: 'var(--foreground)' }}>
-                            {selectedExpert?.name}
-                        </h1>
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs"
+                             style={{
+                                 background: `linear-gradient(135deg, ${selectedExpert?.accentColor}33, ${selectedExpert?.accentColor}88)`,
+                                 border: `1.5px solid ${selectedExpert?.accentColor}44`,
+                             }}>
+                            {selectedExpert?.icon}
+                        </div>
+                        <div>
+                            <h1 className="font-semibold text-[13px] leading-tight"
+                                style={{ color: 'var(--foreground)' }}>
+                                {selectedExpert?.name}
+                            </h1>
+                            <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
+                                {selectedExpert?.field}
+                            </span>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                        <span className="hidden lg:inline text-[12px]"
-                              style={{ color: 'var(--muted-foreground)' }}>
-                            {selectedExpert?.field} &bull; {selectedExpert?.era}
-                        </span>
+                    <div className="flex items-center gap-2.5">
+                        {/* Plan & Usage Badge */}
+                        {usage && (
+                            <div className="hidden sm:flex items-center gap-2">
+                                {usage.plan === 'free' ? (
+                                    <>
+                                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+                                             style={{ background: 'var(--surface-2)' }}>
+                                            <Zap size={10} style={{ color: 'var(--ghana-gold)' }} />
+                                            <span className="text-[10px] font-semibold"
+                                                  style={{ color: usage.remaining > 0 ? 'var(--foreground)' : 'var(--error)' }}>
+                                                {usage.used_today}/{usage.daily_limit} used
+                                            </span>
+                                        </div>
+                                        <button onClick={() => setIsUpgradeModalOpen(true)}
+                                                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold"
+                                                style={{
+                                                    background: 'linear-gradient(135deg, var(--primary), #8b5cf6)',
+                                                    color: '#fff',
+                                                    transition: 'opacity 0.2s',
+                                                }}>
+                                            <Crown size={10} />
+                                            Upgrade
+                                        </button>
+                                    </>
+                                ) : (
+                                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+                                         style={{ background: 'rgba(91,106,240,0.1)' }}>
+                                        <Crown size={10} style={{ color: 'var(--primary)' }} />
+                                        <span className="text-[10px] font-semibold" style={{ color: 'var(--primary)' }}>
+                                            {usage.plan === 'professional' ? 'Pro' : 'Enterprise'}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        {/* Connection Status */}
+                        <div className="flex items-center gap-1.5 px-2 py-1 rounded-full"
+                             style={{ background: 'var(--surface-2)' }}>
+                            <div className="w-1.5 h-1.5 rounded-full animate-pulse"
+                                 style={{
+                                     background: connectionStatus === 'connected' ? 'var(--success)'
+                                         : connectionStatus === 'connecting' ? 'var(--warning)'
+                                         : 'var(--error)',
+                                 }} />
+                            <span className="text-[10px] font-medium"
+                                  style={{ color: 'var(--muted-foreground)' }}>
+                                {connectionStatus === 'connected' ? 'Online'
+                                    : connectionStatus === 'connecting' ? 'Connecting...'
+                                    : 'Offline'}
+                            </span>
+                            {(connectionStatus === 'disconnected' || connectionStatus === 'error') && (
+                                <button onClick={reconnect}
+                                        className="text-[10px] font-semibold ml-0.5"
+                                        style={{ color: 'var(--primary)' }}>
+                                    Retry
+                                </button>
+                            )}
+                        </div>
                         <UserButton />
                     </div>
                 </header>
@@ -138,38 +208,39 @@ export default function ChatPage() {
                 {/* Messages Area */}
                 <div className="flex-1 overflow-y-auto">
                     {messages.length === 0 ? (
-                        <div className="h-full flex flex-col items-center justify-center p-8 text-center animate-float-in">
-                            <div
-                                className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6"
-                                style={{
-                                    background: `linear-gradient(135deg, ${selectedExpert?.accentColor || 'var(--primary)'}33, ${selectedExpert?.accentColor || 'var(--primary)'}88)`,
-                                    border: `1px solid ${selectedExpert?.accentColor || 'var(--primary)'}44`,
-                                    boxShadow: `0 8px 32px ${selectedExpert?.accentColor || 'var(--primary)'}22`,
-                                }}
-                            >
-                                <Scale size={36} style={{ color: selectedExpert?.accentColor || 'var(--primary)' }} />
+                        /* Empty state */
+                        <div className="h-full flex flex-col items-center justify-center p-6 animate-float-in">
+                            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5"
+                                 style={{
+                                     background: `linear-gradient(135deg, ${selectedExpert?.accentColor || 'var(--primary)'}22, ${selectedExpert?.accentColor || 'var(--primary)'}55)`,
+                                     border: `1px solid ${selectedExpert?.accentColor || 'var(--primary)'}33`,
+                                 }}>
+                                <Scale size={28} style={{ color: selectedExpert?.accentColor || 'var(--primary)' }} />
                             </div>
 
-                            <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--foreground)' }}>
+                            <h2 className="text-xl font-bold mb-1.5" style={{ color: 'var(--foreground)' }}>
                                 {selectedExpert?.name}
                             </h2>
-                            <p className="text-sm max-w-md mb-2" style={{ color: 'var(--muted-foreground)' }}>
+                            <p className="text-sm max-w-sm text-center mb-1"
+                               style={{ color: 'var(--muted-foreground)' }}>
                                 {selectedExpert?.tagline}
                             </p>
-                            <p className="text-xs mb-10" style={{ color: 'var(--muted-foreground)', opacity: 0.6 }}>
-                                {selectedExpert?.era}
-                            </p>
+                            <div className="flex items-center gap-1.5 mb-8">
+                                <Sparkles size={11} style={{ color: 'var(--ghana-gold)' }} />
+                                <span className="text-[11px] font-medium" style={{ color: 'var(--muted-foreground)', opacity: 0.7 }}>
+                                    {selectedExpert?.era}
+                                </span>
+                            </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg w-full">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-w-lg w-full">
                                 {SUGGESTED_PROMPTS.map(({ icon, label, prompt }) => (
                                     <button
                                         key={prompt}
                                         onClick={() => sendMessage(prompt)}
-                                        className="px-4 py-3.5 text-sm text-left rounded-xl group"
+                                        className="px-3.5 py-3 text-left rounded-xl group"
                                         style={{
                                             background: 'var(--surface-1)',
                                             border: '1px solid var(--border)',
-                                            color: 'var(--foreground)',
                                             transition: 'all 0.2s ease',
                                         }}
                                         onMouseEnter={(e) => {
@@ -183,13 +254,15 @@ export default function ChatPage() {
                                             e.currentTarget.style.transform = 'translateY(0)';
                                         }}
                                     >
-                                        <div className="flex items-center gap-2 mb-1" style={{ color: 'var(--primary)' }}>
+                                        <div className="flex items-center gap-1.5 mb-1"
+                                             style={{ color: 'var(--primary)' }}>
                                             {icon}
-                                            <span className="font-semibold text-[12px]">{label}</span>
+                                            <span className="text-[11px] font-semibold">{label}</span>
                                         </div>
-                                        <span className="text-[13px] leading-snug" style={{ color: 'var(--muted-foreground)' }}>
+                                        <p className="text-[12px] leading-snug"
+                                           style={{ color: 'var(--muted-foreground)' }}>
                                             {prompt}
-                                        </span>
+                                        </p>
                                     </button>
                                 ))}
                             </div>
@@ -203,6 +276,7 @@ export default function ChatPage() {
                                     content={msg.content}
                                     expert={selectedExpert}
                                     timestamp={msg.timestamp}
+                                    sources={msg.sources}
                                 />
                             ))}
                             {isStreaming && messages[messages.length - 1]?.role === 'user' && (
@@ -211,12 +285,12 @@ export default function ChatPage() {
                                     accentColor={selectedExpert?.accentColor}
                                 />
                             )}
-                            <div ref={messagesEndRef} />
+                            <div ref={messagesEndRef} className="h-4" />
                         </div>
                     )}
                 </div>
 
-                {/* Input Area */}
+                {/* Input */}
                 <ChatInput
                     onSend={sendMessage}
                     disabled={isStreaming || connectionStatus !== 'connected'}

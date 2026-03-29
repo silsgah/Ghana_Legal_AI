@@ -4,17 +4,26 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import { config } from '@/lib/config';
 
+export interface Source {
+    title: string;
+    court: string;
+    year: string;
+    document_type: string;
+}
+
 export interface Message {
     id: string;
     role: 'user' | 'assistant';
     content: string;
     timestamp: Date;
+    sources?: Source[];
 }
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 
 interface UseChatOptions {
     expertId: string;
+    onStreamComplete?: () => void;
 }
 
 interface UseChatReturn {
@@ -28,11 +37,12 @@ interface UseChatReturn {
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
 
-export function useChat({ expertId }: UseChatOptions): UseChatReturn {
+export function useChat({ expertId, onStreamComplete }: UseChatOptions): UseChatReturn {
     const { getToken } = useAuth();
     const [messages, setMessages] = useState<Message[]>([]);
     const [isStreaming, setIsStreaming] = useState(false);
     const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
+    const [historyLoaded, setHistoryLoaded] = useState(false);
 
     const wsRef = useRef<WebSocket | null>(null);
     const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -57,10 +67,10 @@ export function useChat({ expertId }: UseChatOptions): UseChatReturn {
 
         try {
             const token = await getToken();
-            const wsUrl = token 
-                ? `${config.wsUrl}/ws/chat?token=${token}` 
+            const wsUrl = token
+                ? `${config.wsUrl}/ws/chat?token=${token}`
                 : `${config.wsUrl}/ws/chat`;
-                
+
             const ws = new WebSocket(wsUrl);
 
             ws.onopen = () => {
@@ -98,8 +108,22 @@ export function useChat({ expertId }: UseChatOptions): UseChatReturn {
                             }
                         });
                     } else if (data.streaming === false) {
-                        // Stream complete
+                        // Stream complete — attach sources if present
                         setIsStreaming(false);
+                        if (data.sources && data.sources.length > 0) {
+                            setMessages((prev) => {
+                                const lastMsg = prev[prev.length - 1];
+                                if (lastMsg?.role === 'assistant') {
+                                    return [
+                                        ...prev.slice(0, -1),
+                                        { ...lastMsg, sources: data.sources },
+                                    ];
+                                }
+                                return prev;
+                            });
+                        }
+                        // Notify parent that stream is complete (for usage refresh)
+                        onStreamComplete?.();
                     } else if (data.error) {
                         console.error('WebSocket error:', data.error);
                         setIsStreaming(false);
@@ -168,6 +192,43 @@ export function useChat({ expertId }: UseChatOptions): UseChatReturn {
         };
     }, [connect]);
 
+    // Load conversation history when expert changes
+    useEffect(() => {
+        const loadHistory = async () => {
+            try {
+                const token = await getToken();
+                if (!token) return;
+
+                const res = await fetch(`${config.apiUrl}/api/history/${currentExpertId.current}`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+
+                if (!res.ok) return;
+
+                const data = await res.json();
+                if (data.messages && data.messages.length > 0) {
+                    const loadedMessages: Message[] = data.messages.map((msg: { role: string; content: string }, i: number) => ({
+                        id: `history_${i}`,
+                        role: msg.role as 'user' | 'assistant',
+                        content: msg.content,
+                        timestamp: new Date(),
+                    }));
+                    setMessages(loadedMessages);
+                } else {
+                    setMessages([]);
+                }
+            } catch (err) {
+                console.error('Failed to load history:', err);
+                setMessages([]);
+            } finally {
+                setHistoryLoaded(true);
+            }
+        };
+
+        setHistoryLoaded(false);
+        loadHistory();
+    }, [expertId]);
+
     const sendMessage = useCallback((text: string) => {
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
             console.error('WebSocket not connected');
@@ -193,9 +254,13 @@ export function useChat({ expertId }: UseChatOptions): UseChatReturn {
     }, []);
 
     const resetChat = useCallback(async () => {
+        setMessages([]);
         try {
-            await fetch(`${config.apiUrl}/reset-memory`, { method: 'POST' });
-            setMessages([]);
+            const token = await getToken();
+            await fetch(`${config.apiUrl}/reset-memory`, {
+                method: 'POST',
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
         } catch (error) {
             console.error('Failed to reset memory:', error);
         }

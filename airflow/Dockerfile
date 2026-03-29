@@ -1,34 +1,35 @@
-FROM apache/airflow:2.8.1
+FROM apache/airflow:2.8.1-python3.11
 
 USER root
-# Install system dependencies if needed (e.g. for building python packages)
+# Install system dependencies for building python packages and lxml
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
     build-essential \
+    libxml2-dev \
+    libxslt1-dev \
     && apt-get autoremove -yqq --purge \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 USER airflow
 
-# Copy requirements relevant for ingestion
-COPY legal-api/requirements.txt /requirements.txt
+# Upgrade pip first
+RUN pip install --no-cache-dir --upgrade pip
 
-# Install python dependencies
-# We filter out some heavy ML libs if they cause conflict, but broadly we need:
-# beautifulsoup4, requests, pymongo, langchain, sentence-transformers
+# Pin numpy to avoid binary incompatibility with Airflow's bundled providers
+RUN pip install --no-cache-dir "numpy<2"
+
+# Install python dependencies for the ingestion pipeline
 RUN pip install --no-cache-dir \
     beautifulsoup4 \
     requests \
-    pymongo \
+    lxml \
+    pypdf \
     langchain \
     langchain-community \
-    langchain-openai \
-    langchain-groq \
+    langchain-huggingface \
+    langchain-text-splitters \
     sentence-transformers \
+    qdrant-client \
     loguru \
     python-dotenv \
-    python-dotenv \
-    pypdf \
-    datasketch
-
-# Ensure ghana_legal package is importable via python path in docker-compose
+    tqdm

@@ -1,4 +1,5 @@
 import asyncio
+import json
 import uuid
 import certifi
 from typing import Any, AsyncGenerator, Union
@@ -12,6 +13,10 @@ from ghana_legal.application.conversation_service.workflow.graph import (
     create_workflow_graph,
 )
 from ghana_legal.application.conversation_service.workflow.state import LegalExpertState
+from ghana_legal.application.conversation_service.workflow.tools import (
+    clear_retrieved_sources,
+    get_retrieved_sources,
+)
 from ghana_legal.config import settings
 
 
@@ -23,6 +28,7 @@ async def get_response(
     style: str,
     legal_context: str,
     new_thread: bool = False,
+    clerk_id: str = "",
 ) -> tuple[str, LegalExpertState]:
     """Run a conversation through the workflow graph.
 
@@ -57,8 +63,9 @@ async def get_response(
             graph = graph_builder.compile(checkpointer=checkpointer)
             opik_tracer = OpikTracer(graph=graph.get_graph(xray=True))
 
+            base_thread = f"{clerk_id}_{expert_id}" if clerk_id else expert_id
             thread_id = (
-                expert_id if not new_thread else f"{expert_id}-{uuid.uuid4()}"
+                base_thread if not new_thread else f"{base_thread}-{uuid.uuid4()}"
             )
             config = {
                 "configurable": {"thread_id": thread_id},
@@ -105,6 +112,7 @@ async def get_streaming_response(
     style: str,
     legal_context: str,
     new_thread: bool = False,
+    clerk_id: str = "",
 ) -> AsyncGenerator[str, None]:
     """Run a conversation through the workflow graph with streaming response.
 
@@ -123,6 +131,7 @@ async def get_streaming_response(
     Raises:
         RuntimeError: If there's an error running the conversation workflow.
     """
+    clear_retrieved_sources()
     graph_builder = create_workflow_graph()
 
     try:
@@ -137,8 +146,9 @@ async def get_streaming_response(
             graph = graph_builder.compile(checkpointer=checkpointer)
             opik_tracer = OpikTracer(graph=graph.get_graph(xray=True))
 
+            base_thread = f"{clerk_id}_{expert_id}" if clerk_id else expert_id
             thread_id = (
-                expert_id if not new_thread else f"{expert_id}-{uuid.uuid4()}"
+                base_thread if not new_thread else f"{base_thread}-{uuid.uuid4()}"
             )
             config = {
                 "configurable": {"thread_id": thread_id},
@@ -164,6 +174,11 @@ async def get_streaming_response(
                     full_response += content
                     yield content
 
+            # Yield sources captured during retrieval
+            sources = get_retrieved_sources()
+            if sources:
+                yield json.dumps({"__sources__": sources})
+
             # Trigger async evaluation
             try:
                 from ghana_legal.application.evaluation.evaluation_service import get_evaluator
@@ -178,7 +193,7 @@ async def get_streaming_response(
                 )
             except Exception as eval_error:
                 logger.warning(f"Failed to start streaming evaluation: {eval_error}")
-    
+
     except Exception as e:
         raise RuntimeError(
             f"Error running streaming conversation workflow: {str(e)}"

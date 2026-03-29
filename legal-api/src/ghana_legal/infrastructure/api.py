@@ -20,6 +20,7 @@ from ghana_legal.infrastructure.usage import check_quota
 from ghana_legal.domain.legal_expert_factory import LegalExpertFactory
 from ghana_legal.infrastructure.cache import get_cache
 from ghana_legal.infrastructure.webhooks import router as webhooks_router
+from ghana_legal.infrastructure.admin import router as admin_router
 
 from .opik_utils import configure
 
@@ -75,8 +76,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Register webhook routes
+# Register routes
 app.include_router(webhooks_router)
+app.include_router(admin_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -93,6 +95,21 @@ async def get_usage_quota(user: dict = Depends(get_current_user)):
     clerk_id = user["sub"]
     quota = await check_quota(clerk_id)
     return quota
+
+
+@app.get("/api/pricing", tags=["billing"])
+async def get_pricing():
+    """Public endpoint: returns live plan pricing and free-tier quota.
+
+    No auth required — used by the landing page and upgrade modal.
+    """
+    from ghana_legal.infrastructure.usage import get_platform_config
+    cfg = await get_platform_config()
+    return {
+        "free_tier_daily_limit": cfg["free_tier_daily_limit"],
+        "pro_monthly_price_ghs": cfg["pro_monthly_price_ghs"],
+        "enterprise_monthly_price_ghs": cfg["enterprise_monthly_price_ghs"],
+    }
 
 
 class ChatMessage(BaseModel):
@@ -178,10 +195,13 @@ async def websocket_chat(websocket: WebSocket, token: str = None):
                 continue
 
             try:
+                # Signal immediately so frontend shows typing indicator
+                await websocket.send_json({"streaming": True})
+
                 # 1. Quota Check
                 from ghana_legal.infrastructure.usage import check_quota, log_usage
                 quota = await check_quota(clerk_id)
-                
+
                 if not quota["allowed"]:
                     await websocket.send_json({
                         "error": f"Daily limit reached. You have used {quota['used_today']}/{quota['daily_limit']} free queries today. Please upgrade to Pro for unlimited access.",
@@ -201,7 +221,7 @@ async def websocket_chat(websocket: WebSocket, token: str = None):
                     data["expert_id"]
                 )
 
-                # Use streaming response instead of get_response
+                # Use streaming response
                 response_stream = get_streaming_response(
                     messages=data["message"],
                     expert_id=data["expert_id"],
@@ -209,23 +229,30 @@ async def websocket_chat(websocket: WebSocket, token: str = None):
                     expertise=expert.expertise,
                     style=expert.style,
                     legal_context="",
+                    clerk_id=clerk_id,
                 )
-
-                # Send initial message to indicate streaming has started
-                await websocket.send_json({"streaming": True})
 
                 # Stream each chunk of the response
                 full_response = ""
+                sources = []
                 async for chunk in response_stream:
-                    full_response += chunk
-                    await websocket.send_json({"chunk": chunk})
+                    # Check for sources marker (yielded after streaming ends)
+                    if chunk.startswith('{"__sources__"'):
+                        try:
+                            import json
+                            sources = json.loads(chunk)["__sources__"]
+                        except Exception:
+                            pass
+                    else:
+                        full_response += chunk
+                        await websocket.send_json({"chunk": chunk})
 
                 # Cache the full response for future non-streaming requests
                 if len(full_response) > 50:
                     cache.set(data["message"], data["expert_id"], full_response, ttl=7200)
 
                 await websocket.send_json(
-                    {"response": full_response, "streaming": False}
+                    {"response": full_response, "streaming": False, "sources": sources}
                 )
 
                 # 4. Log usage after successful generation
@@ -255,6 +282,49 @@ async def reset_conversation():
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/history/{expert_id}", tags=["chat"])
+async def get_chat_history(expert_id: str, user: dict = Depends(get_current_user)):
+    """Fetch conversation history for a user + expert from MongoDB checkpoints."""
+    import certifi
+    from langchain_core.messages import HumanMessage, AIMessage
+    from langgraph.checkpoint.mongodb import MongoDBSaver
+    from ghana_legal.config import settings
+
+    clerk_id = user["sub"]
+    thread_id = f"{clerk_id}_{expert_id}"
+
+    try:
+        with MongoDBSaver.from_conn_string(
+            conn_string=settings.MONGO_URI,
+            db_name=settings.MONGO_DB_NAME,
+            checkpoint_collection_name=settings.MONGO_STATE_CHECKPOINT_COLLECTION,
+            writes_collection_name=settings.MONGO_STATE_WRITES_COLLECTION,
+            tlsCAFile=certifi.where()
+        ) as checkpointer:
+            config = {"configurable": {"thread_id": thread_id}}
+            checkpoint = checkpointer.get(config)
+
+            if not checkpoint or "channel_values" not in checkpoint:
+                return {"messages": []}
+
+            messages = checkpoint["channel_values"].get("messages", [])
+
+            history = []
+            for msg in messages:
+                if isinstance(msg, HumanMessage):
+                    history.append({"role": "user", "content": msg.content})
+                elif isinstance(msg, AIMessage) and msg.content:
+                    # Skip tool_call messages (empty content)
+                    history.append({"role": "assistant", "content": msg.content})
+
+            return {"messages": history}
+
+    except Exception as e:
+        from loguru import logger
+        logger.warning(f"Failed to load history for {thread_id}: {e}")
+        return {"messages": []}
 
 
 if __name__ == "__main__":

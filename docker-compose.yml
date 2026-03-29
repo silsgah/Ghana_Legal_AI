@@ -12,12 +12,18 @@ x-airflow-common: &airflow-common
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__API__AUTH_BACKEND: 'airflow.api.auth.backend.basic_auth'
+    AIRFLOW__WEBSERVER__WEB_SERVER_WORKER_TIMEOUT: '300'
     # Environment variables for our App
     PROJECT_ROOT: /opt/airflow/dags/ghana_legal_root
     MONGO_URI: mongodb://ghana_legal:ghana_legal@mongodb:27017
-    # Pass through keys if needed
+    PYTHONPATH: /opt/airflow/plugins:/opt/airflow/dags/ghana_legal_root/legal-api/src
+    # Qdrant Cloud
+    QDRANT_URL: ${QDRANT_URL}
+    QDRANT_API_KEY: ${QDRANT_API_KEY}
+    # LLM keys
+    GROQ_API_KEY: ${GROQ_API_KEY}
     OPENAI_API_KEY: ${OPENAI_API_KEY}
-    # PYTHONPATH removed for debugging
+    VECTOR_DB_MODE: ${VECTOR_DB_MODE:-qdrant}
   volumes:
     - ./airflow/dags:/opt/airflow/dags
     - ./airflow/plugins:/opt/airflow/plugins

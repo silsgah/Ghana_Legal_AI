@@ -3,7 +3,6 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.prebuilt import ToolNode
 
 from ghana_legal.application.conversation_service.workflow.chains import (
-    get_context_summary_chain,
     get_conversation_summary_chain,
     get_legal_expert_response_chain,
 )

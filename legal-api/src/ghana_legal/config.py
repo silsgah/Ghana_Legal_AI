@@ -75,6 +75,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str = Field(default="", description="PostgreSQL connection string")
     FREE_TIER_DAILY_LIMIT: int = Field(default=5, description="Number of free queries per day")
 
+    # --- Clerk Configuration ---
+    CLERK_SECRET_KEY: str = Field(default="", description="Clerk secret key for Backend API calls (sk_live_... or sk_test_...)")
+
     # --- LFM2/Ollama Configuration ---
     USE_LOCAL_LLM: bool = Field(
         default=False, description="Use local LFM2 model via Ollama instead of Groq"

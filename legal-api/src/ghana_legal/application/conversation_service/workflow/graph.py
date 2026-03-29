@@ -10,7 +10,6 @@ from ghana_legal.application.conversation_service.workflow.nodes import (
     conversation_node,
     summarize_conversation_node,
     retriever_node,
-    summarize_context_node,
     connector_node,
 )
 from ghana_legal.application.conversation_service.workflow.state import LegalExpertState
@@ -24,9 +23,8 @@ def create_workflow_graph():
     graph_builder.add_node("conversation_node", conversation_node)
     graph_builder.add_node("retrieve_legal_context", retriever_node)
     graph_builder.add_node("summarize_conversation_node", summarize_conversation_node)
-    graph_builder.add_node("summarize_context_node", summarize_context_node)
     graph_builder.add_node("connector_node", connector_node)
-    
+
     # Define the flow
     graph_builder.add_edge(START, "conversation_node")
     graph_builder.add_conditional_edges(
@@ -37,11 +35,12 @@ def create_workflow_graph():
             END: "connector_node"
         }
     )
-    graph_builder.add_edge("retrieve_legal_context", "summarize_context_node")
-    graph_builder.add_edge("summarize_context_node", "conversation_node")
+    # Retrieved context goes directly to conversation_node (no summarization)
+    # so the LLM sees full source metadata for proper citations
+    graph_builder.add_edge("retrieve_legal_context", "conversation_node")
     graph_builder.add_conditional_edges("connector_node", should_summarize_conversation)
     graph_builder.add_edge("summarize_conversation_node", END)
-    
+
     return graph_builder
 
 # Compiled without a checkpointer. Used for LangGraph Studio

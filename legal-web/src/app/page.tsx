@@ -7,6 +7,7 @@ import {
     Scale, Shield, Zap, BookOpen, Users, ArrowRight,
     Check, Star, ChevronRight, Gavel, ScrollText
 } from 'lucide-react';
+import { usePricing } from '@/hooks/use-pricing';
 
 const FEATURES = [
     {
@@ -41,66 +42,72 @@ const FEATURES = [
     },
 ];
 
-const PRICING_TIERS = [
-    {
-        name: 'Free',
-        price: '0',
-        currency: '',
-        period: '',
-        description: 'Try it out with limited access',
-        features: [
-            '5 queries per day',
-            'Constitutional Expert',
-            'Basic case law search',
-            'Community support',
-        ],
-        cta: 'Get Started',
-        href: '/sign-up',
-        highlighted: false,
-        accentColor: 'var(--muted-foreground)',
-    },
-    {
-        name: 'Professional',
-        price: '49',
-        currency: 'GHS',
-        period: '/month',
-        description: 'For lawyers and paralegals',
-        features: [
-            'Unlimited queries',
-            'All 3 expert modes',
-            'Case law deep analysis',
-            'Priority response speed',
-            'Chat history & export',
-            'Email support',
-        ],
-        cta: 'Start Free Trial',
-        href: '/sign-up',
-        highlighted: true,
-        accentColor: 'var(--ghana-gold)',
-    },
-    {
-        name: 'Enterprise',
-        price: '199',
-        currency: 'GHS',
-        period: '/month',
-        description: 'For law firms and institutions',
-        features: [
-            'Everything in Professional',
-            'Up to 10 user seats',
-            'API access',
-            'Custom integrations',
-            'Dedicated account manager',
-            'SLA guarantee',
-        ],
-        cta: 'Contact Sales',
-        href: '/sign-up',
-        highlighted: false,
-        accentColor: 'var(--ghana-green)',
-    },
-];
 
 export default function LandingPage() {
     const { isSignedIn } = useAuth();
+    const { pricing, loading: pricingLoading } = usePricing();
+
+    const PRICING_TIERS = [
+        {
+            name: 'Free',
+            price: '0',
+            currency: '',
+            period: '',
+            description: 'Try it out with limited access',
+            features: [
+                `${pricing.free_tier_daily_limit} queries per day`,
+                'Constitutional Expert',
+                'Basic case law search',
+                'Community support',
+            ],
+            cta: 'Get Started',
+            href: '/sign-up',
+            highlighted: false,
+            accentColor: 'var(--muted-foreground)',
+            priceDisplay: 'Free',
+            priceLoading: false,
+        },
+        {
+            name: 'Professional',
+            price: pricing.pro_monthly_price_ghs.toFixed(0),
+            currency: 'GHS',
+            period: '/month',
+            description: 'For lawyers and paralegals',
+            features: [
+                'Unlimited queries',
+                'All 3 expert modes',
+                'Case law deep analysis',
+                'Priority response speed',
+                'Chat history & export',
+                'Email support',
+            ],
+            cta: 'Start Free Trial',
+            href: '/sign-up',
+            highlighted: true,
+            accentColor: 'var(--ghana-gold)',
+            priceLoading: pricingLoading,
+        },
+        {
+            name: 'Enterprise',
+            price: pricing.enterprise_monthly_price_ghs.toFixed(0),
+            currency: 'GHS',
+            period: '/month',
+            description: 'For law firms and institutions',
+            features: [
+                'Everything in Professional',
+                'Up to 10 user seats',
+                'API access',
+                'Custom integrations',
+                'Dedicated account manager',
+                'SLA guarantee',
+            ],
+            cta: 'Contact Sales',
+            href: '/sign-up',
+            highlighted: false,
+            accentColor: 'var(--ghana-green)',
+            priceLoading: pricingLoading,
+        },
+    ];
 
     return (
         <div style={{ background: 'var(--background)', color: 'var(--foreground)' }}
@@ -308,8 +315,13 @@ export default function LandingPage() {
                                             {tier.currency}
                                         </span>
                                     )}
-                                    <span className="text-4xl font-extrabold">{tier.price}</span>
-                                    {tier.period && (
+                                    {tier.priceLoading ? (
+                                        <span className="h-10 w-16 rounded-lg inline-block animate-pulse"
+                                              style={{ background: 'var(--surface-2)' }} />
+                                    ) : (
+                                        <span className="text-4xl font-extrabold">{tier.price}</span>
+                                    )}
+                                    {tier.period && !tier.priceLoading && (
                                         <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
                                             {tier.period}
                                         </span>

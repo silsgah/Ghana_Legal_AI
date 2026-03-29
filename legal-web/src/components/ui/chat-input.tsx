@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, KeyboardEvent, useRef, useEffect } from 'react';
-import { ArrowUp, Scale } from 'lucide-react';
+import { ArrowUp, Paperclip } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ChatInputProps {
@@ -14,12 +14,11 @@ export function ChatInput({ onSend, disabled, expertName }: ChatInputProps) {
     const [input, setInput] = useState('');
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-    // Auto-resize textarea
     useEffect(() => {
         const textarea = textareaRef.current;
         if (textarea) {
             textarea.style.height = 'auto';
-            textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+            textarea.style.height = `${Math.min(textarea.scrollHeight, 180)}px`;
         }
     }, [input]);
 
@@ -40,69 +39,89 @@ export function ChatInput({ onSend, disabled, expertName }: ChatInputProps) {
         }
     };
 
+    const hasInput = input.trim().length > 0;
+
     return (
-        <div className="p-4 pb-5"
-             style={{ borderTop: '1px solid var(--border)', background: 'var(--surface-1)' }}>
+        <div className="px-4 py-3"
+             style={{
+                 background: 'linear-gradient(to top, var(--background) 60%, transparent)',
+             }}>
             <div className="max-w-3xl mx-auto">
-                <div className="relative flex items-end gap-2">
-                    <div className="flex-1 relative">
-                        <textarea
-                            ref={textareaRef}
-                            value={input}
-                            onChange={(e) => setInput(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            placeholder={
-                                disabled
-                                    ? 'Connecting to server...'
-                                    : `Ask ${expertName || 'the legal expert'} a question...`
+                <div className="rounded-2xl overflow-hidden"
+                     style={{
+                         background: 'var(--surface-1)',
+                         border: '1px solid var(--border)',
+                         boxShadow: '0 -2px 20px rgba(0,0,0,0.15)',
+                         transition: 'border-color 0.2s, box-shadow 0.2s',
+                     }}>
+                    <textarea
+                        ref={textareaRef}
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder={
+                            disabled
+                                ? 'Connecting...'
+                                : `Message ${expertName || 'Legal Expert'}...`
+                        }
+                        disabled={disabled}
+                        rows={1}
+                        className={cn(
+                            'w-full px-4 pt-3.5 pb-1 resize-none',
+                            'text-sm leading-relaxed',
+                            'focus:outline-none',
+                            'disabled:opacity-40 disabled:cursor-not-allowed',
+                            'placeholder:text-[var(--muted-foreground)]',
+                        )}
+                        style={{
+                            background: 'transparent',
+                            color: 'var(--foreground)',
+                            caretColor: 'var(--primary)',
+                            border: 'none',
+                        }}
+                        onFocus={(e) => {
+                            const container = e.currentTarget.parentElement;
+                            if (container) {
+                                container.style.borderColor = 'var(--primary)';
+                                container.style.boxShadow = '0 -2px 20px rgba(0,0,0,0.15), 0 0 0 1px var(--primary)';
                             }
-                            disabled={disabled}
-                            rows={1}
-                            className={cn(
-                                'w-full px-5 py-4 pr-14 resize-none',
-                                'text-[15px] leading-relaxed',
-                                'focus:outline-none',
-                                'disabled:opacity-40 disabled:cursor-not-allowed',
-                                'transition-all duration-200'
-                            )}
-                            style={{
-                                background: 'var(--surface-2)',
-                                color: 'var(--foreground)',
-                                border: '1px solid var(--border)',
-                                borderRadius: 'var(--radius-lg)',
-                                caretColor: 'var(--primary)',
-                            }}
-                            onFocus={(e) => {
-                                e.currentTarget.style.borderColor = 'var(--primary)';
-                                e.currentTarget.style.boxShadow = '0 0 0 3px var(--primary-muted)';
-                            }}
-                            onBlur={(e) => {
-                                e.currentTarget.style.borderColor = 'var(--border)';
-                                e.currentTarget.style.boxShadow = 'none';
-                            }}
-                        />
+                        }}
+                        onBlur={(e) => {
+                            const container = e.currentTarget.parentElement;
+                            if (container) {
+                                container.style.borderColor = 'var(--border)';
+                                container.style.boxShadow = '0 -2px 20px rgba(0,0,0,0.15)';
+                            }
+                        }}
+                    />
+                    {/* Bottom toolbar */}
+                    <div className="flex items-center justify-between px-3 py-2">
+                        <div className="flex items-center gap-1">
+                            <span className="text-[10px] px-2 py-0.5 rounded-md"
+                                  style={{ color: 'var(--muted-foreground)', background: 'var(--surface-2)' }}>
+                                Enter to send
+                            </span>
+                        </div>
                         <button
                             onClick={handleSend}
-                            disabled={!input.trim() || disabled}
-                            className="absolute right-2.5 bottom-2.5 p-2.5 rounded-xl transition-all duration-200"
+                            disabled={!hasInput || disabled}
+                            className="p-2 rounded-xl transition-all duration-200"
                             style={{
-                                background: input.trim() && !disabled ? 'var(--primary)' : 'var(--surface-3)',
-                                color: input.trim() && !disabled ? '#fff' : 'var(--muted-foreground)',
-                                cursor: !input.trim() || disabled ? 'not-allowed' : 'pointer',
-                                opacity: !input.trim() || disabled ? 0.5 : 1,
+                                background: hasInput && !disabled ? 'var(--primary)' : 'var(--surface-3)',
+                                color: hasInput && !disabled ? '#fff' : 'var(--muted-foreground)',
+                                cursor: !hasInput || disabled ? 'not-allowed' : 'pointer',
+                                opacity: !hasInput || disabled ? 0.4 : 1,
+                                transform: hasInput ? 'scale(1)' : 'scale(0.95)',
                             }}
                         >
-                            <ArrowUp size={18} />
+                            <ArrowUp size={16} strokeWidth={2.5} />
                         </button>
                     </div>
                 </div>
-                <div className="flex items-center justify-between mt-3 text-[11px] px-1"
-                     style={{ color: 'var(--muted-foreground)' }}>
-                    <div className="flex items-center gap-1.5">
-                        <Scale size={11} />
-                        <span>Ghana Legal AI &bull; Powered by EED Soft Consult</span>
-                    </div>
-                    <span>Enter to send &bull; Shift+Enter for new line</span>
+                <div className="text-center mt-2">
+                    <span className="text-[10px]" style={{ color: 'var(--muted-foreground)', opacity: 0.5 }}>
+                        Ghana Legal AI may produce inaccurate information. Verify with official sources.
+                    </span>
                 </div>
             </div>
         </div>
