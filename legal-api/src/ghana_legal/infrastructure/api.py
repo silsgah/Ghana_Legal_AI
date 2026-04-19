@@ -429,7 +429,7 @@ async def get_chat_history(expert_id: str, user: dict = Depends(get_current_user
         
         async with AsyncConnectionPool(conninfo=db_uri, kwargs={"prepare_threshold": None}) as pool:
             checkpointer = AsyncPostgresSaver(pool)
-            await checkpointer.asetup()
+            await checkpointer.setup()
             config = {"configurable": {"thread_id": thread_id}}
             checkpoint = await checkpointer.aget(config)
 

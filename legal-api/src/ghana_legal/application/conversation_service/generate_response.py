@@ -61,7 +61,7 @@ async def get_response(
         
         async with AsyncConnectionPool(conninfo=db_uri, kwargs={"prepare_threshold": None}) as pool:
             checkpointer = AsyncPostgresSaver(pool)
-            await checkpointer.asetup()
+            await checkpointer.setup()
             graph = graph_builder.compile(checkpointer=checkpointer)
             opik_tracer = OpikTracer(graph=graph.get_graph(xray=True))
 
@@ -146,7 +146,7 @@ async def get_streaming_response(
         
         async with AsyncConnectionPool(conninfo=db_uri, kwargs={"prepare_threshold": None}) as pool:
             checkpointer = AsyncPostgresSaver(pool)
-            await checkpointer.asetup()
+            await checkpointer.setup()
             graph = graph_builder.compile(checkpointer=checkpointer)
             opik_tracer = OpikTracer(graph=graph.get_graph(xray=True))
 
