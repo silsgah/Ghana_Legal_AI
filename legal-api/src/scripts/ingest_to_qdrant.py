@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import List, Dict, Any
 from datetime import datetime
 import re
+import json
 
 # Add src to path for imports
 current_dir = Path(__file__).resolve().parent
@@ -232,6 +233,40 @@ def ingest_to_qdrant(documents: List[Document]) -> Dict[str, Any]:
     return stats
 
 
+def update_manifest_statuses(documents: List[Document]):
+    """Update pipeline_manifest.json to mark processed files as 'indexed'."""
+    project_root = Path(__file__).resolve().parents[3]
+    manifest_path = project_root / "data" / "pipeline_manifest.json"
+    
+    if not manifest_path.exists():
+        logger.warning("No pipeline_manifest.json found to update stats.")
+        return
+        
+    try:
+        with open(manifest_path, "r") as f:
+            manifest = json.load(f)
+            
+        # Correlate via the base filenames (e.g. GHADC_2026_2)
+        loaded_case_ids = {doc.metadata.get("filename", "").replace(".pdf", "") for doc in documents}
+        
+        updated_count = 0
+        cases = manifest.get("cases", {})
+        for case_id, case in cases.items():
+            if case_id in loaded_case_ids and case.get("status") in ["pending", "downloaded"]:
+                case["status"] = "indexed"
+                case["updated_at"] = datetime.now().isoformat()
+                updated_count += 1
+                
+        manifest["cases"] = cases
+        
+        with open(manifest_path, "w") as f:
+            json.dump(manifest, f, indent=2)
+            
+        logger.success(f"✓ Updated {updated_count} cases in manifest to 'indexed' status.")
+    except Exception as e:
+        logger.error(f"Failed to update manifest statuses: {e}")
+
+
 def main():
     """Main ingestion pipeline for Qdrant Cloud."""
     logger.info("=" * 80)
@@ -275,6 +310,10 @@ def main():
 
     # Step 3: Ingest to Qdrant Cloud
     stats = ingest_to_qdrant(chunked_docs)
+
+    # Step 4: Update Manifest Statuses
+    if stats["successful"] > 0:
+        update_manifest_statuses(documents)
 
     # Final summary
     end_time = datetime.now()
