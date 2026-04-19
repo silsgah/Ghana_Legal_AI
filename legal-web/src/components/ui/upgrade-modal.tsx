@@ -80,7 +80,7 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
                          style={{ background: 'radial-gradient(circle, var(--primary-muted) 0%, transparent 70%)' }} />
                          
                     <h2 className="text-3xl md:text-4xl font-bold mb-4 tracking-tight" style={{ color: 'var(--foreground)' }}>
-                        Unlock the Full Power of <span style={{ color: 'var(--ghana-gold)' }}>Ghana Legal AI</span>
+                        Unlock the Full Power of <span style={{ color: 'var(--ghana-gold)' }}>LexGH Legal Research Assistant</span>
                     </h2>
                     <p className="text-lg max-w-2xl mx-auto" style={{ color: 'var(--muted-foreground)' }}>
                         Get unlimited answers, deeper research, and export tools tailored for legal professionals and everyday citizens.

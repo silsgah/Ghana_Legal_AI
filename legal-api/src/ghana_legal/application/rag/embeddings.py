@@ -1,40 +1,37 @@
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_voyageai import VoyageAIEmbeddings
+from ghana_legal.config import settings
 
-EmbeddingsModel = HuggingFaceEmbeddings
+EmbeddingsModel = VoyageAIEmbeddings
 
 
 def get_embedding_model(
     model_id: str,
     device: str = "cpu",
 ) -> EmbeddingsModel:
-    """Gets an instance of a HuggingFace embedding model.
+    """Gets an instance of a Voyage AI embedding model.
 
     Args:
-        model_id (str): The ID/name of the HuggingFace embedding model to use
-        device (str): The compute device to run the model on (e.g. "cpu", "cuda").
-            Defaults to "cpu"
+        model_id (str): The ID/name of the Voyage AI embedding model to use (e.g., voyage-law-2)
+        device (str): Deprecated/unused for Voyage AI, kept for interface compatibility.
 
     Returns:
-        EmbeddingsModel: A configured HuggingFace embeddings model instance
+        EmbeddingsModel: A configured Voyage AI embeddings model instance
     """
-    return get_huggingface_embedding_model(model_id, device)
+    return get_voyageai_embedding_model(model_id)
 
 
-def get_huggingface_embedding_model(
-    model_id: str, device: str
-) -> HuggingFaceEmbeddings:
-    """Gets a HuggingFace embedding model instance.
+def get_voyageai_embedding_model(
+    model_id: str
+) -> VoyageAIEmbeddings:
+    """Gets a Voyage AI embedding model instance.
 
     Args:
-        model_id (str): The ID/name of the HuggingFace embedding model to use
-        device (str): The compute device to run the model on (e.g. "cpu", "cuda")
+        model_id (str): The ID/name of the Voyage AI embedding model to use
 
     Returns:
-        HuggingFaceEmbeddings: A configured HuggingFace embeddings model instance
-            with remote code trust enabled and embedding normalization disabled
+        VoyageAIEmbeddings: A configured VoyageAIEmbeddings model instance
     """
-    return HuggingFaceEmbeddings(
-        model_name=model_id,
-        model_kwargs={"device": device, "trust_remote_code": True},
-        encode_kwargs={"normalize_embeddings": False},
+    return VoyageAIEmbeddings(
+        voyage_api_key=settings.VOYAGE_API_KEY,
+        model=model_id,
     )

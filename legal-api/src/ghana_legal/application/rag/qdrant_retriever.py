@@ -7,7 +7,6 @@ import os
 from typing import List, Optional
 
 from langchain_core.documents import Document
-from langchain_huggingface import HuggingFaceEmbeddings
 from loguru import logger
 from sentence_transformers import CrossEncoder
 from qdrant_client import QdrantClient
@@ -32,11 +31,13 @@ class LegalQdrantRetriever:
     def __init__(
         self,
         collection_name: str = "legal_docs",
-        embedding_model_id: str = "sentence-transformers/all-MiniLM-L6-v2",
+        embedding_model_id: str = "voyage-law-2",
         k: int = 3,
         device: str = "cpu",
         use_reranker: bool = True,
     ):
+        from ghana_legal.application.rag.embeddings import get_embedding_model
+
         self.k = k
         self.use_reranker = use_reranker
         self.collection_name = collection_name
@@ -53,14 +54,11 @@ class LegalQdrantRetriever:
             self.client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
             logger.info("Qdrant Cloud client connected successfully")
 
-            # Initialize embedding model
-            logger.info(f"Loading embedding model: {embedding_model_id}...")
-            self.embedding_model = HuggingFaceEmbeddings(
-                model_name=embedding_model_id,
-                model_kwargs={"device": device},
-            )
-            self.embedding_dim = settings.RAG_TEXT_EMBEDDING_MODEL_DIM  # 384
-            logger.info("Embedding model loaded successfully")
+            # Initialize Voyage AI embedding model
+            logger.info(f"Loading Voyage AI embedding model: {embedding_model_id}...")
+            self.embedding_model = get_embedding_model(embedding_model_id)
+            self.embedding_dim = settings.RAG_TEXT_EMBEDDING_MODEL_DIM  # 1024 for voyage-law-2
+            logger.info("Voyage AI embedding model loaded successfully")
 
             # Ensure collection exists
             self._ensure_collection()
@@ -138,14 +136,14 @@ class LegalQdrantRetriever:
         """Perform vector similarity search."""
         query_embedding = self.embedding_model.embed_query(query)
 
-        results = self.client.search(
+        results = self.client.query_points(
             collection_name=self.collection_name,
-            query_vector=query_embedding,
+            query=query_embedding,
             limit=k,
         )
 
         documents = []
-        for hit in results:
+        for hit in results.points:
             payload = hit.payload or {}
             page_content = payload.pop("page_content", "")
             documents.append(
@@ -185,7 +183,7 @@ class LegalQdrantRetriever:
 
 def get_qdrant_retriever(
     collection_name: str = "legal_docs",
-    embedding_model_id: str = "sentence-transformers/all-MiniLM-L6-v2",
+    embedding_model_id: str = "voyage-law-2",
     k: int = 3,
     device: str = "cpu",
     use_reranker: bool = True,

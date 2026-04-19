@@ -120,7 +120,7 @@ export function ChatInput({ onSend, disabled, expertName }: ChatInputProps) {
                 </div>
                 <div className="text-center mt-2">
                     <span className="text-[10px]" style={{ color: 'var(--muted-foreground)', opacity: 0.5 }}>
-                        Ghana Legal AI may produce inaccurate information. Verify with official sources.
+                        LexGH Legal Research Assistant may produce inaccurate information. Verify with official sources.
                     </span>
                 </div>
             </div>

@@ -1,11 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { config } from '@/lib/config';
 import Link from 'next/link';
 import { useAuth } from '@clerk/nextjs';
 import {
     Scale, Shield, Zap, BookOpen, Users, ArrowRight,
-    Check, Star, ChevronRight, Gavel, ScrollText
+    Check, Star, ChevronRight, Gavel, ScrollText, Database
 } from 'lucide-react';
 import { usePricing } from '@/hooks/use-pricing';
 
@@ -42,6 +43,82 @@ const FEATURES = [
     },
 ];
 
+const COURT_NAMES: Record<string, string> = {
+    GHASC: 'Supreme Court',
+    GHACA: 'Court of Appeal',
+    GHAHC: 'High Court',
+    GHACC: 'Commercial Court',
+    GHADC: 'District Court',
+};
+
+interface PublicStats {
+    total_cases: number;
+    by_court: Record<string, number>;
+}
+
+function DatabaseStats() {
+    const [stats, setStats] = useState<PublicStats | null>(null);
+
+    useEffect(() => {
+        let mounted = true;
+        fetch(`${config.apiUrl}/api/public/stats`)
+            .then(res => res.json())
+            .then(data => {
+                if (mounted) setStats(data);
+            })
+            .catch(() => {});
+        return () => { mounted = false; };
+    }, []);
+
+    if (!stats || stats.total_cases === 0) return null;
+
+    const filteredCourts = Object.entries(stats.by_court)
+        .filter(([id, count]) => id !== 'UNKNOWN' && count > 0)
+        .sort((a, b) => b[1] - a[1]);
+
+    return (
+        <section className="px-6 max-w-6xl mx-auto -mt-8 mb-20 relative z-10 animate-fade-in flex justify-center">
+            <div className="rounded-2xl p-6 lg:p-8 lg:px-10 flex flex-col lg:flex-row items-center justify-center gap-8 lg:gap-12 overflow-hidden w-fit max-w-full inline-flex"
+                 style={{
+                     background: 'rgba(12, 14, 20, 0.7)',
+                     backdropFilter: 'blur(20px)',
+                     border: '1px solid rgba(255, 255, 255, 0.1)',
+                     boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                 }}>
+                
+                {/* Global Total */}
+                <div className="flex items-center gap-5 shrink-0 lg:pr-12 lg:border-r border-white/10">
+                    <div className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                        <Database size={24} style={{ color: 'var(--ghana-gold)' }} />
+                    </div>
+                    <div className="whitespace-nowrap">
+                        <div className="text-[11px] font-bold uppercase tracking-widest text-[#a1a1aa] mb-1">Database Statistics</div>
+                        <div className="text-4xl font-extrabold text-white flex items-baseline gap-2">
+                            <span>{stats.total_cases.toLocaleString()}</span>
+                            <span className="text-base font-medium" style={{ color: 'var(--muted-foreground)' }}>Indexed Cases</span>
+                        </div>
+                    </div>
+                </div>
+                
+                {/* Court Breakdown */}
+                <div className="flex items-center gap-10 lg:gap-12 overflow-x-auto pb-4 lg:pb-0 shrink-0 justify-start"
+                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                    {filteredCourts.map(([id, count]) => (
+                        <div key={id} className="text-left shrink-0 whitespace-nowrap">
+                            <div className="text-[11px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--muted-foreground)' }}>
+                                {COURT_NAMES[id] || id}
+                            </div>
+                            <div className="text-3xl font-bold bg-clip-text text-transparent"
+                                 style={{ backgroundImage: 'linear-gradient(135deg, var(--ghana-gold), #fff)' }}>
+                                {count.toLocaleString()}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </section>
+    );
+}
 
 export default function LandingPage() {
     const { isSignedIn } = useAuth();
@@ -126,7 +203,7 @@ export default function LandingPage() {
                              style={{ background: 'linear-gradient(135deg, var(--ghana-gold), #e6a817)' }}>
                             <Scale size={16} className="text-black" />
                         </div>
-                        <span className="font-bold text-[15px]">Ghana Legal AI</span>
+                        <span className="font-bold text-[15px]">LexGH Legal Research Assistant</span>
                     </div>
                     <div className="flex items-center gap-3">
                         {isSignedIn ? (
@@ -176,15 +253,13 @@ export default function LandingPage() {
                     </div>
 
                     <h1 className="text-5xl sm:text-6xl font-extrabold leading-tight mb-6 tracking-tight">
-                        Your AI-Powered{' '}
-                        <span style={{ color: 'var(--ghana-gold)' }}>Ghana Legal</span>{' '}
-                        Research Assistant
+                        <span style={{ color: 'var(--ghana-gold)' }}>LexGH</span>{' '}
+                        Legal Research Assistant
                     </h1>
 
                     <p className="text-lg sm:text-xl max-w-2xl mx-auto mb-10 leading-relaxed"
                        style={{ color: 'var(--muted-foreground)' }}>
-                        Search constitutional provisions, analyze case law, and get expert legal insights
-                        in seconds — not hours. Built specifically for Ghanaian law.
+                        AI-powered research for Ghanaian case law and legal precedents.
                     </p>
 
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -215,6 +290,9 @@ export default function LandingPage() {
                     </p>
                 </div>
             </section>
+
+            {/* ===== Database Stats ===== */}
+            <DatabaseStats />
 
             {/* ===== Features Grid ===== */}
             <section className="py-20 px-6"
@@ -362,7 +440,7 @@ export default function LandingPage() {
                              style={{ background: 'linear-gradient(135deg, var(--ghana-gold), #e6a817)' }}>
                             <Scale size={12} className="text-black" />
                         </div>
-                        <span className="text-sm font-semibold">Ghana Legal AI</span>
+                        <span className="text-sm font-semibold">LexGH Legal Research Assistant</span>
                     </div>
                     <span className="text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
                         © 2026 EED Soft Consult. All rights reserved.

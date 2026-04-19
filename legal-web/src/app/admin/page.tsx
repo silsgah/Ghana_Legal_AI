@@ -120,6 +120,17 @@ export default function AdminPage() {
     const [configSaving, setConfigSaving] = useState(false);
     const [configFeedback, setConfigFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
+    // Ingestion state
+    const [ingestionStatus, setIngestionStatus] = useState<{
+        status: string;
+        started_at: string | null;
+        completed_at: string | null;
+        result: { summary: string } | null;
+        error: string | null;
+    }>({ status: 'idle', started_at: null, completed_at: null, result: null, error: null });
+    const [triggeringIngestion, setTriggeringIngestion] = useState(false);
+    const [ingestionFeedback, setIngestionFeedback] = useState<string | null>(null);
+
     const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
         const token = await getToken();
         return token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : {};
@@ -185,9 +196,44 @@ export default function AdminPage() {
         } catch (e) { console.error(e); }
     }, [authHeaders]);
 
+    const fetchIngestionStatus = useCallback(async () => {
+        try {
+            const headers = await authHeaders();
+            const res = await fetch(`${config.apiUrl}/api/admin/pipeline/ingestion-status`, { headers });
+            if (res.ok) {
+                const d = await res.json();
+                setIngestionStatus(d);
+            }
+        } catch (e) { console.error(e); }
+    }, [authHeaders]);
+
+    const triggerIngestion = async () => {
+        if (!confirm('Run the constitution ingestion pipeline? This will re-embed documents into Qdrant.')) return;
+        setTriggeringIngestion(true);
+        setIngestionFeedback(null);
+        try {
+            const headers = await authHeaders();
+            const res = await fetch(`${config.apiUrl}/api/admin/pipeline/trigger-ingestion`, {
+                method: 'POST', headers,
+            });
+            const d = await res.json();
+            if (res.ok) {
+                setIngestionFeedback('✓ Ingestion triggered — polling for status...');
+                setIngestionStatus(prev => ({ ...prev, status: 'running' }));
+            } else {
+                setIngestionFeedback(`✗ ${d.detail || 'Failed to trigger'}`);
+            }
+        } catch {
+            setIngestionFeedback('✗ Network error');
+        } finally {
+            setTriggeringIngestion(false);
+            setTimeout(() => setIngestionFeedback(null), 5000);
+        }
+    };
+
     const fetchAll = async () => {
         setLoading(true);
-        await Promise.all([fetchStats(), fetchCases(), fetchReports()]);
+        await Promise.all([fetchStats(), fetchCases(), fetchReports(), fetchIngestionStatus()]);
         setLoading(false);
     };
 
@@ -195,6 +241,22 @@ export default function AdminPage() {
     useEffect(() => { fetchCases(); }, [page, statusFilter, courtFilter]);
     useEffect(() => { if (activeTab === 'users') fetchUsers(); }, [activeTab, usersPage, userSearch]);
     useEffect(() => { if (activeTab === 'config') fetchConfig(); }, [activeTab]);
+
+    // Auto-poll ingestion status when running
+    useEffect(() => {
+        if (ingestionStatus.status !== 'running') return;
+        const interval = setInterval(async () => {
+            await fetchIngestionStatus();
+        }, 3000);
+        return () => clearInterval(interval);
+    }, [ingestionStatus.status, fetchIngestionStatus]);
+
+    // Refresh stats when ingestion completes
+    useEffect(() => {
+        if (ingestionStatus.status === 'completed') {
+            fetchStats();
+        }
+    }, [ingestionStatus.status]);
 
     // ── User Actions ──────────────────────────────────────────────────────────
 
@@ -378,6 +440,71 @@ export default function AdminPage() {
                             <BreakdownCard title="By Court" items={Object.entries(stats.by_court).map(([k, v]) => ({
                                 label: COURT_NAMES[k] || k, value: v, color: 'var(--ghana-gold)',
                             }))} />
+                        </div>
+
+                        {/* Ingestion Trigger Card */}
+                        <div className="p-5 rounded-xl" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+                            <div className="flex items-center justify-between mb-3">
+                                <div>
+                                    <h3 className="text-sm font-bold" style={{ color: 'var(--foreground)' }}>Pipeline Ingestion</h3>
+                                    <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+                                        Re-embed constitution and case law into Qdrant using Voyage AI
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    {/* Status badge */}
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
+                                          style={{
+                                              background: ingestionStatus.status === 'running' ? 'var(--warning)18' :
+                                                         ingestionStatus.status === 'completed' ? 'var(--ghana-green)18' :
+                                                         ingestionStatus.status === 'failed' ? 'var(--error)18' : 'var(--surface-2)',
+                                              color: ingestionStatus.status === 'running' ? 'var(--warning)' :
+                                                     ingestionStatus.status === 'completed' ? 'var(--ghana-green)' :
+                                                     ingestionStatus.status === 'failed' ? 'var(--error)' : 'var(--muted-foreground)',
+                                          }}>
+                                        {ingestionStatus.status === 'running' && <RefreshCw size={11} className="animate-spin" />}
+                                        {ingestionStatus.status === 'completed' && <CheckCircle size={11} />}
+                                        {ingestionStatus.status === 'failed' && <AlertCircle size={11} />}
+                                        {ingestionStatus.status}
+                                    </span>
+
+                                    {/* Trigger button */}
+                                    <button
+                                        onClick={triggerIngestion}
+                                        disabled={triggeringIngestion || ingestionStatus.status === 'running'}
+                                        className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-40 transition-opacity"
+                                        style={{ background: 'var(--primary)', color: '#fff' }}>
+                                        {triggeringIngestion || ingestionStatus.status === 'running'
+                                            ? <><RefreshCw size={13} className="animate-spin" /> Running…</>
+                                            : <><Database size={13} /> Run Ingestion</>}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Result / Error display */}
+                            {ingestionStatus.status === 'completed' && ingestionStatus.result && (
+                                <div className="mt-3 p-3 rounded-lg text-xs font-mono whitespace-pre-wrap"
+                                     style={{ background: 'var(--ghana-green)08', border: '1px solid var(--ghana-green)30', color: 'var(--ghana-green)' }}>
+                                    ✓ {ingestionStatus.result.summary}
+                                    {ingestionStatus.completed_at && (
+                                        <span className="block mt-1" style={{ color: 'var(--muted-foreground)', fontFamily: 'inherit' }}>
+                                            Completed: {new Date(ingestionStatus.completed_at).toLocaleString()}
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+                            {ingestionStatus.status === 'failed' && ingestionStatus.error && (
+                                <div className="mt-3 p-3 rounded-lg text-xs font-mono whitespace-pre-wrap"
+                                     style={{ background: 'var(--error)08', border: '1px solid var(--error)30', color: 'var(--error)' }}>
+                                    ✗ {ingestionStatus.error}
+                                </div>
+                            )}
+                            {ingestionFeedback && (
+                                <div className="mt-2 text-xs font-medium"
+                                     style={{ color: ingestionFeedback.startsWith('✓') ? 'var(--ghana-green)' : 'var(--error)' }}>
+                                    {ingestionFeedback}
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}

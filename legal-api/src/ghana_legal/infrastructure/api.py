@@ -112,6 +112,37 @@ async def get_pricing():
     }
 
 
+@app.get("/api/public/stats", tags=["public"])
+async def get_public_stats():
+    """Public endpoint: returns aggregated pipeline statistics for the landing page."""
+    from pathlib import Path
+    import json
+    
+    _PROJECT_ROOT = Path(__file__).resolve().parents[4]
+    MANIFEST_PATH = _PROJECT_ROOT / "data" / "pipeline_manifest.json"
+    
+    if not MANIFEST_PATH.exists():
+        return {"total_cases": 0, "by_court": {}}
+        
+    try:
+        data = json.loads(MANIFEST_PATH.read_text())
+        cases = data.get("cases", {})
+        
+        by_court = {}
+        for rec in cases.values():
+            court = rec.get("court_id", "UNKNOWN")
+            by_court[court] = by_court.get(court, 0) + 1
+            
+        return {
+            "total_cases": len(cases),
+            "by_court": by_court
+        }
+    except Exception as e:
+        from loguru import logger
+        logger.error(f"Failed to load public stats: {e}")
+        return {"total_cases": 0, "by_court": {}}
+
+
 class ChatMessage(BaseModel):
     message: str
     expert_id: str
@@ -267,6 +298,93 @@ async def websocket_chat(websocket: WebSocket, token: str = None):
     except WebSocketDisconnect:
         pass
 
+
+class StreamChatMessage(BaseModel):
+    message: str
+    expert_id: str
+
+
+@app.post("/chat/stream", tags=["chat"])
+async def stream_chat(body: StreamChatMessage, user: dict = Depends(get_current_user)):
+    """SSE streaming chat endpoint — replaces WebSocket for LLM token streaming.
+
+    Accepts a chat message and returns a Server-Sent Events stream.
+    Event types:
+      - data: {"chunk": "..."} — partial token
+      - data: {"sources": [...]} — cited legal sources
+      - data: {"error": "..."} — error message
+      - data: {"done": true} — stream complete
+    """
+    import json
+    from fastapi.responses import StreamingResponse
+    from ghana_legal.infrastructure.usage import check_quota, log_usage
+
+    clerk_id = user["sub"]
+
+    # 1. Quota check
+    quota = await check_quota(clerk_id)
+    if not quota["allowed"]:
+        async def quota_error():
+            yield f"data: {json.dumps({'error': f'Daily limit reached. You have used {quota[\"used_today\"]}/{quota[\"daily_limit\"]} free queries today. Please upgrade to Pro for unlimited access.', 'quota_exceeded': True})}\n\n"
+        return StreamingResponse(quota_error(), media_type="text/event-stream")
+
+    # 2. Cache check
+    cache = get_cache()
+    cached_response = cache.get(body.message, body.expert_id)
+    if cached_response:
+        async def cached_stream():
+            yield f"data: {json.dumps({'chunk': cached_response})}\n\n"
+            yield f"data: {json.dumps({'done': True})}\n\n"
+        return StreamingResponse(cached_stream(), media_type="text/event-stream")
+
+    # 3. Stream LLM response
+    async def event_stream():
+        try:
+            expert_factory = LegalExpertFactory()
+            expert = expert_factory.get_legal_expert(body.expert_id)
+
+            response_stream = get_streaming_response(
+                messages=body.message,
+                expert_id=body.expert_id,
+                expert_name=expert.name,
+                expertise=expert.expertise,
+                style=expert.style,
+                legal_context="",
+                clerk_id=clerk_id,
+            )
+
+            full_response = ""
+            sources = []
+            async for chunk in response_stream:
+                if chunk.startswith('{"__sources__"'):
+                    try:
+                        sources = json.loads(chunk)["__sources__"]
+                    except Exception:
+                        pass
+                else:
+                    full_response += chunk
+                    yield f"data: {json.dumps({'chunk': chunk})}\n\n"
+
+            # Send sources if any
+            if sources:
+                yield f"data: {json.dumps({'sources': sources})}\n\n"
+
+            # Cache the response
+            if len(full_response) > 50:
+                cache.set(body.message, body.expert_id, full_response, ttl=7200)
+
+            # Log usage
+            await log_usage(clerk_id, body.message, body.expert_id)
+
+            # Signal completion
+            yield f"data: {json.dumps({'done': True})}\n\n"
+
+        except Exception as e:
+            opik_tracer = OpikTracer()
+            opik_tracer.flush()
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 @app.post("/reset-memory")
 async def reset_conversation():

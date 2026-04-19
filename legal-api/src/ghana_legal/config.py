@@ -57,11 +57,12 @@ class Settings(BaseSettings):
     TOTAL_MESSAGES_AFTER_SUMMARY: int = 5
 
     # --- RAG Configuration ---
-    RAG_TEXT_EMBEDDING_MODEL_ID: str = "sentence-transformers/all-MiniLM-L6-v2"
-    RAG_TEXT_EMBEDDING_MODEL_DIM: int = 384
+    RAG_TEXT_EMBEDDING_MODEL_ID: str = "voyage-law-2"
+    RAG_TEXT_EMBEDDING_MODEL_DIM: int = 1024
     RAG_TOP_K: int = 3
     RAG_DEVICE: str = "cpu"
     RAG_CHUNK_SIZE: int = 256
+    VOYAGE_API_KEY: str = Field(default="", description="API Key for Voyage AI")
 
     # --- Vector Database Configuration ---
     VECTOR_DB_MODE: str = Field(

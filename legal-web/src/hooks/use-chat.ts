@@ -41,156 +41,16 @@ export function useChat({ expertId, onStreamComplete }: UseChatOptions): UseChat
     const { getToken } = useAuth();
     const [messages, setMessages] = useState<Message[]>([]);
     const [isStreaming, setIsStreaming] = useState(false);
-    const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
+    const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connected');
     const [historyLoaded, setHistoryLoaded] = useState(false);
 
-    const wsRef = useRef<WebSocket | null>(null);
-    const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const reconnectAttempts = useRef(0);
-    const maxReconnectAttempts = 5;
     const currentExpertId = useRef(expertId);
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     // Update ref when expertId changes
     useEffect(() => {
         currentExpertId.current = expertId;
     }, [expertId]);
-
-    const connectRef = useRef<() => void>(() => { });
-
-    const connect = useCallback(async () => {
-        // Clean up existing connection
-        if (wsRef.current) {
-            wsRef.current.close();
-        }
-
-        setConnectionStatus('connecting');
-
-        try {
-            const token = await getToken();
-            const wsUrl = token
-                ? `${config.wsUrl}/ws/chat?token=${token}`
-                : `${config.wsUrl}/ws/chat`;
-
-            const ws = new WebSocket(wsUrl);
-
-            ws.onopen = () => {
-                console.log('WebSocket connected');
-                setConnectionStatus('connected');
-                reconnectAttempts.current = 0;
-            };
-
-            ws.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-
-                    if (data.streaming === true && !data.chunk) {
-                        // Stream starting
-                        setIsStreaming(true);
-                    } else if (data.chunk) {
-                        // Append chunk to last assistant message
-                        setMessages((prev) => {
-                            const lastMsg = prev[prev.length - 1];
-                            if (lastMsg?.role === 'assistant') {
-                                return [
-                                    ...prev.slice(0, -1),
-                                    { ...lastMsg, content: lastMsg.content + data.chunk },
-                                ];
-                            } else {
-                                return [
-                                    ...prev,
-                                    {
-                                        id: generateId(),
-                                        role: 'assistant',
-                                        content: data.chunk,
-                                        timestamp: new Date(),
-                                    },
-                                ];
-                            }
-                        });
-                    } else if (data.streaming === false) {
-                        // Stream complete — attach sources if present
-                        setIsStreaming(false);
-                        if (data.sources && data.sources.length > 0) {
-                            setMessages((prev) => {
-                                const lastMsg = prev[prev.length - 1];
-                                if (lastMsg?.role === 'assistant') {
-                                    return [
-                                        ...prev.slice(0, -1),
-                                        { ...lastMsg, sources: data.sources },
-                                    ];
-                                }
-                                return prev;
-                            });
-                        }
-                        // Notify parent that stream is complete (for usage refresh)
-                        onStreamComplete?.();
-                    } else if (data.error) {
-                        console.error('WebSocket error:', data.error);
-                        setIsStreaming(false);
-                        setMessages((prev) => [
-                            ...prev,
-                            {
-                                id: generateId(),
-                                role: 'assistant',
-                                content: `I apologize, but I encountered an error: ${data.error}`,
-                                timestamp: new Date(),
-                            },
-                        ]);
-                    }
-                } catch (e) {
-                    console.error('Failed to parse message:', e);
-                }
-            };
-
-            ws.onerror = (error) => {
-                console.error('WebSocket error:', error);
-                setConnectionStatus('error');
-            };
-
-            ws.onclose = () => {
-                console.log('WebSocket disconnected');
-                setConnectionStatus('disconnected');
-                setIsStreaming(false);
-
-                // Attempt reconnection with exponential backoff
-                if (reconnectAttempts.current < maxReconnectAttempts) {
-                    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
-                    console.log(`Reconnecting in ${delay}ms...`);
-                    reconnectTimeoutRef.current = setTimeout(() => {
-                        reconnectAttempts.current++;
-                        connectRef.current();
-                    }, delay);
-                }
-            };
-
-            wsRef.current = ws;
-        } catch (error) {
-            console.error('Failed to create WebSocket:', error);
-            setConnectionStatus('error');
-        }
-    }, []);
-
-    // Update ref
-    useEffect(() => {
-        connectRef.current = connect;
-    }, [connect]);
-
-    // Initialize connection
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            connect();
-        }, 0);
-
-        return () => {
-            clearTimeout(timer);
-            if (reconnectTimeoutRef.current) {
-                clearTimeout(reconnectTimeoutRef.current);
-            }
-            if (wsRef.current) {
-                wsRef.current.close();
-            }
-        };
-    }, [connect]);
 
     // Load conversation history when expert changes
     useEffect(() => {
@@ -229,10 +89,10 @@ export function useChat({ expertId, onStreamComplete }: UseChatOptions): UseChat
         loadHistory();
     }, [expertId]);
 
-    const sendMessage = useCallback((text: string) => {
-        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-            console.error('WebSocket not connected');
-            return;
+    const sendMessage = useCallback(async (text: string) => {
+        // Cancel any existing stream
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
         }
 
         // Add user message
@@ -244,16 +104,146 @@ export function useChat({ expertId, onStreamComplete }: UseChatOptions): UseChat
         };
         setMessages((prev) => [...prev, userMessage]);
 
-        // Send to backend
-        wsRef.current.send(
-            JSON.stringify({
-                message: text,
-                expert_id: currentExpertId.current,
-            })
-        );
-    }, []);
+        // Create placeholder assistant message for streaming
+        const assistantId = generateId();
+        setMessages((prev) => [
+            ...prev,
+            {
+                id: assistantId,
+                role: 'assistant',
+                content: '',
+                timestamp: new Date(),
+            },
+        ]);
+
+        setIsStreaming(true);
+        setConnectionStatus('connected');
+
+        try {
+            const token = await getToken();
+            const abortController = new AbortController();
+            abortControllerRef.current = abortController;
+
+            const response = await fetch(`${config.apiUrl}/chat/stream`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({
+                    message: text,
+                    expert_id: currentExpertId.current,
+                }),
+                signal: abortController.signal,
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const reader = response.body?.getReader();
+            if (!reader) throw new Error('No response body');
+
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+
+                // Process complete SSE lines
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+
+                    try {
+                        const data = JSON.parse(line.slice(6));
+
+                        if (data.chunk) {
+                            // Append chunk to assistant message
+                            setMessages((prev) => {
+                                const lastMsg = prev[prev.length - 1];
+                                if (lastMsg?.role === 'assistant') {
+                                    return [
+                                        ...prev.slice(0, -1),
+                                        { ...lastMsg, content: lastMsg.content + data.chunk },
+                                    ];
+                                }
+                                return prev;
+                            });
+                        } else if (data.sources && data.sources.length > 0) {
+                            // Attach sources to assistant message
+                            setMessages((prev) => {
+                                const lastMsg = prev[prev.length - 1];
+                                if (lastMsg?.role === 'assistant') {
+                                    return [
+                                        ...prev.slice(0, -1),
+                                        { ...lastMsg, sources: data.sources },
+                                    ];
+                                }
+                                return prev;
+                            });
+                        } else if (data.error) {
+                            console.error('Stream error:', data.error);
+                            setMessages((prev) => {
+                                const lastMsg = prev[prev.length - 1];
+                                if (lastMsg?.role === 'assistant' && lastMsg.content === '') {
+                                    return [
+                                        ...prev.slice(0, -1),
+                                        {
+                                            ...lastMsg,
+                                            content: data.quota_exceeded
+                                                ? `⚠️ ${data.error}`
+                                                : `I apologize, but I encountered an error: ${data.error}`,
+                                        },
+                                    ];
+                                }
+                                return prev;
+                            });
+                        } else if (data.done) {
+                            // Stream complete
+                            onStreamComplete?.();
+                        }
+                    } catch {
+                        // Skip malformed JSON lines
+                    }
+                }
+            }
+        } catch (err: unknown) {
+            if (err instanceof Error && err.name === 'AbortError') {
+                // User cancelled — not an error
+                return;
+            }
+            console.error('Stream request failed:', err);
+            setConnectionStatus('error');
+            setMessages((prev) => {
+                const lastMsg = prev[prev.length - 1];
+                if (lastMsg?.role === 'assistant' && lastMsg.content === '') {
+                    return [
+                        ...prev.slice(0, -1),
+                        {
+                            ...lastMsg,
+                            content: 'Connection failed. Please check your network and try again.',
+                        },
+                    ];
+                }
+                return prev;
+            });
+        } finally {
+            setIsStreaming(false);
+            abortControllerRef.current = null;
+        }
+    }, [getToken, onStreamComplete]);
 
     const resetChat = useCallback(async () => {
+        // Abort any in-flight stream
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
         setMessages([]);
         try {
             const token = await getToken();
@@ -264,12 +254,11 @@ export function useChat({ expertId, onStreamComplete }: UseChatOptions): UseChat
         } catch (error) {
             console.error('Failed to reset memory:', error);
         }
-    }, []);
+    }, [getToken]);
 
     const reconnect = useCallback(() => {
-        reconnectAttempts.current = 0;
-        connect();
-    }, [connect]);
+        setConnectionStatus('connected');
+    }, []);
 
     return {
         messages,

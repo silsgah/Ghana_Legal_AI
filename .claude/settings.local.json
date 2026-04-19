@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:ghalii.org)",
+      "Bash(python3:*)",
+      "Bash(docker compose:*)",
+      "Bash(find:*)",
+      "Bash(curl:*)",
+      "Bash(npx tsc:*)"
+    ]
+  }
+}

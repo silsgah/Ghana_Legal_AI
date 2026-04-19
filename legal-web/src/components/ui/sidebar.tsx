@@ -50,7 +50,7 @@ export function Sidebar({
                     </div>
                     {!collapsed && (
                         <span className="font-bold text-[14px]" style={{ color: 'var(--foreground)' }}>
-                            Ghana Legal AI
+                            LexGH Legal Research Assistant
                         </span>
                     )}
                 </div>

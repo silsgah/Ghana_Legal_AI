@@ -239,7 +239,7 @@ def wipe_constitution_vectors(client):
 
 def ingest_chunks(client, chunks: List[Document]):
     """Embed and upsert chunks into Qdrant."""
-    from langchain_huggingface import HuggingFaceEmbeddings
+    from ghana_legal.application.rag.embeddings import get_embedding_model
     from qdrant_client.http.models import PointStruct, VectorParams, Distance
 
     # ── Ensure collection exists ─────────────────────────────────────────────
@@ -249,19 +249,16 @@ def ingest_chunks(client, chunks: List[Document]):
         client.create_collection(
             collection_name=COLLECTION_NAME,
             vectors_config=VectorParams(
-                size=settings.RAG_TEXT_EMBEDDING_MODEL_DIM,  # 384
+                size=settings.RAG_TEXT_EMBEDDING_MODEL_DIM,  # 1024 for voyage-law-2
                 distance=Distance.COSINE,
             ),
         )
         logger.success(f"Collection '{COLLECTION_NAME}' created ✓")
 
-    # ── Load embedding model ─────────────────────────────────────────────────
-    logger.info(f"Loading embedding model: {settings.RAG_TEXT_EMBEDDING_MODEL_ID}")
-    embedding_model = HuggingFaceEmbeddings(
-        model_name=settings.RAG_TEXT_EMBEDDING_MODEL_ID,
-        model_kwargs={"device": settings.RAG_DEVICE},
-    )
-    logger.success("Embedding model loaded ✓")
+    # ── Load embedding model (Voyage AI) ─────────────────────────────────────
+    logger.info(f"Loading Voyage AI embedding model: {settings.RAG_TEXT_EMBEDDING_MODEL_ID}")
+    embedding_model = get_embedding_model(settings.RAG_TEXT_EMBEDDING_MODEL_ID)
+    logger.success("Voyage AI embedding model loaded ✓")
 
     # ── Batch upsert ─────────────────────────────────────────────────────────
     batch_size = 20

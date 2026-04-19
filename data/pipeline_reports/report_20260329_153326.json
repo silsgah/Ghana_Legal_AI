@@ -1,0 +1,10 @@
+{
+  "timestamp": "2026-03-29T15:33:26.413131",
+  "duration_seconds": 440.3,
+  "discovered": 82,
+  "downloaded": 80,
+  "validated": 80,
+  "successful": 4280,
+  "failed": 1657,
+  "total_chunks": 5937
+}

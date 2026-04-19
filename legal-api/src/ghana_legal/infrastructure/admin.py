@@ -5,15 +5,28 @@ Clerk publicMetadata can access these endpoints.
 """
 
 import json
+import asyncio
 from pathlib import Path
 from typing import Optional
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
+from loguru import logger
 
 from ghana_legal.infrastructure.auth import get_current_user
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+# ─── Ingestion job state (in-memory, resets on restart) ───────────────────────
+_ingestion_state = {
+    "status": "idle",       # idle | running | completed | failed
+    "started_at": None,
+    "completed_at": None,
+    "result": None,         # summary dict on completion
+    "error": None,
+}
+
 
 # Resolve manifest path
 _PROJECT_ROOT = Path(__file__).resolve().parents[4]
@@ -357,3 +370,91 @@ async def update_config(
 
     updated = await set_platform_config(updates)
     return {"success": True, "config": updated}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Pipeline Ingestion Trigger
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _run_ingestion_sync():
+    """Run the constitution ingestion script synchronously (called in background)."""
+    global _ingestion_state
+    import subprocess
+    import sys
+
+    try:
+        _ingestion_state["status"] = "running"
+        _ingestion_state["started_at"] = datetime.now(timezone.utc).isoformat()
+        _ingestion_state["error"] = None
+        _ingestion_state["result"] = None
+
+        logger.info("Admin-triggered ingestion starting...")
+
+        # Run the ingestion script as a subprocess
+        src_dir = Path(__file__).resolve().parents[1]
+        script_path = src_dir.parent / "scripts" / "ingest_constitution_to_qdrant.py"
+
+        result = subprocess.run(
+            [sys.executable, str(script_path), "--wipe"],
+            capture_output=True,
+            text=True,
+            timeout=600,  # 10 min max
+            cwd=str(src_dir.parent),
+        )
+
+        _ingestion_state["completed_at"] = datetime.now(timezone.utc).isoformat()
+
+        if result.returncode == 0:
+            _ingestion_state["status"] = "completed"
+            # Extract summary from output
+            output_lines = result.stdout.strip().split("\n")
+            summary_lines = [l for l in output_lines if "Chunks" in l or "ingested" in l or "Success" in l or "✓" in l]
+            _ingestion_state["result"] = {
+                "exit_code": 0,
+                "summary": "\n".join(summary_lines[-5:]) if summary_lines else "Completed successfully",
+            }
+            logger.success("Admin-triggered ingestion completed successfully")
+        else:
+            _ingestion_state["status"] = "failed"
+            _ingestion_state["error"] = result.stderr[-500:] if result.stderr else "Unknown error"
+            logger.error(f"Admin-triggered ingestion failed: {result.stderr[-200:]}")
+
+    except subprocess.TimeoutExpired:
+        _ingestion_state["status"] = "failed"
+        _ingestion_state["error"] = "Ingestion timed out after 10 minutes"
+        _ingestion_state["completed_at"] = datetime.now(timezone.utc).isoformat()
+        logger.error("Admin-triggered ingestion timed out")
+    except Exception as e:
+        _ingestion_state["status"] = "failed"
+        _ingestion_state["error"] = str(e)
+        _ingestion_state["completed_at"] = datetime.now(timezone.utc).isoformat()
+        logger.error(f"Admin-triggered ingestion error: {e}")
+
+
+@router.post("/pipeline/trigger-ingestion")
+async def trigger_ingestion(
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(require_admin),
+):
+    """Trigger constitution ingestion as a background task.
+
+    Returns immediately — poll GET /api/admin/pipeline/ingestion-status for progress.
+    Only one ingestion can run at a time.
+    """
+    if _ingestion_state["status"] == "running":
+        raise HTTPException(
+            status_code=409,
+            detail="Ingestion is already running. Please wait for it to complete.",
+        )
+
+    background_tasks.add_task(_run_ingestion_sync)
+    return {
+        "success": True,
+        "message": "Ingestion triggered. Poll /api/admin/pipeline/ingestion-status for progress.",
+    }
+
+
+@router.get("/pipeline/ingestion-status")
+async def ingestion_status(user: dict = Depends(require_admin)):
+    """Get the current ingestion job status."""
+    return _ingestion_state

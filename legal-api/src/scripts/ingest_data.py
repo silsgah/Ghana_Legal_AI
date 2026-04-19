@@ -5,7 +5,6 @@ from typing import List
 
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_mongodb import MongoDBAtlasVectorSearch
 from pymongo import MongoClient
 from dotenv import load_dotenv
@@ -15,6 +14,7 @@ load_dotenv("legal-api/src/.env")
 
 # Import settings
 from ghana_legal.config import settings
+from ghana_legal.application.rag.embeddings import get_embedding_model
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -77,9 +77,9 @@ def ingest_legal_docs():
         logger.warning("No chunks found to ingest across all directories.")
         return
 
-    # 3. Create Embeddings
-    logger.info("Initializing Embeddings (may take a moment)...")
-    embeddings = HuggingFaceEmbeddings(model_name=settings.RAG_TEXT_EMBEDDING_MODEL_ID)
+    # 3. Create Embeddings (Voyage AI voyage-law-2)
+    logger.info(f"Initializing Voyage AI embeddings ({settings.RAG_TEXT_EMBEDDING_MODEL_ID})...")
+    embeddings = get_embedding_model(settings.RAG_TEXT_EMBEDDING_MODEL_ID)
 
     # 4. Connect to MongoDB
     logger.info("Connecting to MongoDB Atlas...")

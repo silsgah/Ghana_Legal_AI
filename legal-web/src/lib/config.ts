@@ -12,5 +12,4 @@ const getEnvVar = (key: string, defaultValue: string): string => {
 
 export const config = {
     apiUrl: getEnvVar('API_URL', 'http://localhost:8000'),
-    wsUrl: getEnvVar('WS_URL', 'ws://localhost:8000'),
 } as const;
