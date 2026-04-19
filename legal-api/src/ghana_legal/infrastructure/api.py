@@ -424,12 +424,14 @@ async def get_chat_history(expert_id: str, user: dict = Depends(get_current_user
         if "pooler.supabase.com" in db_uri and ":5432" in db_uri:
             db_uri = db_uri.replace(":5432", ":6543")
 
-        from psycopg_pool import ConnectionPool
-        with ConnectionPool(conninfo=db_uri, kwargs={"prepare_threshold": None}) as pool:
-            checkpointer = PostgresSaver(pool)
-            checkpointer.setup()
+        from psycopg_pool import AsyncConnectionPool
+        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+        
+        async with AsyncConnectionPool(conninfo=db_uri, kwargs={"prepare_threshold": None}) as pool:
+            checkpointer = AsyncPostgresSaver(pool)
+            await checkpointer.asetup()
             config = {"configurable": {"thread_id": thread_id}}
-            checkpoint = checkpointer.get(config)
+            checkpoint = await checkpointer.aget(config)
 
             if not checkpoint or "channel_values" not in checkpoint:
                 return {"messages": []}

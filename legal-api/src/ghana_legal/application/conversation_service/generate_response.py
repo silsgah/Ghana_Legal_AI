@@ -56,11 +56,12 @@ async def get_response(
         if "pooler.supabase.com" in db_uri and ":5432" in db_uri:
             db_uri = db_uri.replace(":5432", ":6543")
         
-        from psycopg_pool import ConnectionPool
+        from psycopg_pool import AsyncConnectionPool
+        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
         
-        with ConnectionPool(conninfo=db_uri, kwargs={"prepare_threshold": None}) as pool:
-            checkpointer = PostgresSaver(pool)
-            checkpointer.setup()
+        async with AsyncConnectionPool(conninfo=db_uri, kwargs={"prepare_threshold": None}) as pool:
+            checkpointer = AsyncPostgresSaver(pool)
+            await checkpointer.asetup()
             graph = graph_builder.compile(checkpointer=checkpointer)
             opik_tracer = OpikTracer(graph=graph.get_graph(xray=True))
 
@@ -140,10 +141,12 @@ async def get_streaming_response(
         if "pooler.supabase.com" in db_uri and ":5432" in db_uri:
             db_uri = db_uri.replace(":5432", ":6543")
 
-        from psycopg_pool import ConnectionPool
-        with ConnectionPool(conninfo=db_uri, kwargs={"prepare_threshold": None}) as pool:
-            checkpointer = PostgresSaver(pool)
-            checkpointer.setup()
+        from psycopg_pool import AsyncConnectionPool
+        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+        
+        async with AsyncConnectionPool(conninfo=db_uri, kwargs={"prepare_threshold": None}) as pool:
+            checkpointer = AsyncPostgresSaver(pool)
+            await checkpointer.asetup()
             graph = graph_builder.compile(checkpointer=checkpointer)
             opik_tracer = OpikTracer(graph=graph.get_graph(xray=True))
 
