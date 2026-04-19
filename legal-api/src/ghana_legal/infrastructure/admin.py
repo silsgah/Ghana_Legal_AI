@@ -395,7 +395,7 @@ def _run_ingestion_sync():
         script_path = src_dir.parent / "scripts" / "ingest_constitution_to_qdrant.py"
 
         result = subprocess.run(
-            [sys.executable, str(script_path), "--wipe"],
+            [sys.executable, str(script_path), "--no-prompt"],
             capture_output=True,
             text=True,
             timeout=600,  # 10 min max

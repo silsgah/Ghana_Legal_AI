@@ -324,6 +324,11 @@ def main():
         action="store_true",
         help="Only check how many constitution chunks exist in Qdrant; no ingestion",
     )
+    parser.add_argument(
+        "--no-prompt",
+        action="store_true",
+        help="Skip interactive prompts (useful for running via automated backgrounds like Modal)",
+    )
     parser.add_argument("--chunk-size", type=int, default=512)
     parser.add_argument("--chunk-overlap", type=int, default=100)
     args = parser.parse_args()
@@ -360,6 +365,10 @@ def main():
         logger.warning(
             f"\n⚠  {existing_count} constitution vectors already exist in Qdrant."
         )
+        if args.no_prompt:
+            logger.info("Skipping re-ingestion because --no-prompt was passed and vectors exist.")
+            return
+            
         logger.warning(
             "   Run with --wipe to delete them and do a clean reingest."
         )
