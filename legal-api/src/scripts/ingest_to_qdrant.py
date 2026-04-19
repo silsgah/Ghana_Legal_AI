@@ -91,7 +91,12 @@ def load_pdf_documents(data_dirs: List[Path], max_cases: int = 30) -> List[Docum
     all_documents = []
 
     project_root = Path(__file__).resolve().parents[3]
-    manifest_path = project_root / "data" / "pipeline_manifest.json"
+    
+    # Intelligently target the Persistent Cloud Mount when deployed via Modal
+    modal_volume_path = Path("/manifest_state/pipeline_manifest.json")
+    local_manifest_path = project_root / "data" / "pipeline_manifest.json"
+    
+    manifest_path = modal_volume_path if Path("/manifest_state").exists() else local_manifest_path
     
     pending_filenames = set()
     if manifest_path.exists():
@@ -257,10 +262,15 @@ def ingest_to_qdrant(documents: List[Document]) -> Dict[str, Any]:
 def update_manifest_statuses(documents: List[Document]):
     """Update pipeline_manifest.json to mark processed files as 'indexed'."""
     project_root = Path(__file__).resolve().parents[3]
-    manifest_path = project_root / "data" / "pipeline_manifest.json"
+    
+    # Intelligently target the Persistent Cloud Mount when deployed via Modal
+    modal_volume_path = Path("/manifest_state/pipeline_manifest.json")
+    local_manifest_path = project_root / "data" / "pipeline_manifest.json"
+    
+    manifest_path = modal_volume_path if Path("/manifest_state").exists() else local_manifest_path
     
     if not manifest_path.exists():
-        logger.warning("No pipeline_manifest.json found to update stats.")
+        logger.warning(f"No pipeline_manifest.json found to update stats at {manifest_path}.")
         return
         
     try:

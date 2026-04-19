@@ -27,6 +27,8 @@ image = (
 # ---------------------------------------------------------------------------
 app = modal.App("ghana-legal-ai")
 
+manifest_volume = modal.Volume.from_name("ghana-legal-manifest", create_if_missing=True)
+
 # ---------------------------------------------------------------------------
 # FastAPI Web Endpoint
 # ---------------------------------------------------------------------------
@@ -35,6 +37,7 @@ app = modal.App("ghana-legal-ai")
     secrets=[modal.Secret.from_name("ghana-legal-secrets")],
     timeout=300,  # 5 min max per request (SSE streaming)
     memory=2048,
+    volumes={"/manifest_state": manifest_volume}
 )
 @modal.asgi_app()
 def api():

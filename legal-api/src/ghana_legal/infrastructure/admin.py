@@ -78,9 +78,28 @@ async def require_admin(user: dict = Depends(get_current_user)) -> dict:
 
 
 def _load_manifest() -> dict:
-    if not MANIFEST_PATH.exists():
-        return {"cases": {}}
-    return json.loads(MANIFEST_PATH.read_text())
+    vol_path = Path("/manifest_state/pipeline_manifest.json")
+    
+    # Cloud Priority execution explicitly reads from the Persistent Mount
+    if vol_path.exists():
+        try:
+            return json.loads(vol_path.read_text())
+        except Exception as e:
+            logger.error(f"Failed to read from volume: {e}")
+            
+    # Fallback to the Image-Burned Manifest locally or when Bootstrap seeding is required
+    if MANIFEST_PATH.exists():
+        data = MANIFEST_PATH.read_text()
+        # Seed the network volume directly on the first run for persistence
+        if Path("/manifest_state").exists():
+            try:
+                vol_path.write_text(data)
+                logger.info("Successfully bootstrapped pristine manifest onto persistent Cloud volume")
+            except Exception as e:
+                logger.error(f"Failed to bootstrap volume: {e}")
+        return json.loads(data)
+        
+    return {"cases": {}}
 
 
 @router.get("/pipeline/stats")
