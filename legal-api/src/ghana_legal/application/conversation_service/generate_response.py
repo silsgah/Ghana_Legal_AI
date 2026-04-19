@@ -55,9 +55,12 @@ async def get_response(
         db_uri = settings.DATABASE_URL.replace("postgresql+asyncpg", "postgresql")
         if "pooler.supabase.com" in db_uri and ":5432" in db_uri:
             db_uri = db_uri.replace(":5432", ":6543")
-
-        with PostgresSaver.from_conn_string(db_uri) as checkpointer:
-            checkpointer.setup()
+        
+        from psycopg_pool import ConnectionPool
+        
+        with ConnectionPool(conninfo=db_uri, kwargs={"prepare_threshold": None}) as pool:
+            with PostgresSaver(pool) as checkpointer:
+                checkpointer.setup()
             graph = graph_builder.compile(checkpointer=checkpointer)
             opik_tracer = OpikTracer(graph=graph.get_graph(xray=True))
 
@@ -137,8 +140,10 @@ async def get_streaming_response(
         if "pooler.supabase.com" in db_uri and ":5432" in db_uri:
             db_uri = db_uri.replace(":5432", ":6543")
 
-        with PostgresSaver.from_conn_string(db_uri) as checkpointer:
-            checkpointer.setup()
+        from psycopg_pool import ConnectionPool
+        with ConnectionPool(conninfo=db_uri, kwargs={"prepare_threshold": None}) as pool:
+            with PostgresSaver(pool) as checkpointer:
+                checkpointer.setup()
             graph = graph_builder.compile(checkpointer=checkpointer)
             opik_tracer = OpikTracer(graph=graph.get_graph(xray=True))
 
