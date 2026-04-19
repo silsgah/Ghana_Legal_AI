@@ -426,8 +426,8 @@ async def get_chat_history(expert_id: str, user: dict = Depends(get_current_user
 
         from psycopg_pool import ConnectionPool
         with ConnectionPool(conninfo=db_uri, kwargs={"prepare_threshold": None}) as pool:
-            with PostgresSaver(pool) as checkpointer:
-                checkpointer.setup()
+            checkpointer = PostgresSaver(pool)
+            checkpointer.setup()
             config = {"configurable": {"thread_id": thread_id}}
             checkpoint = checkpointer.get(config)
 

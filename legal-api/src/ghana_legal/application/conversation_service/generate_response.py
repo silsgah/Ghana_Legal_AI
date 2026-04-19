@@ -59,8 +59,8 @@ async def get_response(
         from psycopg_pool import ConnectionPool
         
         with ConnectionPool(conninfo=db_uri, kwargs={"prepare_threshold": None}) as pool:
-            with PostgresSaver(pool) as checkpointer:
-                checkpointer.setup()
+            checkpointer = PostgresSaver(pool)
+            checkpointer.setup()
             graph = graph_builder.compile(checkpointer=checkpointer)
             opik_tracer = OpikTracer(graph=graph.get_graph(xray=True))
 
@@ -142,8 +142,8 @@ async def get_streaming_response(
 
         from psycopg_pool import ConnectionPool
         with ConnectionPool(conninfo=db_uri, kwargs={"prepare_threshold": None}) as pool:
-            with PostgresSaver(pool) as checkpointer:
-                checkpointer.setup()
+            checkpointer = PostgresSaver(pool)
+            checkpointer.setup()
             graph = graph_builder.compile(checkpointer=checkpointer)
             opik_tracer = OpikTracer(graph=graph.get_graph(xray=True))
 
