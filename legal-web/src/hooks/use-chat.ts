@@ -104,18 +104,6 @@ export function useChat({ expertId, onStreamComplete }: UseChatOptions): UseChat
         };
         setMessages((prev) => [...prev, userMessage]);
 
-        // Create placeholder assistant message for streaming
-        const assistantId = generateId();
-        setMessages((prev) => [
-            ...prev,
-            {
-                id: assistantId,
-                role: 'assistant',
-                content: '',
-                timestamp: new Date(),
-            },
-        ]);
-
         setIsStreaming(true);
         setConnectionStatus('connected');
 
@@ -164,7 +152,7 @@ export function useChat({ expertId, onStreamComplete }: UseChatOptions): UseChat
                         const data = JSON.parse(line.slice(6));
 
                         if (data.chunk) {
-                            // Append chunk to assistant message
+                            // Append chunk or create assistant message
                             setMessages((prev) => {
                                 const lastMsg = prev[prev.length - 1];
                                 if (lastMsg?.role === 'assistant') {
@@ -172,8 +160,12 @@ export function useChat({ expertId, onStreamComplete }: UseChatOptions): UseChat
                                         ...prev.slice(0, -1),
                                         { ...lastMsg, content: lastMsg.content + data.chunk },
                                     ];
+                                } else {
+                                    return [
+                                        ...prev,
+                                        { id: generateId(), role: 'assistant', content: data.chunk, timestamp: new Date() }
+                                    ];
                                 }
-                                return prev;
                             });
                         } else if (data.sources && data.sources.length > 0) {
                             // Attach sources to assistant message
@@ -184,8 +176,12 @@ export function useChat({ expertId, onStreamComplete }: UseChatOptions): UseChat
                                         ...prev.slice(0, -1),
                                         { ...lastMsg, sources: data.sources },
                                     ];
+                                } else {
+                                    return [
+                                        ...prev,
+                                        { id: generateId(), role: 'assistant', content: '', sources: data.sources, timestamp: new Date() }
+                                    ];
                                 }
-                                return prev;
                             });
                         } else if (data.error) {
                             console.error('Stream error:', data.error);
