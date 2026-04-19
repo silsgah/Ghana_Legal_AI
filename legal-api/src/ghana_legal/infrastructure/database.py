@@ -36,13 +36,22 @@ def get_engine() -> AsyncEngine:
                 "Set it in your .env file, e.g.: "
                 "DATABASE_URL=postgresql+asyncpg://user:pass@host:5432/ghana_legal"
             )
+        # Supavisor transaction pooler compatibility specifically for asyncpg
+        db_url = settings.DATABASE_URL
+        if "pooler.supabase.com" in db_url and ":5432" in db_url:
+            db_url = db_url.replace(":5432", ":6543")
+
         _engine = create_async_engine(
-            settings.DATABASE_URL,
+            db_url,
             pool_size=5,
             max_overflow=5,
             pool_pre_ping=True,
             pool_recycle=300,
             echo=False,
+            connect_args={
+                "server_settings": {"application_name": "ghana_legal_modal"},
+                "prepared_statement_cache_size": 0,  # CRITICAL for Supabase PgBouncer/Supavisor
+            }
         )
         logger.info("PostgreSQL async engine created")
     return _engine
