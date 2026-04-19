@@ -130,6 +130,7 @@ export default function AdminPage() {
     }>({ status: 'idle', started_at: null, completed_at: null, result: null, error: null });
     const [triggeringIngestion, setTriggeringIngestion] = useState(false);
     const [ingestionFeedback, setIngestionFeedback] = useState<string | null>(null);
+    const [isIngestionModalOpen, setIsIngestionModalOpen] = useState(false);
 
     const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
         const token = await getToken();
@@ -208,7 +209,7 @@ export default function AdminPage() {
     }, [authHeaders]);
 
     const triggerIngestion = async () => {
-        if (!confirm('Run the constitution ingestion pipeline? This will re-embed documents into Qdrant.')) return;
+        setIsIngestionModalOpen(false);
         setTriggeringIngestion(true);
         setIngestionFeedback(null);
         try {
@@ -374,6 +375,39 @@ export default function AdminPage() {
 
     return (
         <div className="min-h-screen" style={{ background: 'var(--background)' }}>
+            
+            {/* Ingestion Confirmation Modal */}
+            {isIngestionModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200"
+                     style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }}
+                     onClick={() => setIsIngestionModalOpen(false)}>
+                    <div className="relative w-full max-w-md rounded-2xl overflow-hidden shadow-2xl p-6 md:p-8 animate-in zoom-in-95"
+                         style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}
+                         onClick={e => e.stopPropagation()}>
+                        <div className="w-12 h-12 rounded-full flex items-center justify-center mb-5"
+                             style={{ background: 'rgba(56, 189, 248, 0.1)' }}>
+                            <Database size={24} style={{ color: 'var(--primary)' }} />
+                        </div>
+                        <h3 className="text-xl font-bold mb-2">Run Ingestion Pipeline</h3>
+                        <p className="text-sm mb-6" style={{ color: 'var(--muted-foreground)' }}>
+                            This will process all legal datasets securely uploaded to the Modal Cloud volume and natively insert them into Qdrant Cloud. Existing vectors will not be forcibly wiped unless specifically flagged.
+                        </p>
+                        <div className="flex gap-3 justify-end items-center">
+                            <button onClick={() => setIsIngestionModalOpen(false)}
+                                    className="px-4 py-2 rounded-lg text-sm font-medium hover:bg-white/5 transition-colors"
+                                    style={{ color: 'var(--muted-foreground)' }}>
+                                Cancel
+                            </button>
+                            <button onClick={triggerIngestion}
+                                    className="flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-semibold transition-transform hover:scale-[1.02]"
+                                    style={{ background: 'var(--primary)', color: 'white', boxShadow: '0 4px 14px rgba(91,106,240,0.3)' }}>
+                                Confirm & Run
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Header */}
             <header className="sticky top-0 z-50" style={{
                 background: 'rgba(12,14,20,0.85)',
@@ -470,7 +504,7 @@ export default function AdminPage() {
 
                                     {/* Trigger button */}
                                     <button
-                                        onClick={triggerIngestion}
+                                        onClick={() => setIsIngestionModalOpen(true)}
                                         disabled={triggeringIngestion || ingestionStatus.status === 'running'}
                                         className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-40 transition-opacity"
                                         style={{ background: 'var(--primary)', color: '#fff' }}>
