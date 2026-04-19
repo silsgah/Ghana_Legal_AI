@@ -12,6 +12,7 @@ dependencies = [
     "langchain-groq>=0.2.4",
     "langchain-mongodb>=0.4.0",
     "langchain-voyageai>=0.3.0",
+    "langchain-ollama>=0.1.0",
     "voyageai>=0.3.0",
     "langgraph>=0.2.70",
     "langgraph-checkpoint-mongodb>=0.1.0",
