@@ -95,12 +95,12 @@ def load_pdf_documents(data_dirs: List[Path]) -> List[Document]:
             logger.warning(f"Directory not found, skipping: {data_dir}")
             continue
 
-        pdf_files = sorted(data_dir.glob("*.pdf"))
+        pdf_files = sorted(data_dir.rglob("*.pdf"))
         if not pdf_files:
             logger.info(f"No PDF files in {data_dir}")
             continue
 
-        logger.info(f"Found {len(pdf_files)} PDF(s) in {data_dir.name}/")
+        logger.info(f"Found {len(pdf_files)} PDF(s) inside {data_dir.name}/ and subdirectories")
 
         for pdf_path in tqdm(pdf_files, desc=f"Loading from {data_dir.name}", unit="file"):
             try:
