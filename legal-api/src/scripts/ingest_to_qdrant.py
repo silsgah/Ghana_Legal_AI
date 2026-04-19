@@ -86,9 +86,23 @@ class CaseMetadataExtractor:
         return metadata
 
 
-def load_pdf_documents(data_dirs: List[Path]) -> List[Document]:
-    """Load all PDF documents from multiple directories."""
+def load_pdf_documents(data_dirs: List[Path], max_cases: int = 30) -> List[Document]:
+    """Load Constitution and purely pending PDF cases incrementally."""
     all_documents = []
+
+    project_root = Path(__file__).resolve().parents[3]
+    manifest_path = project_root / "data" / "pipeline_manifest.json"
+    
+    pending_filenames = set()
+    if manifest_path.exists():
+        try:
+            with open(manifest_path, "r") as f:
+                manifest = json.load(f)
+                for case_id, case in manifest.get("cases", {}).items():
+                    if case.get("status") in ["pending", "downloaded"]:
+                        pending_filenames.add(f"{case_id}.pdf")
+        except Exception as e:
+            logger.error(f"Could not parse manifest for optimization: {e}")
 
     for data_dir in data_dirs:
         if not data_dir.exists():
@@ -96,11 +110,18 @@ def load_pdf_documents(data_dirs: List[Path]) -> List[Document]:
             continue
 
         pdf_files = sorted(data_dir.rglob("*.pdf"))
+        
+        # If iterating court cases, ruthlessly filter by strictly pending files and enforce limits
+        if "cases" in data_dir.name.lower():
+            if pending_filenames:
+                pdf_files = [p for p in pdf_files if p.name in pending_filenames]
+            pdf_files = pdf_files[:max_cases]
+
         if not pdf_files:
-            logger.info(f"No PDF files in {data_dir}")
+            logger.info(f"No pending PDF files physically found inside {data_dir.name}")
             continue
 
-        logger.info(f"Found {len(pdf_files)} PDF(s) inside {data_dir.name}/ and subdirectories")
+        logger.info(f"Batched {len(pdf_files)} optimal PDF(s) from {data_dir.name} for ingestion")
 
         for pdf_path in tqdm(pdf_files, desc=f"Loading from {data_dir.name}", unit="file"):
             try:
