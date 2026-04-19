@@ -324,8 +324,11 @@ async def stream_chat(body: StreamChatMessage, user: dict = Depends(get_current_
     # 1. Quota check
     quota = await check_quota(clerk_id)
     if not quota["allowed"]:
+        used = quota["used_today"]
+        limit = quota["daily_limit"]
         async def quota_error():
-            yield f"data: {json.dumps({'error': f'Daily limit reached. You have used {quota[\"used_today\"]}/{quota[\"daily_limit\"]} free queries today. Please upgrade to Pro for unlimited access.', 'quota_exceeded': True})}\n\n"
+            msg = f"Daily limit reached. You have used {used}/{limit} free queries today. Please upgrade to Pro for unlimited access."
+            yield f"data: {json.dumps({'error': msg, 'quota_exceeded': True})}\n\n"
         return StreamingResponse(quota_error(), media_type="text/event-stream")
 
     # 2. Cache check
