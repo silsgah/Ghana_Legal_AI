@@ -214,29 +214,6 @@ def verify_collection(client, verbose: bool = True) -> int:
     return constitution_count
 
 
-def wipe_constitution_vectors(client):
-    """Delete all constitution-tagged points from the collection."""
-    from qdrant_client.http.models import Filter, FieldCondition, MatchValue
-
-    logger.warning("Deleting existing constitution vectors from Qdrant...")
-    try:
-        client.delete(
-            collection_name=COLLECTION_NAME,
-            points_selector=Filter(
-                must=[
-                    FieldCondition(
-                        key="source_type",
-                        match=MatchValue(value="constitution"),
-                    )
-                ]
-            ),
-        )
-        logger.success("✓ Existing constitution vectors removed.")
-    except Exception as e:
-        logger.error(f"Failed to delete constitution vectors: {e}")
-        sys.exit(1)
-
-
 def ingest_chunks(client, chunks: List[Document]):
     """Embed and upsert chunks into Qdrant."""
     from ghana_legal.application.rag.embeddings import get_embedding_model
@@ -314,11 +291,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Ingest Ghana Constitution into Qdrant Cloud"
     )
-    parser.add_argument(
-        "--wipe",
-        action="store_true",
-        help="Delete existing constitution vectors before reingesting (clean reingest)",
-    )
+
     parser.add_argument(
         "--verify-only",
         action="store_true",
@@ -361,30 +334,21 @@ def main():
 
     # ── Check current state ───────────────────────────────────────────────────
     existing_count = verify_collection(client)
-    if existing_count > 0 and not args.wipe:
-        logger.warning(
-            f"\n⚠  {existing_count} constitution vectors already exist in Qdrant."
-        )
+    if existing_count > 0:
         if args.no_prompt:
             logger.info("Skipping re-ingestion because --no-prompt was passed and vectors exist.")
             return
             
         logger.warning(
-            "   Run with --wipe to delete them and do a clean reingest."
+            f"\n⚠  {existing_count} constitution vectors already exist in Qdrant."
         )
         logger.warning(
-            "   Or proceed to ADD additional chunks (possible duplicates)."
+            "   Proceeding will ADD additional chunks (possible duplicates)."
         )
         answer = input("\nContinue anyway? [y/N]: ").strip().lower()
         if answer != "y":
             logger.info("Aborted.")
             return
-    elif existing_count == 0:
-        pass  # Fresh ingest, no wipe needed
-
-    # ── Wipe existing ─────────────────────────────────────────────────────────
-    if args.wipe and existing_count > 0:
-        wipe_constitution_vectors(client)
 
     # ── Load + chunk PDF ──────────────────────────────────────────────────────
     start = datetime.now()
