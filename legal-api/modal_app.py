@@ -33,7 +33,6 @@ app = modal.App("ghana-legal-ai")
     image=image,
     secrets=[modal.Secret.from_name("ghana-legal-secrets")],
     timeout=300,  # 5 min max per request (SSE streaming)
-    allow_concurrent_inputs=10,
     memory=2048,
 )
 @modal.asgi_app()
