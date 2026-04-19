@@ -19,7 +19,7 @@ image = (
     .pip_install_from_requirements("requirements.txt")
     .pip_install("langchain-voyageai", "voyageai", "qdrant-client", "datasketch")
     .add_local_dir("src", remote_path="/root/src")
-    .add_local_dir("../data", remote_path="/root/data")
+    .add_local_dir("../data", remote_path="/data")
 )
 
 # ---------------------------------------------------------------------------
