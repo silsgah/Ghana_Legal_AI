@@ -390,12 +390,12 @@ def _run_ingestion_sync():
 
         logger.info("Admin-triggered ingestion starting...")
 
-        # Run the ingestion script as a subprocess
+        # Run the comprehensive ingestion script as a subprocess
         src_dir = Path(__file__).resolve().parents[1]
-        script_path = src_dir.parent / "scripts" / "ingest_constitution_to_qdrant.py"
+        script_path = src_dir.parent / "scripts" / "ingest_to_qdrant.py"
 
         result = subprocess.run(
-            [sys.executable, str(script_path), "--no-prompt"],
+            [sys.executable, str(script_path)],
             capture_output=True,
             text=True,
             timeout=600,  # 10 min max
