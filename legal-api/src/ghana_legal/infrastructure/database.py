@@ -50,7 +50,8 @@ def get_engine() -> AsyncEngine:
             echo=False,
             connect_args={
                 "server_settings": {"application_name": "ghana_legal_modal"},
-                "prepared_statement_cache_size": 0,  # CRITICAL for Supabase PgBouncer/Supavisor
+                "statement_cache_size": 0,
+                "prepared_statement_cache_size": 0,
             }
         )
         logger.info("PostgreSQL async engine created")
