@@ -412,22 +412,20 @@ async def reset_conversation():
 @app.get("/api/history/{expert_id}", tags=["chat"])
 async def get_chat_history(expert_id: str, user: dict = Depends(get_current_user)):
     """Fetch conversation history for a user + expert from MongoDB checkpoints."""
-    import certifi
     from langchain_core.messages import HumanMessage, AIMessage
-    from langgraph.checkpoint.mongodb import MongoDBSaver
+    from langgraph.checkpoint.postgres import PostgresSaver
     from ghana_legal.config import settings
 
     clerk_id = user["sub"]
     thread_id = f"{clerk_id}_{expert_id}"
 
     try:
-        with MongoDBSaver.from_conn_string(
-            conn_string=settings.MONGO_URI,
-            db_name=settings.MONGO_DB_NAME,
-            checkpoint_collection_name=settings.MONGO_STATE_CHECKPOINT_COLLECTION,
-            writes_collection_name=settings.MONGO_STATE_WRITES_COLLECTION,
-            tlsCAFile=certifi.where()
-        ) as checkpointer:
+        db_uri = settings.DATABASE_URL.replace("postgresql+asyncpg", "postgresql")
+        if "pooler.supabase.com" in db_uri and ":5432" in db_uri:
+            db_uri = db_uri.replace(":5432", ":6543")
+
+        with PostgresSaver.from_conn_string(db_uri) as checkpointer:
+            checkpointer.setup()
             config = {"configurable": {"thread_id": thread_id}}
             checkpoint = checkpointer.get(config)
 

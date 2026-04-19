@@ -4,14 +4,14 @@ langchain
 langchain-community
 langchain-core
 langchain-groq
-langchain-mongodb
 langchain-chroma
 langchain-huggingface
 langchain-voyageai
 langchain-ollama
 voyageai
 langgraph
-langgraph-checkpoint-mongodb
+langgraph-checkpoint-postgres
+psycopg[binary]
 pydantic
 pydantic-settings
 opik

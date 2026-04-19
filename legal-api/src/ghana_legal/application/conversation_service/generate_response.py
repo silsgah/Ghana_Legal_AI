@@ -5,7 +5,7 @@ import certifi
 from typing import Any, AsyncGenerator, Union
 
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
-from langgraph.checkpoint.mongodb import MongoDBSaver
+from langgraph.checkpoint.postgres import PostgresSaver
 from loguru import logger
 from opik.integrations.langchain import OpikTracer
 
@@ -52,14 +52,12 @@ async def get_response(
     graph_builder = create_workflow_graph()
 
     try:
-        # Use certifi for SSL validation
-        with MongoDBSaver.from_conn_string(
-            conn_string=settings.MONGO_URI,
-            db_name=settings.MONGO_DB_NAME,
-            checkpoint_collection_name=settings.MONGO_STATE_CHECKPOINT_COLLECTION,
-            writes_collection_name=settings.MONGO_STATE_WRITES_COLLECTION,
-            tlsCAFile=certifi.where()
-        ) as checkpointer:
+        db_uri = settings.DATABASE_URL.replace("postgresql+asyncpg", "postgresql")
+        if "pooler.supabase.com" in db_uri and ":5432" in db_uri:
+            db_uri = db_uri.replace(":5432", ":6543")
+
+        with PostgresSaver.from_conn_string(db_uri) as checkpointer:
+            checkpointer.setup()
             graph = graph_builder.compile(checkpointer=checkpointer)
             opik_tracer = OpikTracer(graph=graph.get_graph(xray=True))
 
@@ -135,14 +133,12 @@ async def get_streaming_response(
     graph_builder = create_workflow_graph()
 
     try:
-        # Use certifi for SSL validation
-        with MongoDBSaver.from_conn_string(
-            conn_string=settings.MONGO_URI,
-            db_name=settings.MONGO_DB_NAME,
-            checkpoint_collection_name=settings.MONGO_STATE_CHECKPOINT_COLLECTION,
-            writes_collection_name=settings.MONGO_STATE_WRITES_COLLECTION,
-            tlsCAFile=certifi.where()
-        ) as checkpointer:
+        db_uri = settings.DATABASE_URL.replace("postgresql+asyncpg", "postgresql")
+        if "pooler.supabase.com" in db_uri and ":5432" in db_uri:
+            db_uri = db_uri.replace(":5432", ":6543")
+
+        with PostgresSaver.from_conn_string(db_uri) as checkpointer:
+            checkpointer.setup()
             graph = graph_builder.compile(checkpointer=checkpointer)
             opik_tracer = OpikTracer(graph=graph.get_graph(xray=True))
 
