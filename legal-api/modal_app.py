@@ -33,7 +33,7 @@ app = modal.App("ghana-legal-ai")
 @app.function(
     image=image,
     secrets=[modal.Secret.from_name("ghana-legal-secrets")],
-    timeout=300,  # 5 min max per request (SSE streaming)
+    timeout=900,  # 15 min — ingestion background task needs time to complete
     memory=2048,
 )
 @modal.asgi_app()
