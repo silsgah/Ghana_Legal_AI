@@ -5,6 +5,7 @@ Clerk publicMetadata can access these endpoints.
 """
 
 import json
+import os
 import asyncio
 from pathlib import Path
 from typing import Optional
@@ -404,7 +405,7 @@ async def update_config(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _run_ingestion_sync():
-    """Run the constitution ingestion script synchronously (called in background)."""
+    """Run the ingestion script synchronously (called in background)."""
     global _ingestion_state
     import subprocess
     import sys
@@ -415,11 +416,13 @@ def _run_ingestion_sync():
         _ingestion_state["error"] = None
         _ingestion_state["result"] = None
 
-        logger.info("Admin-triggered ingestion starting...")
-
         # Run the comprehensive ingestion script as a subprocess
         src_dir = Path(__file__).resolve().parents[1]
         script_path = src_dir.parent / "scripts" / "ingest_to_qdrant.py"
+
+        logger.info(f"Admin-triggered ingestion starting: {script_path}")
+        logger.info(f"Script exists: {script_path.exists()}")
+        logger.info(f"DATABASE_URL configured: {bool(os.environ.get('DATABASE_URL'))}")
 
         result = subprocess.run(
             [sys.executable, str(script_path)],
@@ -431,11 +434,18 @@ def _run_ingestion_sync():
 
         _ingestion_state["completed_at"] = datetime.now(timezone.utc).isoformat()
 
+        # Forward subprocess output to Modal logs for visibility
+        if result.stdout:
+            for line in result.stdout.strip().split("\n")[-30:]:
+                logger.info(f"[ingestion] {line}")
+        if result.stderr:
+            for line in result.stderr.strip().split("\n")[-20:]:
+                logger.warning(f"[ingestion-err] {line}")
+
         if result.returncode == 0:
             _ingestion_state["status"] = "completed"
-            # Extract summary from output
             output_lines = result.stdout.strip().split("\n")
-            summary_lines = [l for l in output_lines if "Chunks" in l or "ingested" in l or "Success" in l or "✓" in l]
+            summary_lines = [l for l in output_lines if "Chunks" in l or "ingested" in l or "Success" in l or "✓" in l or "Updated" in l or "indexed" in l]
             _ingestion_state["result"] = {
                 "exit_code": 0,
                 "summary": "\n".join(summary_lines[-5:]) if summary_lines else "Completed successfully",
@@ -444,13 +454,13 @@ def _run_ingestion_sync():
         else:
             _ingestion_state["status"] = "failed"
             _ingestion_state["error"] = result.stderr[-500:] if result.stderr else "Unknown error"
-            logger.error(f"Admin-triggered ingestion failed: {result.stderr[-200:]}")
+            logger.error(f"Admin-triggered ingestion FAILED (exit code {result.returncode})")
 
     except subprocess.TimeoutExpired:
         _ingestion_state["status"] = "failed"
         _ingestion_state["error"] = "Ingestion timed out after 10 minutes"
         _ingestion_state["completed_at"] = datetime.now(timezone.utc).isoformat()
-        logger.error("Admin-triggered ingestion timed out")
+        logger.error("Admin-triggered ingestion timed out after 600s")
     except Exception as e:
         _ingestion_state["status"] = "failed"
         _ingestion_state["error"] = str(e)
