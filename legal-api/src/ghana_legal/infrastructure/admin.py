@@ -77,55 +77,42 @@ async def require_admin(user: dict = Depends(get_current_user)) -> dict:
     raise HTTPException(status_code=403, detail="Admin access required")
 
 
-def _load_manifest() -> dict:
-    vol_path = Path("/manifest_state/pipeline_manifest.json")
-    
-    # Cloud Priority execution explicitly reads from the Persistent Mount
-    if vol_path.exists():
-        try:
-            return json.loads(vol_path.read_text())
-        except Exception as e:
-            logger.error(f"Failed to read from volume: {e}")
-            
-    # Fallback to the Image-Burned Manifest locally or when Bootstrap seeding is required
-    if MANIFEST_PATH.exists():
-        data = MANIFEST_PATH.read_text()
-        # Seed the network volume directly on the first run for persistence
-        if Path("/manifest_state").exists():
-            try:
-                vol_path.write_text(data)
-                logger.info("Successfully bootstrapped pristine manifest onto persistent Cloud volume")
-            except Exception as e:
-                logger.error(f"Failed to bootstrap volume: {e}")
-        return json.loads(data)
-        
-    return {"cases": {}}
-
-
 @router.get("/pipeline/stats")
 async def pipeline_stats(user: dict = Depends(require_admin)):
-    """Overview stats for the admin dashboard."""
-    data = _load_manifest()
-    cases = data.get("cases", {})
+    """Overview stats for the admin dashboard — backed by PostgreSQL."""
+    from ghana_legal.infrastructure.database import get_session
+    from ghana_legal.domain.models import PipelineCase
+    from sqlalchemy import select, func
 
-    by_status = {}
-    by_court = {}
-    for rec in cases.values():
-        status = rec.get("status", "unknown")
-        court = rec.get("court_id", "unknown")
-        by_status[status] = by_status.get(status, 0) + 1
-        by_court[court] = by_court.get(court, 0) + 1
+    async with get_session() as session:
+        # Count by status
+        result = await session.execute(
+            select(PipelineCase.status, func.count(PipelineCase.case_id))
+            .group_by(PipelineCase.status)
+        )
+        by_status = {row[0]: row[1] for row in result.all()}
 
-    # Count PDFs on disk
+        # Count by court
+        result = await session.execute(
+            select(PipelineCase.court_id, func.count(PipelineCase.case_id))
+            .group_by(PipelineCase.court_id)
+        )
+        by_court = {row[0]: row[1] for row in result.all()}
+
+        total = sum(by_status.values())
+
+    # Count PDFs on disk (works in both Modal /data/cases and local)
     pdf_count = 0
     total_size_mb = 0.0
-    if CASES_DIR.exists():
-        for pdf in CASES_DIR.rglob("*.pdf"):
-            pdf_count += 1
-            total_size_mb += pdf.stat().st_size / (1024 * 1024)
+    for cases_dir in [Path("/data/cases"), CASES_DIR]:
+        if cases_dir.exists():
+            for pdf in cases_dir.rglob("*.pdf"):
+                pdf_count += 1
+                total_size_mb += pdf.stat().st_size / (1024 * 1024)
+            break  # use whichever path exists
 
     return {
-        "total_cases": len(cases),
+        "total_cases": total,
         "by_status": by_status,
         "by_court": by_court,
         "pdfs_on_disk": pdf_count,
@@ -141,27 +128,48 @@ async def pipeline_cases(
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=200),
 ):
-    """List cases with optional filtering and pagination."""
-    data = _load_manifest()
-    cases = list(data.get("cases", {}).values())
+    """List cases with optional filtering and pagination — backed by PostgreSQL."""
+    from ghana_legal.infrastructure.database import get_session
+    from ghana_legal.domain.models import PipelineCase
+    from sqlalchemy import select, func
 
-    if status:
-        cases = [c for c in cases if c.get("status") == status]
-    if court_id:
-        cases = [c for c in cases if c.get("court_id") == court_id]
+    async with get_session() as session:
+        query = select(PipelineCase)
+        count_query = select(func.count(PipelineCase.case_id))
 
-    # Sort by discovered_at descending
-    cases.sort(key=lambda c: c.get("discovered_at", ""), reverse=True)
+        if status:
+            query = query.where(PipelineCase.status == status)
+            count_query = count_query.where(PipelineCase.status == status)
+        if court_id:
+            query = query.where(PipelineCase.court_id == court_id)
+            count_query = count_query.where(PipelineCase.court_id == court_id)
 
-    total = len(cases)
-    start = (page - 1) * per_page
-    page_cases = cases[start:start + per_page]
+        total_result = await session.execute(count_query)
+        total = total_result.scalar()
+
+        offset = (page - 1) * per_page
+        query = query.order_by(PipelineCase.updated_at.desc()).offset(offset).limit(per_page)
+
+        result = await session.execute(query)
+        cases = result.scalars().all()
 
     return {
         "total": total,
         "page": page,
         "per_page": per_page,
-        "cases": page_cases,
+        "cases": [
+            {
+                "case_id": c.case_id,
+                "url": c.url,
+                "pdf_url": c.pdf_url,
+                "title": c.title,
+                "court_id": c.court_id,
+                "status": c.status,
+                "error": c.error,
+                "retry_count": c.retry_count,
+            }
+            for c in cases
+        ],
     }
 
 

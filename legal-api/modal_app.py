@@ -27,8 +27,6 @@ image = (
 # ---------------------------------------------------------------------------
 app = modal.App("ghana-legal-ai")
 
-manifest_volume = modal.NetworkFileSystem.from_name("ghana-legal-manifest-nfs", create_if_missing=True)
-
 # ---------------------------------------------------------------------------
 # FastAPI Web Endpoint
 # ---------------------------------------------------------------------------
@@ -37,7 +35,6 @@ manifest_volume = modal.NetworkFileSystem.from_name("ghana-legal-manifest-nfs", 
     secrets=[modal.Secret.from_name("ghana-legal-secrets")],
     timeout=300,  # 5 min max per request (SSE streaming)
     memory=2048,
-    network_file_systems={"/manifest_state": manifest_volume}
 )
 @modal.asgi_app()
 def api():

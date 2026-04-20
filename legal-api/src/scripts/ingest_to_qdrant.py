@@ -5,19 +5,19 @@ Comprehensive script to ingest Ghana legal PDFs into Qdrant Cloud.
 Adapted from ingest_cases_to_chroma.py for Qdrant Cloud production use.
 
 This script:
-1. Loads all PDFs from data/ghana_legal/ (constitution + cases) and data/cases/
-2. Parses legal structure (case names, citations, dates)
-3. Splits into optimal chunks
-4. Deduplicates content
-5. Generates embeddings
+1. Queries PostgreSQL for pending cases
+2. Loads matching PDFs from data directories
+3. Parses legal structure (case names, citations, dates)
+4. Splits into optimal chunks
+5. Generates Voyage AI embeddings
 6. Stores in Qdrant Cloud with rich metadata
-7. Provides detailed progress and statistics
+7. Marks successfully ingested cases as 'indexed' in PostgreSQL
 """
 
 import os
 import sys
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Set
 from datetime import datetime
 import re
 import json
@@ -46,6 +46,95 @@ logger.add(
     level="INFO"
 )
 
+
+# ---------------------------------------------------------------------------
+# PostgreSQL helpers (sync via psycopg3, already in requirements)
+# ---------------------------------------------------------------------------
+
+def _get_sync_db_url() -> str:
+    """Build a sync-compatible PostgreSQL connection string."""
+    db_url = os.getenv("DATABASE_URL", "")
+    if not db_url:
+        # Try loading from settings as fallback
+        try:
+            db_url = settings.DATABASE_URL
+        except Exception:
+            pass
+
+    if not db_url:
+        return ""
+
+    # Convert SQLAlchemy async driver prefix to standard
+    db_url = db_url.replace("postgresql+asyncpg://", "postgresql://")
+    # Supabase pgBouncer requires port 6543 for transaction pooling
+    if "pooler.supabase.com" in db_url and ":5432" in db_url:
+        db_url = db_url.replace(":5432", ":6543")
+    return db_url
+
+
+def get_pending_case_ids_from_db() -> Set[str]:
+    """Query PostgreSQL for case IDs with pending/downloaded status."""
+    try:
+        import psycopg
+    except ImportError:
+        logger.warning("psycopg not installed, falling back to manifest file")
+        return set()
+
+    db_url = _get_sync_db_url()
+    if not db_url:
+        logger.warning("DATABASE_URL not configured, cannot query pending cases")
+        return set()
+
+    try:
+        with psycopg.connect(db_url, prepare_threshold=0) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT case_id FROM pipeline_cases WHERE status IN ('pending', 'downloaded')"
+                )
+                ids = {row[0] for row in cur.fetchall()}
+                logger.info(f"Found {len(ids)} pending cases in PostgreSQL")
+                return ids
+    except Exception as e:
+        logger.error(f"Failed to query pending cases from PostgreSQL: {e}")
+        return set()
+
+
+def update_db_statuses(case_ids: Set[str]) -> int:
+    """Mark cases as 'indexed' in PostgreSQL after successful Qdrant upload."""
+    if not case_ids:
+        return 0
+
+    try:
+        import psycopg
+    except ImportError:
+        logger.warning("psycopg not installed, cannot update DB statuses")
+        return 0
+
+    db_url = _get_sync_db_url()
+    if not db_url:
+        logger.warning("DATABASE_URL not configured, cannot update statuses")
+        return 0
+
+    try:
+        with psycopg.connect(db_url, prepare_threshold=0) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE pipeline_cases SET status = 'indexed', updated_at = NOW() "
+                    "WHERE case_id = ANY(%s) AND status IN ('pending', 'downloaded')",
+                    (list(case_ids),)
+                )
+                count = cur.rowcount
+            conn.commit()
+            logger.success(f"✓ Updated {count} cases to 'indexed' in PostgreSQL")
+            return count
+    except Exception as e:
+        logger.error(f"Failed to update DB statuses: {e}")
+        return 0
+
+
+# ---------------------------------------------------------------------------
+# Metadata extraction
+# ---------------------------------------------------------------------------
 
 class CaseMetadataExtractor:
     """Extract metadata from Ghana Supreme Court case filenames and content."""
@@ -86,28 +175,24 @@ class CaseMetadataExtractor:
         return metadata
 
 
-def load_pdf_documents(data_dirs: List[Path], max_cases: int = 30) -> List[Document]:
-    """Load Constitution and purely pending PDF cases incrementally."""
+# ---------------------------------------------------------------------------
+# PDF loading
+# ---------------------------------------------------------------------------
+
+def load_pdf_documents(data_dirs: List[Path], max_cases: int = 50) -> List[Document]:
+    """Load Constitution PDFs and pending case PDFs incrementally.
+
+    - Always loads Constitution PDFs (no filtering).
+    - For case directories, only loads PDFs that are 'pending' in PostgreSQL.
+    - Caps case loading at max_cases to stay within Modal timeout limits.
+    """
     all_documents = []
 
-    project_root = Path(__file__).resolve().parents[3]
-    
-    # Intelligently target the Persistent Cloud Mount when deployed via Modal
-    modal_volume_path = Path("/manifest_state/pipeline_manifest.json")
-    local_manifest_path = project_root / "data" / "pipeline_manifest.json"
-    
-    manifest_path = modal_volume_path if Path("/manifest_state").exists() else local_manifest_path
-    
-    pending_filenames = set()
-    if manifest_path.exists():
-        try:
-            with open(manifest_path, "r") as f:
-                manifest = json.load(f)
-                for case_id, case in manifest.get("cases", {}).items():
-                    if case.get("status") in ["pending", "downloaded"]:
-                        pending_filenames.add(f"{case_id}.pdf")
-        except Exception as e:
-            logger.error(f"Could not parse manifest for optimization: {e}")
+    # Get pending case IDs from PostgreSQL
+    pending_case_ids = get_pending_case_ids_from_db()
+    pending_filenames = {f"{cid}.pdf" for cid in pending_case_ids}
+
+    logger.info(f"Targeting {len(pending_filenames)} pending cases for ingestion")
 
     for data_dir in data_dirs:
         if not data_dir.exists():
@@ -115,20 +200,22 @@ def load_pdf_documents(data_dirs: List[Path], max_cases: int = 30) -> List[Docum
             continue
 
         pdf_files = sorted(data_dir.rglob("*.pdf"))
-        
-        # If iterating court cases, ruthlessly filter by strictly pending files and enforce limits
-        if "cases" in data_dir.name.lower():
+
+        # For case directories: filter to pending-only and cap
+        is_case_dir = "cases" in data_dir.name.lower()
+        if is_case_dir:
             if pending_filenames:
                 pdf_files = [p for p in pdf_files if p.name in pending_filenames]
             pdf_files = pdf_files[:max_cases]
 
         if not pdf_files:
-            logger.info(f"No pending PDF files physically found inside {data_dir.name}")
+            logger.info(f"No eligible PDFs in {data_dir.name}")
             continue
 
-        logger.info(f"Batched {len(pdf_files)} optimal PDF(s) from {data_dir.name} for ingestion")
+        label = "case" if is_case_dir else "constitution"
+        logger.info(f"Loading {len(pdf_files)} {label} PDF(s) from {data_dir.name}/")
 
-        for pdf_path in tqdm(pdf_files, desc=f"Loading from {data_dir.name}", unit="file"):
+        for pdf_path in tqdm(pdf_files, desc=f"Loading {data_dir.name}", unit="file"):
             try:
                 loader = PyPDFLoader(str(pdf_path))
                 pages = loader.load()
@@ -159,6 +246,10 @@ def load_pdf_documents(data_dirs: List[Path], max_cases: int = 30) -> List[Docum
     return all_documents
 
 
+# ---------------------------------------------------------------------------
+# Chunking
+# ---------------------------------------------------------------------------
+
 def split_documents(documents: List[Document], chunk_size: int = 512, chunk_overlap: int = 100) -> List[Document]:
     """Split documents into optimal chunks for embeddings."""
     logger.info(f"Splitting {len(documents)} documents (chunk_size={chunk_size}, overlap={chunk_overlap})")
@@ -182,6 +273,10 @@ def split_documents(documents: List[Document], chunk_size: int = 512, chunk_over
     return chunked_docs
 
 
+# ---------------------------------------------------------------------------
+# Qdrant helpers
+# ---------------------------------------------------------------------------
+
 def sanitize_metadata_for_qdrant(metadata: Dict[str, Any]) -> Dict[str, Any]:
     """Sanitize metadata for Qdrant payload compatibility."""
     sanitized = {}
@@ -194,7 +289,6 @@ def sanitize_metadata_for_qdrant(metadata: Dict[str, Any]) -> Dict[str, Any]:
             if value:
                 sanitized[key] = ", ".join(str(v) for v in value)
         elif isinstance(value, dict):
-            import json
             sanitized[key] = json.dumps(value)
         else:
             sanitized[key] = str(value)
@@ -259,44 +353,9 @@ def ingest_to_qdrant(documents: List[Document]) -> Dict[str, Any]:
     return stats
 
 
-def update_manifest_statuses(documents: List[Document]):
-    """Update pipeline_manifest.json to mark processed files as 'indexed'."""
-    project_root = Path(__file__).resolve().parents[3]
-    
-    # Intelligently target the Persistent Cloud Mount when deployed via Modal
-    modal_volume_path = Path("/manifest_state/pipeline_manifest.json")
-    local_manifest_path = project_root / "data" / "pipeline_manifest.json"
-    
-    manifest_path = modal_volume_path if Path("/manifest_state").exists() else local_manifest_path
-    
-    if not manifest_path.exists():
-        logger.warning(f"No pipeline_manifest.json found to update stats at {manifest_path}.")
-        return
-        
-    try:
-        with open(manifest_path, "r") as f:
-            manifest = json.load(f)
-            
-        # Correlate via the base filenames (e.g. GHADC_2026_2)
-        loaded_case_ids = {doc.metadata.get("filename", "").replace(".pdf", "") for doc in documents}
-        
-        updated_count = 0
-        cases = manifest.get("cases", {})
-        for case_id, case in cases.items():
-            if case_id in loaded_case_ids and case.get("status") in ["pending", "downloaded"]:
-                case["status"] = "indexed"
-                case["updated_at"] = datetime.now().isoformat()
-                updated_count += 1
-                
-        manifest["cases"] = cases
-        
-        with open(manifest_path, "w") as f:
-            json.dump(manifest, f, indent=2)
-            
-        logger.success(f"✓ Updated {updated_count} cases in manifest to 'indexed' status.")
-    except Exception as e:
-        logger.error(f"Failed to update manifest statuses: {e}")
-
+# ---------------------------------------------------------------------------
+# Main pipeline
+# ---------------------------------------------------------------------------
 
 def main():
     """Main ingestion pipeline for Qdrant Cloud."""
@@ -316,7 +375,7 @@ def main():
 
     start_time = datetime.now()
 
-    # Define all data directories
+    # Define all data directories — resolves to /data/ inside Modal
     project_root = Path(__file__).resolve().parents[3]
     data_dirs = [
         project_root / "data" / "ghana_legal" / "constitution",
@@ -326,10 +385,10 @@ def main():
 
     logger.info(f"Scanning {len(data_dirs)} data directories...")
 
-    # Step 1: Load PDFs
+    # Step 1: Load PDFs (filtered to pending cases via PostgreSQL)
     documents = load_pdf_documents(data_dirs)
     if not documents:
-        logger.error("No documents loaded. Exiting.")
+        logger.warning("No documents to process. All cases may already be indexed.")
         return
 
     # Step 2: Split into chunks
@@ -342,9 +401,15 @@ def main():
     # Step 3: Ingest to Qdrant Cloud
     stats = ingest_to_qdrant(chunked_docs)
 
-    # Step 4: Update Manifest Statuses
+    # Step 4: Update PostgreSQL — mark ingested cases as 'indexed'
     if stats["successful"] > 0:
-        update_manifest_statuses(documents)
+        loaded_case_ids = {
+            doc.metadata.get("filename", "").replace(".pdf", "")
+            for doc in documents
+            if doc.metadata.get("source_type") == "case_law"
+        }
+        if loaded_case_ids:
+            update_db_statuses(loaded_case_ids)
 
     # Final summary
     end_time = datetime.now()
@@ -360,10 +425,6 @@ def main():
     logger.info("=" * 80)
 
     logger.success("\n✓ Your Qdrant Cloud vector store is now loaded with Ghana legal data!")
-    logger.info("\nNext steps:")
-    logger.info("1. Update .env: VECTOR_DB_MODE=qdrant")
-    logger.info("2. Restart your backend: make start-backend")
-    logger.info("3. Test with a query: 'Tell me about the Tuffuor v Attorney General case'")
 
 
 if __name__ == "__main__":

@@ -113,3 +113,61 @@ async def close_db() -> None:
         _engine = None
         _session_factory = None
         logger.info("PostgreSQL connection pool closed")
+
+
+async def seed_pipeline_cases() -> None:
+    """Seed pipeline_cases table from the JSON manifest if table is empty.
+
+    Called once during startup. If the table already has rows, this is a no-op.
+    The manifest JSON is baked into the container image at /data/ (Modal) or
+    resolved relative to the project root (local dev).
+    """
+    import json
+    from pathlib import Path
+    from ghana_legal.domain.models import PipelineCase
+    from sqlalchemy import select, func
+
+    async with get_session() as session:
+        result = await session.execute(select(func.count(PipelineCase.case_id)))
+        count = result.scalar()
+
+        if count and count > 0:
+            logger.info(f"pipeline_cases already seeded ({count} rows), skipping")
+            return
+
+    # Locate manifest — works both inside Modal (/data/) and locally
+    manifest_path = Path(__file__).resolve().parents[4] / "data" / "pipeline_manifest.json"
+    if not manifest_path.exists():
+        logger.warning(f"No manifest found at {manifest_path}, skipping seed")
+        return
+
+    manifest = json.loads(manifest_path.read_text())
+    cases_data = manifest.get("cases", {})
+    if not cases_data:
+        logger.warning("Manifest has no cases, skipping seed")
+        return
+
+    logger.info(f"Seeding {len(cases_data)} pipeline cases into PostgreSQL...")
+
+    async with get_session() as session:
+        batch = []
+        for case_id, data in cases_data.items():
+            # pdf_path lives inside nested 'metadata' or 'download_result'
+            nested = data.get("metadata") or data.get("download_result") or {}
+            batch.append(PipelineCase(
+                case_id=case_id,
+                url=data.get("url"),
+                pdf_url=data.get("pdf_url"),
+                title=data.get("title") or nested.get("title"),
+                court_id=data.get("court_id", "UNKNOWN"),
+                status=data.get("status", "pending"),
+                pdf_path=nested.get("pdf_path"),
+                error=data.get("error"),
+                retry_count=data.get("retry_count", 0),
+            ))
+
+        session.add_all(batch)
+        # commit happens automatically via get_session context manager
+
+    logger.info(f"✓ Seeded {len(cases_data)} cases into PostgreSQL successfully")
+

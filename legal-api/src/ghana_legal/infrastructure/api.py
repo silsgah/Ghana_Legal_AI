@@ -15,7 +15,7 @@ from ghana_legal.application.conversation_service.reset_conversation import (
     reset_conversation_state,
 )
 from ghana_legal.infrastructure.auth import get_optional_user, get_current_user
-from ghana_legal.infrastructure.database import init_db, close_db
+from ghana_legal.infrastructure.database import init_db, close_db, seed_pipeline_cases
 from ghana_legal.infrastructure.usage import check_quota
 from ghana_legal.domain.legal_expert_factory import LegalExpertFactory
 from ghana_legal.infrastructure.cache import get_cache
@@ -62,6 +62,7 @@ async def lifespan(app: FastAPI):
     # Initialize PostgreSQL models
     try:
         await init_db()
+        await seed_pipeline_cases()
     except Exception as e:
         from loguru import logger
         logger.error(f"Failed to initialize PostgreSQL: {e}")
@@ -119,26 +120,27 @@ async def get_pricing():
 @app.get("/api/public/stats", tags=["public"])
 async def get_public_stats():
     """Public endpoint: returns aggregated pipeline statistics for the landing page."""
-    from pathlib import Path
-    import json
-    
-    _PROJECT_ROOT = Path(__file__).resolve().parents[4]
-    MANIFEST_PATH = _PROJECT_ROOT / "data" / "pipeline_manifest.json"
-    
-    if not MANIFEST_PATH.exists():
-        return {"total_cases": 0, "by_court": {}}
-        
+    from ghana_legal.infrastructure.database import get_session
+    from ghana_legal.domain.models import PipelineCase
+    from sqlalchemy import select, func
+
     try:
-        data = json.loads(MANIFEST_PATH.read_text())
-        cases = data.get("cases", {})
-        
-        by_court = {}
-        for rec in cases.values():
-            court = rec.get("court_id", "UNKNOWN")
-            by_court[court] = by_court.get(court, 0) + 1
-            
+        async with get_session() as session:
+            # Total cases
+            total_result = await session.execute(
+                select(func.count(PipelineCase.case_id))
+            )
+            total = total_result.scalar() or 0
+
+            # By court
+            court_result = await session.execute(
+                select(PipelineCase.court_id, func.count(PipelineCase.case_id))
+                .group_by(PipelineCase.court_id)
+            )
+            by_court = {row[0]: row[1] for row in court_result.all()}
+
         return {
-            "total_cases": len(cases),
+            "total_cases": total,
             "by_court": by_court
         }
     except Exception as e:

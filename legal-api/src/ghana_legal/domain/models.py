@@ -174,3 +174,26 @@ class PlatformConfig(Base):
 
     def __repr__(self) -> str:
         return f"<PlatformConfig key={self.key} value={self.value}>"
+
+class PipelineCase(Base):
+    """PostgreSQL Tracker for individual case pipeline ingestions natively bypassing FileSystem issues."""
+    __tablename__ = "pipeline_cases"
+
+    case_id = Column(String(255), primary_key=True)
+    url = Column(String(1000), nullable=True)
+    pdf_url = Column(String(1000), nullable=True)
+    title = Column(String(1000), nullable=True)
+    court_id = Column(String(100), nullable=False)
+    status = Column(String(50), nullable=False, default="pending", index=True)
+    pdf_path = Column(String(1000), nullable=True)
+    error = Column(Text, nullable=True)
+    retry_count = Column(Integer, default=0)
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    def __repr__(self) -> str:
+        return f"<PipelineCase case_id={self.case_id} status={self.status}>"
