@@ -168,6 +168,8 @@ async def pipeline_cases(
                 "status": c.status,
                 "error": c.error,
                 "retry_count": c.retry_count,
+                "discovered_at": c.updated_at.isoformat() if c.updated_at else datetime.now(timezone.utc).isoformat(),
+                "updated_at": c.updated_at.isoformat() if c.updated_at else datetime.now(timezone.utc).isoformat(),
             }
             for c in cases
         ],
