@@ -105,8 +105,10 @@ def get_legal_expert_structure_chain():
 
     Runs after the text chain produces the user-visible answer. Receives the
     full prose plus the retrieved sources and emits a LegalAnswer envelope for
-    the validator. Uses the smaller llama-3.1-8b model so the post-stream wait
-    stays under ~1 second.
+    the validator. Uses the same 70b model as the answer chain — the 8b
+    instant model was approximating case_ids and paragraph_ids verbatim
+    despite explicit instructions, causing every grounded answer to bind only
+    partially and surface as Low Confidence in the UI.
 
     Returns None on the local Ollama path so the caller can fall through to a
     minimal synthetic envelope; production always runs Groq.
@@ -116,7 +118,7 @@ def get_legal_expert_structure_chain():
 
     model = ChatGroq(
         api_key=settings.GROQ_API_KEY,
-        model_name=settings.GROQ_LLM_MODEL_CONTEXT_SUMMARY,  # llama-3.1-8b-instant
+        model_name=settings.GROQ_LLM_MODEL,  # 70b — instruction-following matters here
         temperature=0,
     )
     structured = model.with_structured_output(LegalAnswer, method="json_schema")

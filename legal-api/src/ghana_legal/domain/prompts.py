@@ -155,24 +155,47 @@ Lawyer's answer (treat this as ground truth — copy it verbatim into human_text
 {{human_text}}
 ---
 
-Retrieved sources for this turn (you may cite ONLY these — case_id and
-paragraph_id values must match exactly):
+Retrieved sources for this turn — these are the ONLY allowed citation targets:
 {{retrieved_summary}}
 
+═══════════════════════════════════════════════════════════════════════════
+CRITICAL: case_id and paragraph_id must be COPIED CHARACTER-FOR-CHARACTER
+from the retrieved sources block above. Do NOT prettify, expand, abbreviate,
+substitute spaces for underscores, or rewrite them in any way.
+
+WRONG (these will all be REJECTED by the validator):
+  ❌  case_id = "Constitution of Ghana 1992"          (added spaces)
+  ❌  case_id = "Tuffuor v Attorney-General"          (case-name form, not the id)
+  ❌  paragraph_id = "paragraph 3 chunk 2"            (rewrote the format)
+  ❌  paragraph_id = "p3,c2"                          (wrong separator)
+
+RIGHT (must match exactly what appears after `case_id=` / `paragraph_id=`):
+  ✅  case_id = "Constitution_of_Ghana_1992"
+  ✅  case_id = "Tuffuor-v-AG-J6-2-1980"
+  ✅  paragraph_id = "p3.c2"
+  ✅  paragraph_id = "legacy.c91"
+
+The case_title field IS where you put the human-readable case name. The
+case_id field is a verbatim machine identifier from the retrieved set.
+═══════════════════════════════════════════════════════════════════════════
+
 Schema population rules:
-- `human_text`: copy the lawyer's answer above VERBATIM. Do not rewrite, summarize, or alter it.
-- `claims`: walk the answer and extract every legally substantive assertion as a Claim object.
-  Skip greetings, disclaimers, and procedural sentences. One Claim per assertion.
+- `human_text`: copy the lawyer's answer above VERBATIM. Do not rewrite,
+  summarize, or alter punctuation, line breaks, or markdown.
+- `claims`: walk the answer and extract every legally substantive assertion
+  as a Claim object. Skip greetings, disclaimers, and procedural sentences.
+  One Claim per assertion.
 - For each Claim:
     - `kind = "direct"`         → restates a single retrieved case;
                                    `citations` MUST contain exactly one entry.
     - `kind = "synthesis"`      → derives from two or more retrieved cases;
-                                   `citations` MUST contain ≥2 distinct case_id values.
-    - `kind = "constitutional"` → cites a specific constitutional article from
-                                   the retrieved corpus (a chunk whose
+                                   `citations` MUST contain ≥2 distinct
+                                   case_id values from the retrieved set.
+    - `kind = "constitutional"` → cites a specific constitutional article
+                                   from the retrieved corpus (a chunk whose
                                    document_type is constitution).
-- Each `Citation.case_id` and `Citation.paragraph_id` MUST exactly match a
-  value in the retrieved sources above. Do not invent.
+- `Citation.case_title`, `Citation.court`, `Citation.year` are human-readable
+  metadata copied from the retrieved entry's parenthetical.
 - `holding`: the legal rule resolving the question, when applicable.
 - `principle`: the broader legal principle, when applicable.
 - `retrieval_used`: true.

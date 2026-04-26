@@ -12,11 +12,30 @@ The four-priority anti-hallucination system enforces grounding here:
       min_similarity (rerank score from the retriever).
 """
 
+import re
 from dataclasses import dataclass, field
 from typing import Literal, Optional
 
 from ghana_legal.config import settings
 from ghana_legal.domain.legal_answer import LegalAnswer, ConfidenceTier
+
+
+_NORMALIZE_RE = re.compile(r"[\s_\-\.]+")
+
+
+def _normalize_id(value: str) -> str:
+    """Strip punctuation, whitespace, and case for fuzzy ID matching.
+
+    Catches the most common structuring-model drift: emitting
+    "Constitution of Ghana 1992" instead of "Constitution_of_Ghana_1992",
+    "Tuffuor v Attorney-General" instead of "Tuffuor_v_Attorney_General",
+    or "p 3 c 2" instead of "p3.c2". Without normalization the validator
+    flags these as unbound and the lawyer sees Low Confidence on a perfectly
+    grounded answer.
+    """
+    if not value:
+        return ""
+    return _NORMALIZE_RE.sub("", value.lower())
 
 
 ViolationKind = Literal[
@@ -51,7 +70,24 @@ def validate(envelope: LegalAnswer, retrieved: list[dict]) -> ValidationResult:
         # a violation. Confidence-tier scoring will mark it low/insufficient.
         return ValidationResult(passed=True)
 
+    # Two indices: exact match and normalized fuzzy match. The fuzzy index is a
+    # safety net for the structuring model emitting case_ids with formatting
+    # drift ("Constitution of Ghana 1992" vs "Constitution_of_Ghana_1992").
     retrieved_index = {(d.get("case_id", ""), d.get("paragraph_id", "")): d for d in retrieved}
+    fuzzy_index = {
+        (_normalize_id(cid), _normalize_id(pid)): doc
+        for (cid, pid), doc in retrieved_index.items()
+    }
+
+    def _resolve(cit_case_id: str, cit_paragraph_id: str) -> Optional[dict]:
+        """Return the matching retrieved doc for a citation, or None if unbound.
+
+        Tries exact match first, then falls back to normalized fuzzy match.
+        """
+        doc = retrieved_index.get((cit_case_id, cit_paragraph_id))
+        if doc is not None:
+            return doc
+        return fuzzy_index.get((_normalize_id(cit_case_id), _normalize_id(cit_paragraph_id)))
 
     violations: list[Violation] = []
     bound_indices: list[int] = []
@@ -68,13 +104,17 @@ def validate(envelope: LegalAnswer, retrieved: list[dict]) -> ValidationResult:
             continue
 
         unbound = []
+        resolved_docs: list[dict] = []
         for cit in claim.citations:
-            key = (cit.case_id, cit.paragraph_id)
-            doc = retrieved_index.get(key)
+            doc = _resolve(cit.case_id, cit.paragraph_id)
             if doc is None:
-                unbound.append(key)
+                unbound.append((cit.case_id, cit.paragraph_id))
             else:
-                cited_cases.add(cit.case_id)
+                # Use the canonical case_id from the retrieved payload, not the
+                # citation's possibly-drifted version, so distinct_cases is
+                # counted correctly.
+                cited_cases.add(doc.get("case_id", cit.case_id))
+                resolved_docs.append(doc)
                 score = doc.get("score")
                 if score is not None:
                     cited_scores.append(float(score))
@@ -90,7 +130,10 @@ def validate(envelope: LegalAnswer, retrieved: list[dict]) -> ValidationResult:
 
         # Kind-specific structural checks (only run when all citations are bound).
         if claim.kind == "synthesis":
-            distinct = len({c.case_id for c in claim.citations})
+            # Use canonical IDs from resolved_docs so a citation that fuzzy-matched
+            # to "Tuffuor_v_AG" doesn't get counted as a different case from one
+            # that exact-matched to the same canonical ID.
+            distinct = len({d.get("case_id", "") for d in resolved_docs})
             if distinct < 2:
                 violations.append(Violation(
                     kind="synthesis_underspecified",
@@ -99,10 +142,7 @@ def validate(envelope: LegalAnswer, retrieved: list[dict]) -> ValidationResult:
                 ))
                 continue
         elif claim.kind == "constitutional":
-            cited_doc_types = {
-                retrieved_index[(c.case_id, c.paragraph_id)].get("document_type", "")
-                for c in claim.citations
-            }
+            cited_doc_types = {d.get("document_type", "") for d in resolved_docs}
             if "constitution" not in cited_doc_types:
                 violations.append(Violation(
                     kind="constitutional_misclassified",
