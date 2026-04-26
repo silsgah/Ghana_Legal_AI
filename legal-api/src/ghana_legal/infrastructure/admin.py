@@ -9,7 +9,7 @@ import os
 import asyncio
 from pathlib import Path
 from typing import Optional
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -19,14 +19,9 @@ from ghana_legal.infrastructure.auth import get_current_user
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
-# ─── Ingestion job state (in-memory, resets on restart) ───────────────────────
-_ingestion_state = {
-    "status": "idle",       # idle | running | completed | failed
-    "started_at": None,
-    "completed_at": None,
-    "result": None,         # summary dict on completion
-    "error": None,
-}
+# A run still marked "running" past this age is treated as crashed so a new
+# trigger can proceed. Must exceed the subprocess timeout in _run_ingestion.
+INGESTION_STALE_AFTER = timedelta(minutes=15)
 
 
 # Resolve manifest path
@@ -406,27 +401,44 @@ async def update_config(
 # Pipeline Ingestion Trigger
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _run_ingestion_sync():
-    """Run the ingestion script synchronously (called in background)."""
-    global _ingestion_state
+def _serialize_run(run) -> dict:
+    """Shape an IngestionRun row into the JSON the frontend expects."""
+    return {
+        "status": run.status,
+        "started_at": run.started_at.isoformat() if run.started_at else None,
+        "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+        "result": run.result,
+        "error": run.error,
+    }
+
+
+async def _update_run(run_id: int, **fields) -> None:
+    """Patch a single IngestionRun row by id."""
+    from ghana_legal.infrastructure.database import get_session
+    from ghana_legal.domain.models import IngestionRun
+    from sqlalchemy import update
+
+    async with get_session() as session:
+        await session.execute(
+            update(IngestionRun).where(IngestionRun.id == run_id).values(**fields)
+        )
+
+
+async def _run_ingestion(run_id: int):
+    """Execute the ingestion subprocess and persist status to PostgreSQL."""
     import subprocess
     import sys
 
+    src_dir = Path(__file__).resolve().parents[1]
+    script_path = src_dir.parent / "scripts" / "ingest_to_qdrant.py"
+
+    logger.info(f"Admin-triggered ingestion starting: {script_path}")
+    logger.info(f"Script exists: {script_path.exists()}")
+    logger.info(f"DATABASE_URL configured: {bool(os.environ.get('DATABASE_URL'))}")
+
     try:
-        _ingestion_state["status"] = "running"
-        _ingestion_state["started_at"] = datetime.now(timezone.utc).isoformat()
-        _ingestion_state["error"] = None
-        _ingestion_state["result"] = None
-
-        # Run the comprehensive ingestion script as a subprocess
-        src_dir = Path(__file__).resolve().parents[1]
-        script_path = src_dir.parent / "scripts" / "ingest_to_qdrant.py"
-
-        logger.info(f"Admin-triggered ingestion starting: {script_path}")
-        logger.info(f"Script exists: {script_path.exists()}")
-        logger.info(f"DATABASE_URL configured: {bool(os.environ.get('DATABASE_URL'))}")
-
-        result = subprocess.run(
+        result = await asyncio.to_thread(
+            subprocess.run,
             [sys.executable, str(script_path)],
             capture_output=True,
             text=True,
@@ -434,9 +446,6 @@ def _run_ingestion_sync():
             cwd=str(src_dir.parent),
         )
 
-        _ingestion_state["completed_at"] = datetime.now(timezone.utc).isoformat()
-
-        # Forward subprocess output to Modal logs for visibility
         if result.stdout:
             for line in result.stdout.strip().split("\n")[-30:]:
                 logger.info(f"[ingestion] {line}")
@@ -444,29 +453,47 @@ def _run_ingestion_sync():
             for line in result.stderr.strip().split("\n")[-20:]:
                 logger.warning(f"[ingestion-err] {line}")
 
+        completed_at = datetime.now(timezone.utc)
         if result.returncode == 0:
-            _ingestion_state["status"] = "completed"
             output_lines = result.stdout.strip().split("\n")
-            summary_lines = [l for l in output_lines if "Chunks" in l or "ingested" in l or "Success" in l or "✓" in l or "Updated" in l or "indexed" in l]
-            _ingestion_state["result"] = {
-                "exit_code": 0,
-                "summary": "\n".join(summary_lines[-5:]) if summary_lines else "Completed successfully",
-            }
+            summary_lines = [
+                l for l in output_lines
+                if "Chunks" in l or "ingested" in l or "Success" in l or "✓" in l or "Updated" in l or "indexed" in l
+            ]
+            await _update_run(
+                run_id,
+                status="completed",
+                completed_at=completed_at,
+                result={
+                    "exit_code": 0,
+                    "summary": "\n".join(summary_lines[-5:]) if summary_lines else "Completed successfully",
+                },
+            )
             logger.success("Admin-triggered ingestion completed successfully")
         else:
-            _ingestion_state["status"] = "failed"
-            _ingestion_state["error"] = result.stderr[-500:] if result.stderr else "Unknown error"
+            await _update_run(
+                run_id,
+                status="failed",
+                completed_at=completed_at,
+                error=result.stderr[-500:] if result.stderr else "Unknown error",
+            )
             logger.error(f"Admin-triggered ingestion FAILED (exit code {result.returncode})")
 
     except subprocess.TimeoutExpired:
-        _ingestion_state["status"] = "failed"
-        _ingestion_state["error"] = "Ingestion timed out after 10 minutes"
-        _ingestion_state["completed_at"] = datetime.now(timezone.utc).isoformat()
+        await _update_run(
+            run_id,
+            status="failed",
+            completed_at=datetime.now(timezone.utc),
+            error="Ingestion timed out after 10 minutes",
+        )
         logger.error("Admin-triggered ingestion timed out after 600s")
     except Exception as e:
-        _ingestion_state["status"] = "failed"
-        _ingestion_state["error"] = str(e)
-        _ingestion_state["completed_at"] = datetime.now(timezone.utc).isoformat()
+        await _update_run(
+            run_id,
+            status="failed",
+            completed_at=datetime.now(timezone.utc),
+            error=str(e),
+        )
         logger.error(f"Admin-triggered ingestion error: {e}")
 
 
@@ -478,22 +505,71 @@ async def trigger_ingestion(
     """Trigger constitution ingestion as a background task.
 
     Returns immediately — poll GET /api/admin/pipeline/ingestion-status for progress.
-    Only one ingestion can run at a time.
+    Only one ingestion can run at a time. State is persisted in PostgreSQL so it
+    survives container replicas and restarts.
     """
-    if _ingestion_state["status"] == "running":
-        raise HTTPException(
-            status_code=409,
-            detail="Ingestion is already running. Please wait for it to complete.",
-        )
+    from ghana_legal.infrastructure.database import get_session
+    from ghana_legal.domain.models import IngestionRun
+    from sqlalchemy import select, update
 
-    background_tasks.add_task(_run_ingestion_sync)
+    now = datetime.now(timezone.utc)
+
+    async with get_session() as session:
+        latest = await session.execute(
+            select(IngestionRun).order_by(IngestionRun.created_at.desc()).limit(1)
+        )
+        latest_run = latest.scalar_one_or_none()
+
+        if latest_run and latest_run.status == "running":
+            started = latest_run.started_at
+            if started and (now - started) < INGESTION_STALE_AFTER:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Ingestion is already running. Please wait for it to complete.",
+                )
+            # Stale running row — mark it failed so a fresh run can proceed.
+            await session.execute(
+                update(IngestionRun)
+                .where(IngestionRun.id == latest_run.id)
+                .values(
+                    status="failed",
+                    completed_at=now,
+                    error="Marked stale by trigger — process likely crashed.",
+                )
+            )
+
+        new_run = IngestionRun(status="running", started_at=now)
+        session.add(new_run)
+        await session.flush()  # populate new_run.id before commit
+        run_id = new_run.id
+
+    background_tasks.add_task(_run_ingestion, run_id)
     return {
         "success": True,
         "message": "Ingestion triggered. Poll /api/admin/pipeline/ingestion-status for progress.",
+        "run_id": run_id,
     }
 
 
 @router.get("/pipeline/ingestion-status")
 async def ingestion_status(user: dict = Depends(require_admin)):
-    """Get the current ingestion job status."""
-    return _ingestion_state
+    """Get the current ingestion job status from PostgreSQL."""
+    from ghana_legal.infrastructure.database import get_session
+    from ghana_legal.domain.models import IngestionRun
+    from sqlalchemy import select
+
+    async with get_session() as session:
+        result = await session.execute(
+            select(IngestionRun).order_by(IngestionRun.created_at.desc()).limit(1)
+        )
+        run = result.scalar_one_or_none()
+
+    if run is None:
+        return {
+            "status": "idle",
+            "started_at": None,
+            "completed_at": None,
+            "result": None,
+            "error": None,
+        }
+    return _serialize_run(run)

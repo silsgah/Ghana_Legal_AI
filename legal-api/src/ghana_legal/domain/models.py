@@ -14,6 +14,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    JSON,
     String,
     Text,
     Index,
@@ -197,3 +198,30 @@ class PipelineCase(Base):
 
     def __repr__(self) -> str:
         return f"<PipelineCase case_id={self.case_id} status={self.status}>"
+
+
+class IngestionRun(Base):
+    """Tracks admin-triggered ingestion jobs across Modal container replicas.
+
+    The in-memory dict approach broke under Modal's autoscaling — the trigger
+    POST and the status GET could land on different containers, so the frontend
+    never saw `completed`. Persisting here makes status survive across replicas
+    and across restarts.
+    """
+    __tablename__ = "ingestion_runs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    status = Column(String(50), nullable=False, index=True)  # running | completed | failed
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    result = Column(JSON, nullable=True)
+    error = Column(Text, nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        index=True,
+    )
+
+    def __repr__(self) -> str:
+        return f"<IngestionRun id={self.id} status={self.status}>"
