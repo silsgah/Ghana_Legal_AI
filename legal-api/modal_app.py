@@ -44,3 +44,23 @@ def api():
 
     from ghana_legal.infrastructure.api import app as fastapi_app
     return fastapi_app
+
+
+@app.function(
+    image=image,
+    secrets=[modal.Secret.from_name("ghana-legal-secrets")],
+    timeout=300,
+    memory=2048,
+)
+def verify_payloads():
+    """One-shot: assert Qdrant payloads carry case_id + paragraph_id + paragraph_hash.
+
+    Run with:  modal run modal_app.py::verify_payloads
+    Returns 0 on pass, 1 on fail. Run after the post-PR1 re-ingestion finishes.
+    """
+    import sys
+    sys.path.insert(0, "/root/src")
+    sys.path.insert(0, "/root/src/scripts")
+
+    from verify_payload_enrichment import main
+    return main()
