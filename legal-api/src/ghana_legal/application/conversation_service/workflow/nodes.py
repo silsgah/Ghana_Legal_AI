@@ -1,6 +1,5 @@
 from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
-from langgraph.prebuilt import ToolNode
 from loguru import logger
 
 from ghana_legal.application.conversation_service.workflow.chains import (
@@ -10,8 +9,9 @@ from ghana_legal.application.conversation_service.workflow.chains import (
 )
 from ghana_legal.application.conversation_service.workflow.state import LegalExpertState
 from ghana_legal.application.conversation_service.workflow.tools import (
-    get_retrieved_docs,
-    tools,
+    _retrieved_docs,
+    _retrieved_sources,
+    retriever,
 )
 from ghana_legal.application.conversation_service.workflow.validator import (
     build_repair_instruction,
@@ -22,7 +22,91 @@ from ghana_legal.application.conversation_service.workflow.validator import (
 from ghana_legal.config import settings
 from ghana_legal.domain.legal_answer import LegalAnswer
 
-retriever_node = ToolNode(tools)
+
+async def retriever_node(state: LegalExpertState, config: RunnableConfig):
+    """Custom retriever node — replaces the prebuilt ToolNode.
+
+    The prebuilt ToolNode invokes the `@tool`-decorated function in a child
+    context, which means contextvar.set() calls inside the tool do not
+    propagate back to LangGraph state visible to downstream nodes. That broke
+    the `state.retrieved` hoist in conversation_node — confidence dropped to
+    insufficient on legitimate questions because the validator saw zero
+    retrieved docs even when retrieval actually ran.
+
+    This node calls the retriever directly, then writes both the ToolMessage
+    (so the LLM sees the formatted sources in its message history) AND
+    `state.retrieved` (so the validator can bind citations) explicitly.
+    """
+    messages = state.get("messages") or []
+    if not messages:
+        return {}
+    last = messages[-1]
+    tool_calls = getattr(last, "tool_calls", None) if isinstance(last, AIMessage) else None
+    if not tool_calls:
+        return {}
+
+    tool_call = tool_calls[0]
+    if tool_call.get("name") != "retrieve_legal_context":
+        return {}
+
+    query = (tool_call.get("args") or {}).get("query", "") or ""
+    logger.info(f"retriever_node: query={query[:80]!r}")
+
+    docs = retriever.retrieve(query)
+    logger.info(f"retriever_node: returned {len(docs)} doc(s)")
+
+    sources: list[dict] = []
+    full_docs: list[dict] = []
+    formatted_parts: list[str] = []
+
+    for i, doc in enumerate(docs, 1):
+        meta = doc.metadata or {}
+        title = (
+            meta.get("parties")
+            or meta.get("filename", "").replace(".pdf", "").replace("_", " ")
+        ).strip()
+        court = meta.get("court", "")
+        year = meta.get("year")
+        sources.append({
+            "title": title,
+            "court": court,
+            "year": str(year) if year is not None else "",
+            "document_type": meta.get("document_type", ""),
+            "case_id": meta.get("case_id", ""),
+            "paragraph_id": meta.get("paragraph_id", ""),
+        })
+        full_docs.append({
+            "case_id": meta.get("case_id", ""),
+            "paragraph_id": meta.get("paragraph_id", ""),
+            "paragraph_hash": meta.get("paragraph_hash", ""),
+            "case_title": title,
+            "court": court,
+            "year": year,
+            "document_type": meta.get("document_type", ""),
+            "score": meta.get("score"),
+            "page_content": doc.page_content,
+        })
+        header_parts = [str(p) for p in [title, court, year] if p]
+        header = " | ".join(header_parts) if header_parts else f"Source {i}"
+        content = meta.get("parent_content", doc.page_content)
+        formatted_parts.append(f"[Source {i}: {header}]\n{content}")
+
+    # Sources contextvar still feeds the post-graph SSE 'sources' event read by
+    # generate_response.py. The docs contextvar is preserved as a fallback but
+    # the canonical source for the validator is now state.retrieved below.
+    _retrieved_sources.set(sources)
+    _retrieved_docs.set(full_docs)
+
+    tool_msg = ToolMessage(
+        content="\n\n---\n\n".join(formatted_parts) if formatted_parts else "No relevant documents found.",
+        tool_call_id=tool_call.get("id", ""),
+        name="retrieve_legal_context",
+    )
+
+    return {
+        "messages": [tool_msg],
+        "retrieved": full_docs,
+    }
 
 
 async def conversation_node(state: LegalExpertState, config: RunnableConfig):
@@ -51,8 +135,9 @@ async def conversation_node(state: LegalExpertState, config: RunnableConfig):
         response = await chain.ainvoke(chain_inputs, config)
         return {"messages": response}
 
-    # Answer pass — hoist retrieved docs into state and emit structured envelope.
-    retrieved = get_retrieved_docs()
+    # Answer pass — emit structured envelope. state.retrieved is already set
+    # by the upstream retriever_node, so no contextvar plumbing here.
+    retrieved = state.get("retrieved") or []
     chain = get_legal_expert_answer_chain()
     result = await chain.ainvoke(chain_inputs, config)
 
@@ -70,9 +155,9 @@ async def conversation_node(state: LegalExpertState, config: RunnableConfig):
         )
 
     envelope.retrieval_used = True
+    # `retrieved` is already in state from retriever_node — no need to re-write it.
     return {
         "messages": AIMessage(content=envelope.human_text),
-        "retrieved": retrieved,
         "legal_answer": envelope.model_dump(),
     }
 
