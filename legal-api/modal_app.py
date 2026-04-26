@@ -64,3 +64,100 @@ def verify_payloads():
 
     from verify_payload_enrichment import main
     return main()
+
+
+@app.function(
+    image=image,
+    secrets=[modal.Secret.from_name("ghana-legal-secrets")],
+    timeout=900,
+    memory=2048,
+)
+def migrate_legacy_payloads():
+    """Backfill case_id, paragraph_id, paragraph_hash on Qdrant points ingested
+    before PR 1. Uses Qdrant set_payload (additive — does not touch vectors or
+    existing fields), so no Voyage AI re-embedding is needed.
+
+    Idempotent: points that already carry case_id are skipped, so re-running
+    after a partial completion picks up where it left off.
+
+    Run with:  modal run modal_app.py::migrate_legacy_payloads
+    """
+    import hashlib
+    import re
+    import sys
+    sys.path.insert(0, "/root/src")
+
+    from loguru import logger
+    from ghana_legal.application.rag.qdrant_retriever import get_qdrant_retriever
+    from ghana_legal.config import settings
+
+    normalize_re = re.compile(r"\s+")
+
+    def phash(text: str) -> str:
+        return hashlib.sha1(
+            normalize_re.sub(" ", text).strip().lower().encode("utf-8")
+        ).hexdigest()[:10]
+
+    retriever = get_qdrant_retriever(
+        collection_name="legal_docs",
+        embedding_model_id=settings.RAG_TEXT_EMBEDDING_MODEL_ID,
+        k=10,
+        device=settings.RAG_DEVICE,
+        use_reranker=False,
+    )
+    client = retriever.client
+
+    cursor = None
+    migrated = 0
+    skipped = 0
+    page_size = 200
+
+    while True:
+        points, cursor = client.scroll(
+            collection_name="legal_docs",
+            limit=page_size,
+            offset=cursor,
+            with_payload=True,
+            with_vectors=False,
+        )
+        if not points:
+            break
+
+        for p in points:
+            payload = p.payload or {}
+            # Skip post-PR1 or already-migrated points.
+            if payload.get("case_id") and payload.get("paragraph_hash") and payload.get("paragraph_id"):
+                skipped += 1
+                continue
+
+            filename = payload.get("filename", "") or ""
+            case_id = filename[:-4] if filename.endswith(".pdf") else (filename or None)
+            chunk_index = payload.get("chunk_index", 0)
+            page_content = payload.get("page_content", "") or ""
+
+            new_fields = {}
+            if case_id and not payload.get("case_id"):
+                new_fields["case_id"] = case_id
+            if not payload.get("paragraph_id"):
+                # legacy.* prefix marks points lacking real page_number metadata;
+                # validator can still bind on (case_id, paragraph_id) uniqueness.
+                new_fields["paragraph_id"] = f"legacy.c{chunk_index}"
+            if page_content and not payload.get("paragraph_hash"):
+                new_fields["paragraph_hash"] = phash(page_content)
+
+            if new_fields:
+                client.set_payload(
+                    collection_name="legal_docs",
+                    payload=new_fields,
+                    points=[p.id],
+                )
+                migrated += 1
+
+        if migrated % 1000 == 0 and migrated > 0:
+            logger.info(f"… migrated {migrated} points so far ({skipped} skipped)")
+
+        if cursor is None:
+            break
+
+    logger.success(f"Migration complete: {migrated} migrated, {skipped} already current")
+    return {"migrated": migrated, "skipped": skipped}
