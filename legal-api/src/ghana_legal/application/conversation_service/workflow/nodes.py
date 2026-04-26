@@ -211,6 +211,20 @@ async def _structure_envelope(
         logger.warning(f"Structure chain returned unexpected type {type(result)}; minimizing")
         return LegalAnswer(human_text=human_text, retrieval_used=True)
 
+    # Diagnostic log: shows what the structure chain actually produced before
+    # any downstream stripping/repair runs. Lets us tell at-a-glance whether
+    # an empty-claims outcome means the chain returned [] (prompt issue) vs
+    # the validator stripped them (binding issue).
+    cited_pairs = [
+        (c.case_id, c.paragraph_id) for cl in envelope.claims for c in cl.citations
+    ]
+    logger.info(
+        f"Structure chain output: claims={len(envelope.claims)} "
+        f"citations={len(cited_pairs)} cited_pairs={cited_pairs[:5]} "
+        f"holding={'set' if envelope.holding else 'null'} "
+        f"principle={'set' if envelope.principle else 'null'}"
+    )
+
     # Always preserve the streamed prose verbatim — claims must align to the
     # text the lawyer actually saw on screen.
     envelope.human_text = human_text

@@ -201,8 +201,22 @@ Schema population rules:
 - `retrieval_used`: true.
 - `confidence`: leave null — populated downstream by the validator.
 
-If the lawyer's answer cites no retrieved sources at all, return an empty
-`claims` list rather than inventing.
+EXTRACTION IS YOUR PRIMARY JOB. The retrieved sources above are the ones
+that informed the lawyer's answer — even if the answer doesn't quote them
+verbatim, the prose was generated from those sources. Your task is to walk
+the prose claim by claim and bind each substantive assertion to the
+retrieved source it most plausibly came from.
+
+Empty `claims` is appropriate ONLY when the lawyer's answer is pure
+small-talk (a greeting, a clarifying meta-question about the assistant
+itself, a one-line refusal). For any answer that contains legal content —
+constitutional articles, case names, legal principles, statutory rules —
+you must extract claims and bind them.
+
+If you are uncertain WHICH retrieved source a particular claim came from,
+bind it to the source whose paragraph_id and case_title most closely match
+the claim's subject matter. A best-effort binding is far more useful to
+the validator than an empty list.
 """
 
 LEGAL_EXPERT_STRUCTURE_PROMPT = Prompt(
