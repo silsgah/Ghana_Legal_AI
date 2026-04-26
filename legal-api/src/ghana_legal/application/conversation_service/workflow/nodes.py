@@ -167,16 +167,46 @@ async def validate_answer_node(state: LegalExpertState, config: RunnableConfig):
             logger.warning(
                 f"Repair failed ({len(result.violations)} violations remain); stripping unbound claims"
             )
+            pre_strip_count = len(envelope.claims)
             envelope = strip_unbound_claims(envelope, result)
             # Re-validate the stripped envelope so confidence reflects what's left.
             result = validate(envelope, retrieved)
+            # If stripping took the count to zero, the model invented every
+            # citation it tried — refuse the answer rather than show stripped
+            # prose with a warning. Distinct from "model emitted 0 claims to
+            # begin with", which is just a structural-output generation issue.
+            if pre_strip_count > 0 and len(envelope.claims) == 0:
+                envelope.confidence = "insufficient"
+                logger.warning(
+                    f"All {pre_strip_count} claims stripped (every citation invented); refusing"
+                )
+                return {
+                    "legal_answer": envelope.model_dump(),
+                    "repair_attempts": state.get("repair_attempts", 0) + 1,
+                }
 
     envelope.confidence = compute_confidence(result, envelope)
+    n_claims = len(envelope.claims)
+    n_retrieved = len(retrieved)
     logger.info(
         f"Answer validated: confidence={envelope.confidence} "
+        f"claims={n_claims} retrieved={n_retrieved} "
         f"bound_ratio={result.bound_ratio:.2f} distinct_cases={result.distinct_cases} "
         f"min_similarity={result.min_similarity:.3f}"
     )
+    # When confidence drops to low/insufficient, dump the envelope shape so we
+    # can triage without rerunning the query. Avoids logging full content.
+    if envelope.confidence in ("low", "insufficient"):
+        retrieved_keys = [(d.get("case_id"), d.get("paragraph_id")) for d in retrieved[:5]]
+        cited_keys = [
+            (c.case_id, c.paragraph_id)
+            for cl in envelope.claims for c in cl.citations
+        ]
+        logger.warning(
+            f"Low/insufficient diagnostics — "
+            f"retrieved_keys={retrieved_keys} cited_keys={cited_keys} "
+            f"violations={[(v.kind, v.claim_index) for v in result.violations]}"
+        )
 
     # Don't write to messages here — the original AIMessage from conversation_node
     # is already in history. The user sees the (possibly repaired) text via the

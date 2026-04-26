@@ -191,7 +191,15 @@ def test_confidence_low_when_similarity_below_floor():
     assert compute_confidence(result, env) == "low"
 
 
-def test_confidence_insufficient_when_no_claims():
-    env = LegalAnswer(human_text="I don't know", claims=[])
+def test_confidence_insufficient_when_no_claims_and_no_retrieval():
+    env = LegalAnswer(human_text="I don't know", claims=[], retrieval_used=False)
     result = validate(env, [])
     assert compute_confidence(result, env) == "insufficient"
+
+
+def test_confidence_low_when_no_claims_but_retrieval_ran():
+    """Model wrote prose but didn't break it into claim objects — generation
+    issue, not invention. Surface as low rather than refusing the answer."""
+    env = LegalAnswer(human_text="The Constitution says ...", claims=[], retrieval_used=True)
+    result = validate(env, [])
+    assert compute_confidence(result, env) == "low"

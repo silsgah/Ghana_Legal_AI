@@ -164,12 +164,22 @@ def compute_confidence(result: ValidationResult, envelope: LegalAnswer) -> Confi
       medium        bound_ratio == 1.0, distinct_cases ≥ 2 (synthesis)
       low           bound_ratio in [CONFIDENCE_LOW_BOUND_RATIO, 1.0)
                     OR min_similarity < 0.5
-      insufficient  bound_ratio < CONFIDENCE_LOW_BOUND_RATIO,
-                    OR zero claims after stripping
+                    OR claims is empty but retrieval ran (unstructured prose)
+      insufficient  bound_ratio < CONFIDENCE_LOW_BOUND_RATIO with non-empty claims
+                    (i.e. the model attempted to cite and most attempts were invented)
+                    OR claims is empty AND retrieval was not used
+
+    Empty claims is intentionally NOT insufficient when retrieval ran — that
+    case usually means the model produced grounded prose but didn't structure
+    it into Claim objects, which is a generation issue, not invention. Marking
+    it low surfaces a warning banner without hiding a legitimate answer.
     """
     n_claims = len(envelope.claims)
     if n_claims == 0:
-        return "insufficient"
+        # No retrieval → no opportunity to ground → can't claim confidence either way.
+        # With retrieval but no structured claims → likely the model wrote prose
+        # without breaking it into Claim objects. Surface as low, not refuse.
+        return "insufficient" if not envelope.retrieval_used else "low"
 
     if result.bound_ratio < settings.CONFIDENCE_LOW_BOUND_RATIO:
         return "insufficient"
