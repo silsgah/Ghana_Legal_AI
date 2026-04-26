@@ -1,4 +1,4 @@
-from langchain_core.messages import AIMessage, RemoveMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.prebuilt import ToolNode
 from loguru import logger
@@ -12,6 +12,12 @@ from ghana_legal.application.conversation_service.workflow.state import LegalExp
 from ghana_legal.application.conversation_service.workflow.tools import (
     get_retrieved_docs,
     tools,
+)
+from ghana_legal.application.conversation_service.workflow.validator import (
+    build_repair_instruction,
+    compute_confidence,
+    strip_unbound_claims,
+    validate,
 )
 from ghana_legal.config import settings
 from ghana_legal.domain.legal_answer import LegalAnswer
@@ -103,6 +109,84 @@ async def summarize_context_node(state: LegalExpertState):
     return {}
 
 
+async def validate_answer_node(state: LegalExpertState, config: RunnableConfig):
+    """Run the citation validator on the answer-pass envelope, with one-shot repair.
+
+    Flow:
+      1. Read envelope from state.
+      2. validate() → if pass, compute confidence and return.
+      3. On fail, build a corrective HumanMessage listing the violations and the
+         retrieved sources, append it to messages, re-invoke the answer chain
+         to produce a corrected envelope.
+      4. validate() again. If still failing, strip unbound claims (downgrade)
+         and let compute_confidence assign the resulting tier.
+
+    Skips entirely if no envelope exists (no-retrieval branch — connector_node
+    will backfill a synthetic envelope after this).
+    """
+    envelope_dict = state.get("legal_answer")
+    if not envelope_dict:
+        return {}
+
+    retrieved = state.get("retrieved") or []
+    envelope = LegalAnswer(**envelope_dict)
+    result = validate(envelope, retrieved)
+
+    if not result.passed:
+        logger.warning(
+            f"Answer validation failed ({len(result.violations)} violations); attempting one-shot repair"
+        )
+        repair_msg = HumanMessage(content=build_repair_instruction(result.violations, retrieved))
+
+        chain = get_legal_expert_answer_chain()
+        try:
+            repaired = await chain.ainvoke(
+                {
+                    "messages": list(state["messages"]) + [repair_msg],
+                    "legal_context": state.get("legal_context", ""),
+                    "expert_name": state["expert_name"],
+                    "expertise": state["expertise"],
+                    "style": state["style"],
+                    "summary": state.get("summary", ""),
+                },
+                config,
+            )
+        except Exception as repair_error:
+            logger.error(f"Repair invocation failed: {repair_error}; downgrading instead")
+            repaired = None
+
+        if isinstance(repaired, LegalAnswer):
+            envelope = repaired
+        elif isinstance(repaired, dict):
+            envelope = LegalAnswer(**repaired)
+        envelope.retrieval_used = True
+
+        result = validate(envelope, retrieved)
+
+        if not result.passed:
+            logger.warning(
+                f"Repair failed ({len(result.violations)} violations remain); stripping unbound claims"
+            )
+            envelope = strip_unbound_claims(envelope, result)
+            # Re-validate the stripped envelope so confidence reflects what's left.
+            result = validate(envelope, retrieved)
+
+    envelope.confidence = compute_confidence(result, envelope)
+    logger.info(
+        f"Answer validated: confidence={envelope.confidence} "
+        f"bound_ratio={result.bound_ratio:.2f} distinct_cases={result.distinct_cases} "
+        f"min_similarity={result.min_similarity:.3f}"
+    )
+
+    # Don't write to messages here — the original AIMessage from conversation_node
+    # is already in history. The user sees the (possibly repaired) text via the
+    # envelope's human_text in the SSE stream, not via the message history.
+    return {
+        "legal_answer": envelope.model_dump(),
+        "repair_attempts": (state.get("repair_attempts", 0) + 1) if not result.passed else 0,
+    }
+
+
 async def connector_node(state: LegalExpertState):
     """Backfill a synthetic envelope when the router answered without retrieval.
 
@@ -117,4 +201,6 @@ async def connector_node(state: LegalExpertState):
     if not isinstance(text, str):
         text = str(text)
     envelope = LegalAnswer(human_text=text, retrieval_used=False)
+    # No retrieval happened, so confidence is undefined — leave at the model's
+    # default. The API layer treats missing confidence as "not insufficient".
     return {"legal_answer": envelope.model_dump()}

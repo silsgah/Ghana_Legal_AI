@@ -90,6 +90,23 @@ class Settings(BaseSettings):
     ENABLE_REALTIME_EVAL: bool = True
     EVAL_SAMPLE_RATE: float = 1.0  # 1.0 = all queries, 0.1 = 10%
 
+    # --- Citation Validator + Confidence Scoring (PR 3 + PR 4) ---
+    # Min rerank score for a claim to qualify as "high confidence direct match".
+    CONFIDENCE_HIGH_SIMILARITY_FLOOR: float = Field(
+        default=0.7,
+        description="Min cross-encoder rerank score across cited docs for confidence=high. Tune empirically.",
+    )
+    # bound_ratio threshold below which the answer is considered insufficient.
+    CONFIDENCE_LOW_BOUND_RATIO: float = Field(
+        default=0.5,
+        description="Min fraction of claims that must bind successfully for the answer to avoid the insufficient tier.",
+    )
+    # Tier (or worse) at which the API returns a refusal envelope instead of the model's answer.
+    REFUSE_BELOW: str = Field(
+        default="insufficient",
+        description="Confidence tier at or below which to refuse rendering the model's answer. One of: low, insufficient.",
+    )
+
     # --- Paths Configuration ---
     EVALUATION_DATASET_FILE_PATH: Path = Path("data/evaluation_dataset.json")
     EXTRACTION_METADATA_FILE_PATH: Path = Path("data/legal_experts.json")

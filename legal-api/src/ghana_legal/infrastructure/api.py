@@ -19,6 +19,7 @@ from ghana_legal.infrastructure.database import init_db, close_db, seed_pipeline
 from ghana_legal.infrastructure.usage import check_quota
 from ghana_legal.domain.legal_expert_factory import LegalExpertFactory
 from ghana_legal.infrastructure.cache import get_cache
+from ghana_legal.config import settings
 from ghana_legal.infrastructure.webhooks import router as webhooks_router
 from ghana_legal.infrastructure.admin import router as admin_router
 
@@ -366,6 +367,7 @@ async def stream_chat(body: StreamChatMessage, user: dict = Depends(get_current_
             full_response = ""
             sources = []
             envelope = None
+            streamed_chunks: list[str] = []
             async for chunk in response_stream:
                 if chunk.startswith('{"__sources__"'):
                     try:
@@ -379,18 +381,45 @@ async def stream_chat(body: StreamChatMessage, user: dict = Depends(get_current_
                         pass
                 else:
                     full_response += chunk
-                    yield f"data: {json.dumps({'chunk': chunk})}\n\n"
+                    streamed_chunks.append(chunk)
+
+            # PR 4: if the validator flagged the answer as insufficient, swap in
+            # a refusal envelope BEFORE streaming any content to the user.
+            confidence = (envelope or {}).get("confidence")
+            refuse = confidence == "insufficient" or (
+                settings.REFUSE_BELOW == "low" and confidence == "low"
+            )
+            if refuse:
+                refusal_text = (
+                    "I don't have enough grounded retrieved material to answer "
+                    "this confidently. Please rephrase or ask about a different "
+                    "Ghana legal topic."
+                )
+                envelope = {
+                    "claims": [],
+                    "holding": None,
+                    "principle": None,
+                    "human_text": refusal_text,
+                    "retrieval_used": bool(sources),
+                    "confidence": "insufficient",
+                }
+                yield f"data: {json.dumps({'chunk': refusal_text})}\n\n"
+                full_response = refusal_text
+            else:
+                for c in streamed_chunks:
+                    yield f"data: {json.dumps({'chunk': c})}\n\n"
 
             # Send sources if any
             if sources:
                 yield f"data: {json.dumps({'sources': sources})}\n\n"
 
-            # Send the structured envelope (PR 2 dual-write).
+            # Send the structured envelope (PR 2 dual-write, PR 4 confidence-tagged).
             if envelope:
                 yield f"data: {json.dumps({'envelope': envelope})}\n\n"
 
-            # Cache the response
-            if len(full_response) > 50:
+            # Cache the response — but skip low/insufficient so a bad answer
+            # isn't served from cache for 2 hours.
+            if len(full_response) > 50 and confidence not in ("low", "insufficient"):
                 cache.set(body.message, body.expert_id, full_response, ttl=7200)
 
             # Log usage

@@ -30,6 +30,7 @@ class LegalExpertState(MessagesState):
     summary: str
     retrieved: list[dict]
     legal_answer: Optional[dict]
+    repair_attempts: int
 
 
 def state_to_str(state: LegalExpertState) -> str:
