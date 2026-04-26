@@ -181,12 +181,22 @@ async def get_streaming_response(
                 config=config,
                 stream_mode="messages",
             ):
-                if chunk[1]["langgraph_node"] == "conversation_node" and isinstance(
-                    chunk[0], AIMessageChunk
-                ):
-                    content = chunk[0].content
-                    full_response += content
-                    yield content
+                msg, meta = chunk
+                if not isinstance(msg, AIMessageChunk):
+                    continue
+                # PR 6: only forward AIMessageChunks tagged as the text-answer
+                # pass. The router pass usually emits empty/tool-call chunks,
+                # and the structuring pass emits raw JSON tokens that should
+                # never reach the client. Tags are propagated through
+                # .with_config(tags=[...]) on the chains.
+                tags = meta.get("tags") or []
+                if "legal_expert_text_answer" not in tags:
+                    continue
+                content = msg.content or ""
+                if not content:
+                    continue
+                full_response += content
+                yield content
 
             # Pull final state to recover the structured LegalAnswer envelope.
             # The structured-output answer pass does not yield AIMessageChunks,

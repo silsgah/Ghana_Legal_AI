@@ -1,11 +1,12 @@
-from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, ToolMessage
+from langchain_core.messages import AIMessage, RemoveMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from loguru import logger
 
 from ghana_legal.application.conversation_service.workflow.chains import (
     get_conversation_summary_chain,
-    get_legal_expert_answer_chain,
     get_legal_expert_response_chain,
+    get_legal_expert_structure_chain,
+    get_legal_expert_text_answer_chain,
 )
 from ghana_legal.application.conversation_service.workflow.state import LegalExpertState
 from ghana_legal.application.conversation_service.workflow.tools import (
@@ -135,31 +136,86 @@ async def conversation_node(state: LegalExpertState, config: RunnableConfig):
         response = await chain.ainvoke(chain_inputs, config)
         return {"messages": response}
 
-    # Answer pass — emit structured envelope. state.retrieved is already set
-    # by the upstream retriever_node, so no contextvar plumbing here.
+    # Answer pass (PR 6 two-stage):
+    #   Stage 1 — text_chain streams prose tokens to the user via stream_mode=messages
+    #             (filtered by tag in generate_response.py).
+    #   Stage 2 — structure_chain extracts the LegalAnswer envelope from the
+    #             produced prose + retrieved docs. Fast 8b model so the wait
+    #             between end-of-stream and envelope-arrival stays ~1 second.
     retrieved = state.get("retrieved") or []
-    chain = get_legal_expert_answer_chain()
-    result = await chain.ainvoke(chain_inputs, config)
+
+    text_chain = get_legal_expert_text_answer_chain()
+    text_response = await text_chain.ainvoke(chain_inputs, config)
+    human_text = getattr(text_response, "content", "") or str(text_response)
+
+    envelope = await _structure_envelope(human_text, retrieved, config)
+
+    return {
+        "messages": AIMessage(content=human_text),
+        "legal_answer": envelope.model_dump(),
+    }
+
+
+def _format_retrieved_summary(retrieved: list[dict]) -> str:
+    """Compact one-line-per-doc summary of retrieved sources for the structuring prompt."""
+    if not retrieved:
+        return "  (none — no retrieval results for this turn)"
+    lines = []
+    for d in retrieved:
+        cid = d.get("case_id", "?")
+        pid = d.get("paragraph_id", "?")
+        title = d.get("case_title", "")
+        court = d.get("court", "")
+        year = d.get("year", "")
+        lines.append(f"  • case_id={cid}  paragraph_id={pid}  ({title} | {court} | {year})")
+    return "\n".join(lines)
+
+
+async def _structure_envelope(
+    human_text: str, retrieved: list[dict], config, prior_violations: list = None
+) -> LegalAnswer:
+    """Run the structure chain and coerce the result into a LegalAnswer.
+
+    Falls back to a minimal envelope on local-Ollama or chain failure so
+    downstream code always sees a LegalAnswer-shaped value. When `prior_violations`
+    is provided (during repair), the structuring prompt is augmented with the
+    violation list so the second pass can avoid the same invented citations.
+    """
+    chain = get_legal_expert_structure_chain()
+    if chain is None:
+        # Local Ollama path — no structuring, return prose-only envelope.
+        return LegalAnswer(human_text=human_text, retrieval_used=True)
+
+    summary = _format_retrieved_summary(retrieved)
+    if prior_violations:
+        summary = (
+            build_repair_instruction(prior_violations, retrieved)
+            + "\n\n"
+            + summary
+        )
+
+    try:
+        result = await chain.ainvoke(
+            {"human_text": human_text, "retrieved_summary": summary},
+            config,
+        )
+    except Exception as e:
+        logger.warning(f"Structure chain failed: {e}; using minimal envelope")
+        return LegalAnswer(human_text=human_text, retrieval_used=True)
 
     if isinstance(result, LegalAnswer):
         envelope = result
     elif isinstance(result, dict):
         envelope = LegalAnswer(**result)
     else:
-        # Local Ollama fallback returns an AIMessage — synthesize a minimal envelope
-        # so downstream code always sees a LegalAnswer-shaped dict.
-        logger.warning("Answer chain returned non-LegalAnswer; synthesizing envelope")
-        envelope = LegalAnswer(
-            human_text=getattr(result, "content", str(result)),
-            retrieval_used=True,
-        )
+        logger.warning(f"Structure chain returned unexpected type {type(result)}; minimizing")
+        return LegalAnswer(human_text=human_text, retrieval_used=True)
 
+    # Always preserve the streamed prose verbatim — claims must align to the
+    # text the lawyer actually saw on screen.
+    envelope.human_text = human_text
     envelope.retrieval_used = True
-    # `retrieved` is already in state from retriever_node — no need to re-write it.
-    return {
-        "messages": AIMessage(content=envelope.human_text),
-        "legal_answer": envelope.model_dump(),
-    }
+    return envelope
 
 
 async def summarize_conversation_node(state: LegalExpertState):
@@ -200,9 +256,9 @@ async def validate_answer_node(state: LegalExpertState, config: RunnableConfig):
     Flow:
       1. Read envelope from state.
       2. validate() → if pass, compute confidence and return.
-      3. On fail, build a corrective HumanMessage listing the violations and the
-         retrieved sources, append it to messages, re-invoke the answer chain
-         to produce a corrected envelope.
+      3. On fail, re-extract the envelope from the SAME streamed prose using
+         the structuring chain with the violation list as corrective context.
+         (We do NOT regenerate prose — the user has already seen it streamed.)
       4. validate() again. If still failing, strip unbound claims (downgrade)
          and let compute_confidence assign the resulting tier.
 
@@ -232,32 +288,17 @@ async def validate_answer_node(state: LegalExpertState, config: RunnableConfig):
 
     if not result.passed:
         logger.warning(
-            f"Answer validation failed ({len(result.violations)} violations); attempting one-shot repair"
+            f"Answer validation failed ({len(result.violations)} violations); "
+            f"re-extracting envelope from same prose with corrective context"
         )
-        repair_msg = HumanMessage(content=build_repair_instruction(result.violations, retrieved))
-
-        chain = get_legal_expert_answer_chain()
-        try:
-            repaired = await chain.ainvoke(
-                {
-                    "messages": list(state["messages"]) + [repair_msg],
-                    "legal_context": state.get("legal_context", ""),
-                    "expert_name": state["expert_name"],
-                    "expertise": state["expertise"],
-                    "style": state["style"],
-                    "summary": state.get("summary", ""),
-                },
-                config,
-            )
-        except Exception as repair_error:
-            logger.error(f"Repair invocation failed: {repair_error}; downgrading instead")
-            repaired = None
-
-        if isinstance(repaired, LegalAnswer):
-            envelope = repaired
-        elif isinstance(repaired, dict):
-            envelope = LegalAnswer(**repaired)
-        envelope.retrieval_used = True
+        # PR 6: repair re-extracts the envelope from the SAME prose the user
+        # already saw streamed. Regenerating prose at this stage would change
+        # what's on screen (the user has already seen the prior text), so we
+        # only re-run the structuring pass with the violation list as added
+        # context. The streamed text remains canonical.
+        envelope = await _structure_envelope(
+            envelope.human_text, retrieved, config, prior_violations=result.violations
+        )
 
         result = validate(envelope, retrieved)
 

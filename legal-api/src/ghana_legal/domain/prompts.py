@@ -143,6 +143,51 @@ LEGAL_EXPERT_ANSWER_PROMPT = Prompt(
 )
 
 
+# --- Legal Expert Structure (extract envelope from streamed prose) ---
+
+__LEGAL_EXPERT_STRUCTURE_PROMPT = """
+You are an extraction model. You will be given a lawyer's free-text answer
+and the retrieved legal sources used to write it. Your only job is to produce
+a LegalAnswer envelope for the citation validator.
+
+Lawyer's answer (treat this as ground truth — copy it verbatim into human_text):
+---
+{{human_text}}
+---
+
+Retrieved sources for this turn (you may cite ONLY these — case_id and
+paragraph_id values must match exactly):
+{{retrieved_summary}}
+
+Schema population rules:
+- `human_text`: copy the lawyer's answer above VERBATIM. Do not rewrite, summarize, or alter it.
+- `claims`: walk the answer and extract every legally substantive assertion as a Claim object.
+  Skip greetings, disclaimers, and procedural sentences. One Claim per assertion.
+- For each Claim:
+    - `kind = "direct"`         → restates a single retrieved case;
+                                   `citations` MUST contain exactly one entry.
+    - `kind = "synthesis"`      → derives from two or more retrieved cases;
+                                   `citations` MUST contain ≥2 distinct case_id values.
+    - `kind = "constitutional"` → cites a specific constitutional article from
+                                   the retrieved corpus (a chunk whose
+                                   document_type is constitution).
+- Each `Citation.case_id` and `Citation.paragraph_id` MUST exactly match a
+  value in the retrieved sources above. Do not invent.
+- `holding`: the legal rule resolving the question, when applicable.
+- `principle`: the broader legal principle, when applicable.
+- `retrieval_used`: true.
+- `confidence`: leave null — populated downstream by the validator.
+
+If the lawyer's answer cites no retrieved sources at all, return an empty
+`claims` list rather than inventing.
+"""
+
+LEGAL_EXPERT_STRUCTURE_PROMPT = Prompt(
+    name="legal_expert_structure_prompt",
+    prompt=__LEGAL_EXPERT_STRUCTURE_PROMPT,
+)
+
+
 # --- Summary ---
 
 __SUMMARY_PROMPT = """Create a summary of the legal consultation between {{expert_name}} and the user.
