@@ -214,6 +214,19 @@ async def validate_answer_node(state: LegalExpertState, config: RunnableConfig):
         return {}
 
     retrieved = state.get("retrieved") or []
+
+    # Defense-in-depth: a non-empty envelope claiming retrieval_used=True
+    # without any retrieved docs in state can only come from a stale checkpoint
+    # leak (the LLM didn't call retrieval this turn, but a prior turn's
+    # legal_answer slot survived in PostgresSaver). Discard so connector_node
+    # backfills a fresh synthetic envelope from this turn's AIMessage content.
+    if envelope_dict.get("retrieval_used") and not retrieved:
+        logger.warning(
+            "Discarding stale legal_answer from prior turn "
+            "(retrieval_used=True but state.retrieved is empty)"
+        )
+        return {"legal_answer": None}
+
     envelope = LegalAnswer(**envelope_dict)
     result = validate(envelope, retrieved)
 

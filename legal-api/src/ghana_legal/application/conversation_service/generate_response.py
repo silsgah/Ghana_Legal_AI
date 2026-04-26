@@ -80,6 +80,12 @@ async def get_response(
                     "expertise": expertise,
                     "style": style,
                     "legal_context": legal_context,
+                    # Reset turn-scoped state so a prior turn's envelope or
+                    # retrieved docs cannot leak into this turn's validator
+                    # via the PostgresSaver checkpoint.
+                    "legal_answer": None,
+                    "retrieved": [],
+                    "repair_attempts": 0,
                 },
                 config=config,
             )
@@ -167,6 +173,10 @@ async def get_streaming_response(
                     "expertise": expertise,
                     "style": style,
                     "legal_context": legal_context,
+                    # Reset turn-scoped state — see get_response above.
+                    "legal_answer": None,
+                    "retrieved": [],
+                    "repair_attempts": 0,
                 },
                 config=config,
                 stream_mode="messages",
