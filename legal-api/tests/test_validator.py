@@ -184,10 +184,25 @@ def test_confidence_medium_for_synthesis_across_two_cases():
     assert compute_confidence(result, env) == "medium"
 
 
-def test_confidence_low_when_similarity_below_floor():
-    retrieved = _retrieved(("Real", "p1.c0", "case_law", 0.4))  # below 0.5
+def test_confidence_high_regardless_of_low_similarity():
+    """Post-PR 6 tuning: similarity is no longer a gating factor for high.
+    A fully-bound direct citation is "high" even if the embedding score was modest —
+    binding success is the meaningful signal, not the cosine of the retrieval hit."""
+    retrieved = _retrieved(("Real", "p1.c0", "case_law", 0.4))  # below the old 0.5 floor
     env = _envelope(Claim(text="x", kind="direct", citations=[Citation(case_id="Real", paragraph_id="p1.c0")]))
     result = validate(env, retrieved)
+    assert compute_confidence(result, env) == "high"
+
+
+def test_confidence_low_when_partial_binding():
+    """One bound, one unbound → bound_ratio < 1.0 → low confidence (warning)."""
+    retrieved = _retrieved(("Real", "p1.c0", "case_law", 0.7))
+    env = _envelope(
+        Claim(text="bound", kind="direct", citations=[Citation(case_id="Real", paragraph_id="p1.c0")]),
+        Claim(text="unbound", kind="direct", citations=[Citation(case_id="Fake", paragraph_id="p1.c0")]),
+    )
+    result = validate(env, retrieved)
+    # bound_ratio = 1/2 = 0.5, which is exactly the floor → still "low" (not insufficient)
     assert compute_confidence(result, env) == "low"
 
 

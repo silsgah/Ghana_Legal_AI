@@ -158,27 +158,29 @@ def strip_unbound_claims(envelope: LegalAnswer, result: ValidationResult) -> Leg
 def compute_confidence(result: ValidationResult, envelope: LegalAnswer) -> ConfidenceTier:
     """Derive the per-answer confidence tier from validator output.
 
-    Tiers:
-      high          bound_ratio == 1.0, distinct_cases == 1,
-                    min_similarity ≥ CONFIDENCE_HIGH_SIMILARITY_FLOOR
-      medium        bound_ratio == 1.0, distinct_cases ≥ 2 (synthesis)
-      low           bound_ratio in [CONFIDENCE_LOW_BOUND_RATIO, 1.0)
-                    OR min_similarity < 0.5
+    Tiers (post-PR 6 tuning):
+      high          every claim bound 1:1 to a single retrieved case_id (direct match)
+      medium        every claim bound, citations span ≥2 distinct case_ids (synthesis)
+      low           some claims couldn't be bound (bound_ratio in [low_floor, 1.0))
                     OR claims is empty but retrieval ran (unstructured prose)
       insufficient  bound_ratio < CONFIDENCE_LOW_BOUND_RATIO with non-empty claims
-                    (i.e. the model attempted to cite and most attempts were invented)
-                    OR claims is empty AND retrieval was not used
+                    (most claims invented citations) OR claims empty + no retrieval
 
-    Empty claims is intentionally NOT insufficient when retrieval ran — that
-    case usually means the model produced grounded prose but didn't structure
-    it into Claim objects, which is a generation issue, not invention. Marking
-    it low surfaces a warning banner without hiding a legitimate answer.
+    Cross-encoder/cosine similarity is intentionally NOT used in this calculation.
+    Earlier versions checked min_similarity ≥ 0.7 for "high", but Voyage law-2
+    cosine scores on this corpus typically land in 0.5–0.65 for legitimately
+    matching documents — that gate caused real grounded answers to be tagged
+    "low" and hide the green badge from the lawyer. Binding success is the
+    meaningful signal: if the structure chain extracted a (case_id, paragraph_id)
+    that exists in the retrieved set, the citation is valid regardless of how
+    confident the embedder was. min_similarity is still recorded in
+    ValidationResult for log-line diagnostics.
     """
     n_claims = len(envelope.claims)
     if n_claims == 0:
-        # No retrieval → no opportunity to ground → can't claim confidence either way.
-        # With retrieval but no structured claims → likely the model wrote prose
-        # without breaking it into Claim objects. Surface as low, not refuse.
+        # No retrieval → no opportunity to ground. With retrieval but no
+        # structured claims, the model produced grounded prose without breaking
+        # it into Claim objects (8b structuring miss). Surface as low.
         return "insufficient" if not envelope.retrieval_used else "low"
 
     if result.bound_ratio < settings.CONFIDENCE_LOW_BOUND_RATIO:
@@ -187,13 +189,8 @@ def compute_confidence(result: ValidationResult, envelope: LegalAnswer) -> Confi
     if result.bound_ratio < 1.0:
         return "low"
 
-    if result.min_similarity < 0.5:
-        return "low"
-
+    # All claims fully bound from here on.
     if result.distinct_cases >= 2:
         return "medium"
 
-    if result.min_similarity >= settings.CONFIDENCE_HIGH_SIMILARITY_FLOOR:
-        return "high"
-
-    return "low"
+    return "high"
