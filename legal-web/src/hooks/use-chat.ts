@@ -9,6 +9,35 @@ export interface Source {
     court: string;
     year: string;
     document_type: string;
+    case_id?: string;
+    paragraph_id?: string;
+}
+
+// Mirrors the backend Pydantic LegalAnswer envelope (PR 2 + PR 4).
+export type ClaimKind = 'direct' | 'synthesis' | 'constitutional';
+export type ConfidenceTier = 'high' | 'medium' | 'low' | 'insufficient';
+
+export interface Citation {
+    case_id: string;
+    paragraph_id: string;
+    case_title?: string | null;
+    court?: string | null;
+    year?: number | null;
+}
+
+export interface Claim {
+    text: string;
+    kind: ClaimKind;
+    citations: Citation[];
+}
+
+export interface LegalAnswer {
+    claims: Claim[];
+    holding?: string | null;
+    principle?: string | null;
+    human_text: string;
+    retrieval_used: boolean;
+    confidence?: ConfidenceTier | null;
 }
 
 export interface Message {
@@ -17,6 +46,7 @@ export interface Message {
     content: string;
     timestamp: Date;
     sources?: Source[];
+    envelope?: LegalAnswer;
 }
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
@@ -180,6 +210,24 @@ export function useChat({ expertId, onStreamComplete }: UseChatOptions): UseChat
                                     return [
                                         ...prev,
                                         { id: generateId(), role: 'assistant', content: '', sources: data.sources, timestamp: new Date() }
+                                    ];
+                                }
+                            });
+                        } else if (data.envelope) {
+                            // Attach the structured LegalAnswer to the assistant message.
+                            // The bubble uses it for confidence badge, per-claim citations,
+                            // and the insufficient-confidence refusal card.
+                            setMessages((prev) => {
+                                const lastMsg = prev[prev.length - 1];
+                                if (lastMsg?.role === 'assistant') {
+                                    return [
+                                        ...prev.slice(0, -1),
+                                        { ...lastMsg, envelope: data.envelope },
+                                    ];
+                                } else {
+                                    return [
+                                        ...prev,
+                                        { id: generateId(), role: 'assistant', content: '', envelope: data.envelope, timestamp: new Date() }
                                     ];
                                 }
                             });

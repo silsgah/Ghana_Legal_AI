@@ -277,6 +277,7 @@ export default function ChatPage() {
                                     expert={selectedExpert}
                                     timestamp={msg.timestamp}
                                     sources={msg.sources}
+                                    envelope={msg.envelope}
                                 />
                             ))}
                             {isStreaming && messages[messages.length - 1]?.role === 'user' && (
