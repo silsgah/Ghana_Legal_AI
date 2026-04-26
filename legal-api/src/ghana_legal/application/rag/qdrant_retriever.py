@@ -150,6 +150,12 @@ class LegalQdrantRetriever:
                 Document(page_content=page_content, metadata={**payload, "score": hit.score})
             )
 
+        if documents:
+            top = documents[0].metadata
+            logger.debug(
+                f"Qdrant top hit | case_id={top.get('case_id', 'MISSING')} "
+                f"paragraph_id={top.get('paragraph_id', 'MISSING')} score={top.get('score'):.3f}"
+            )
         return documents
 
     def _rerank_results(self, query: str, documents: List[Document]) -> List[Document]:

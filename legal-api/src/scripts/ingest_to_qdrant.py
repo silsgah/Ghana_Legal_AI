@@ -14,8 +14,10 @@ This script:
 7. Marks successfully ingested cases as 'indexed' in PostgreSQL
 """
 
+import hashlib
 import os
 import sys
+from collections import defaultdict
 from pathlib import Path
 from typing import List, Dict, Any, Set
 from datetime import datetime
@@ -224,7 +226,6 @@ def load_pdf_documents(data_dirs: List[Path], max_cases: int = 50) -> List[Docum
                     logger.warning(f"No content extracted from {pdf_path.name}")
                     continue
 
-                combined_content = "\n\n".join([page.page_content for page in pages])
                 file_metadata = CaseMetadataExtractor.extract_from_filename(pdf_path.name)
 
                 # Determine source type
@@ -233,9 +234,16 @@ def load_pdf_documents(data_dirs: List[Path], max_cases: int = 50) -> List[Docum
                 file_metadata["source"] = str(pdf_path)
                 file_metadata["total_pages"] = len(pages)
                 file_metadata["ingestion_date"] = datetime.now().isoformat()
+                # case_id = filename stem; the canonical key used by pipeline_cases
+                # in PostgreSQL and what the citation validator will bind against.
+                file_metadata["case_id"] = pdf_path.stem
 
-                doc = Document(page_content=combined_content, metadata=file_metadata)
-                all_documents.append(doc)
+                # Emit one Document per page so paragraph_id can carry page number.
+                for page_idx, page in enumerate(pages):
+                    page_meta = {**file_metadata, "page_number": page_idx + 1}
+                    all_documents.append(
+                        Document(page_content=page.page_content, metadata=page_meta)
+                    )
 
                 logger.success(f"✓ Loaded: {pdf_path.name} ({len(pages)} pages)")
 
@@ -250,9 +258,33 @@ def load_pdf_documents(data_dirs: List[Path], max_cases: int = 50) -> List[Docum
 # Chunking
 # ---------------------------------------------------------------------------
 
+_HASH_NORMALIZE_RE = re.compile(r"\s+")
+
+
+def _paragraph_hash(text: str) -> str:
+    """Stable 10-char sha1 of whitespace-normalized chunk text.
+
+    Lets us detect when re-ingestion produced an identical chunk under a
+    different paragraph_id (page renumbering, splitter tweaks, etc.) so the
+    validator can fall back to hash matching when structural IDs drift.
+    """
+    normalized = _HASH_NORMALIZE_RE.sub(" ", text).strip().lower()
+    return hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:10]
+
+
 def split_documents(documents: List[Document], chunk_size: int = 512, chunk_overlap: int = 100) -> List[Document]:
-    """Split documents into optimal chunks for embeddings."""
-    logger.info(f"Splitting {len(documents)} documents (chunk_size={chunk_size}, overlap={chunk_overlap})")
+    """Split per-page documents into chunks, attaching case_id + paragraph_id.
+
+    Input: one Document per page (produced by load_pdf_documents).
+    Output: chunks tagged with:
+      - case_id              (from input metadata)
+      - page_number          (from input metadata)
+      - chunk_index          (global within case, used for stable Qdrant point IDs)
+      - paragraph_id         (structural: "p{page}.c{per_page_chunk}")
+      - paragraph_hash       (sha1 of normalized chunk text, for re-ingest stability)
+      - total_chunks         (per case, not per page)
+    """
+    logger.info(f"Splitting {len(documents)} pages (chunk_size={chunk_size}, overlap={chunk_overlap})")
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
@@ -261,15 +293,35 @@ def split_documents(documents: List[Document], chunk_size: int = 512, chunk_over
         length_function=len,
     )
 
-    chunked_docs = []
-    for doc in tqdm(documents, desc="Splitting documents", unit="doc"):
-        chunks = splitter.split_documents([doc])
-        for i, chunk in enumerate(chunks):
-            chunk.metadata["chunk_index"] = i
-            chunk.metadata["total_chunks"] = len(chunks)
-        chunked_docs.extend(chunks)
+    pages_by_case: Dict[str, List[Document]] = defaultdict(list)
+    for page_doc in documents:
+        case_id = page_doc.metadata.get("case_id") or page_doc.metadata.get("filename", "unknown")
+        pages_by_case[case_id].append(page_doc)
 
-    logger.info(f"Created {len(chunked_docs)} chunks from {len(documents)} documents")
+    chunked_docs: List[Document] = []
+    for case_id, pages in tqdm(pages_by_case.items(), desc="Splitting cases", unit="case"):
+        pages_sorted = sorted(pages, key=lambda d: d.metadata.get("page_number", 0))
+        case_chunks: List[Document] = []
+
+        for page_doc in pages_sorted:
+            page_chunks = splitter.split_documents([page_doc])
+            page_num = page_doc.metadata.get("page_number", 0)
+            for per_page_idx, chunk in enumerate(page_chunks):
+                chunk.metadata["paragraph_id"] = f"p{page_num}.c{per_page_idx}"
+                chunk.metadata["paragraph_hash"] = _paragraph_hash(chunk.page_content)
+                case_chunks.append(chunk)
+
+        total = len(case_chunks)
+        for global_idx, chunk in enumerate(case_chunks):
+            chunk.metadata["chunk_index"] = global_idx
+            chunk.metadata["total_chunks"] = total
+
+        chunked_docs.extend(case_chunks)
+
+    logger.info(
+        f"Created {len(chunked_docs)} chunks from {len(documents)} pages "
+        f"across {len(pages_by_case)} cases"
+    )
     return chunked_docs
 
 
@@ -404,9 +456,9 @@ def main():
     # Step 4: Update PostgreSQL — mark ingested cases as 'indexed'
     if stats["successful"] > 0:
         loaded_case_ids = {
-            doc.metadata.get("filename", "").replace(".pdf", "")
+            doc.metadata["case_id"]
             for doc in documents
-            if doc.metadata.get("source_type") == "case_law"
+            if doc.metadata.get("source_type") == "case_law" and doc.metadata.get("case_id")
         }
         if loaded_case_ids:
             update_db_statuses(loaded_case_ids)

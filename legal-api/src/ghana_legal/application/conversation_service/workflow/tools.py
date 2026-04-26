@@ -54,6 +54,8 @@ def retrieve_legal_context(query: str) -> str:
             "court": meta.get("court", ""),
             "year": str(meta.get("year", "")),
             "document_type": meta.get("document_type", ""),
+            "case_id": meta.get("case_id", ""),
+            "paragraph_id": meta.get("paragraph_id", ""),
         }
         sources.append(source_info)
 
