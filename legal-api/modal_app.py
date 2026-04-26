@@ -69,16 +69,18 @@ def verify_payloads():
 @app.function(
     image=image,
     secrets=[modal.Secret.from_name("ghana-legal-secrets")],
-    timeout=900,
+    timeout=3600,
     memory=2048,
 )
 def migrate_legacy_payloads():
     """Backfill case_id, paragraph_id, paragraph_hash on Qdrant points ingested
-    before PR 1. Uses Qdrant set_payload (additive — does not touch vectors or
-    existing fields), so no Voyage AI re-embedding is needed.
+    before PR 1. Uses Qdrant batch_update_points with set_payload operations
+    (additive — does not touch vectors or existing fields), so no Voyage AI
+    re-embedding is needed.
 
-    Idempotent: points that already carry case_id are skipped, so re-running
-    after a partial completion picks up where it left off.
+    Idempotent: points that already carry case_id+paragraph_id+paragraph_hash
+    are skipped, so re-running after a partial completion picks up where it
+    left off without redoing any work.
 
     Run with:  modal run modal_app.py::migrate_legacy_payloads
     """
@@ -88,6 +90,7 @@ def migrate_legacy_payloads():
     sys.path.insert(0, "/root/src")
 
     from loguru import logger
+    from qdrant_client import models
     from ghana_legal.application.rag.qdrant_retriever import get_qdrant_retriever
     from ghana_legal.config import settings
 
@@ -111,6 +114,7 @@ def migrate_legacy_payloads():
     migrated = 0
     skipped = 0
     page_size = 200
+    batch_num = 0
 
     while True:
         points, cursor = client.scroll(
@@ -123,6 +127,7 @@ def migrate_legacy_payloads():
         if not points:
             break
 
+        operations = []
         for p in points:
             payload = p.payload or {}
             # Skip post-PR1 or already-migrated points.
@@ -146,15 +151,26 @@ def migrate_legacy_payloads():
                 new_fields["paragraph_hash"] = phash(page_content)
 
             if new_fields:
-                client.set_payload(
-                    collection_name="legal_docs",
-                    payload=new_fields,
-                    points=[p.id],
+                operations.append(
+                    models.SetPayloadOperation(
+                        set_payload=models.SetPayload(
+                            payload=new_fields,
+                            points=[p.id],
+                        )
+                    )
                 )
-                migrated += 1
 
-        if migrated % 1000 == 0 and migrated > 0:
-            logger.info(f"… migrated {migrated} points so far ({skipped} skipped)")
+        if operations:
+            client.batch_update_points(
+                collection_name="legal_docs",
+                update_operations=operations,
+                wait=False,
+            )
+            migrated += len(operations)
+
+        batch_num += 1
+        if batch_num % 10 == 0:
+            logger.info(f"… {migrated} migrated, {skipped} skipped (batch {batch_num})")
 
         if cursor is None:
             break
