@@ -199,7 +199,33 @@ async def get_streaming_response(
             except Exception as state_error:
                 logger.warning(f"Could not fetch final state for envelope: {state_error}")
 
-            if envelope and not full_response:
+            # PR 4: refusal decision lives here (NOT in api.py) so streaming
+            # can flush chunks live instead of buffering an entire turn server-side
+            # to retroactively swap in a refusal — the buffering broke the SSE
+            # streaming experience entirely.
+            confidence = (envelope or {}).get("confidence")
+            refuse = confidence == "insufficient" or (
+                settings.REFUSE_BELOW == "low" and confidence == "low"
+            )
+
+            if refuse:
+                refusal_text = (
+                    "I don't have enough grounded retrieved material to answer "
+                    "this confidently. Please rephrase or ask about a different "
+                    "Ghana legal topic."
+                )
+                envelope = {
+                    "claims": [],
+                    "holding": None,
+                    "principle": None,
+                    "human_text": refusal_text,
+                    "retrieval_used": bool(get_retrieved_sources()),
+                    "confidence": "insufficient",
+                }
+                if not full_response:
+                    full_response = refusal_text
+                    yield refusal_text
+            elif envelope and not full_response:
                 human_text = envelope.get("human_text", "") or ""
                 if human_text:
                     full_response = human_text

@@ -291,7 +291,9 @@ export function useChat({ expertId, onStreamComplete }: UseChatOptions): UseChat
         setMessages([]);
         try {
             const token = await getToken();
-            await fetch(`${config.apiUrl}/reset-memory`, {
+            // Scope the wipe to the active expert so other experts' history survives.
+            const url = `${config.apiUrl}/reset-memory?expert_id=${encodeURIComponent(currentExpertId.current)}`;
+            await fetch(url, {
                 method: 'POST',
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });

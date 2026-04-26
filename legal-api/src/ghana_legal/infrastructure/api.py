@@ -1,5 +1,6 @@
 import os
 from contextlib import asynccontextmanager
+from typing import Optional
 
 import sentry_sdk
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends
@@ -364,10 +365,13 @@ async def stream_chat(body: StreamChatMessage, user: dict = Depends(get_current_
                 clerk_id=clerk_id,
             )
 
+            # Pass through generator output live — DO NOT buffer chunks here.
+            # Refusal-envelope substitution lives in generate_response.py so the
+            # SSE stream can flush text as soon as it's produced. Buffering broke
+            # the streaming experience: the user saw indicator-then-nothing-then-burst.
             full_response = ""
             sources = []
             envelope = None
-            streamed_chunks: list[str] = []
             async for chunk in response_stream:
                 if chunk.startswith('{"__sources__"'):
                     try:
@@ -381,33 +385,7 @@ async def stream_chat(body: StreamChatMessage, user: dict = Depends(get_current_
                         pass
                 else:
                     full_response += chunk
-                    streamed_chunks.append(chunk)
-
-            # PR 4: if the validator flagged the answer as insufficient, swap in
-            # a refusal envelope BEFORE streaming any content to the user.
-            confidence = (envelope or {}).get("confidence")
-            refuse = confidence == "insufficient" or (
-                settings.REFUSE_BELOW == "low" and confidence == "low"
-            )
-            if refuse:
-                refusal_text = (
-                    "I don't have enough grounded retrieved material to answer "
-                    "this confidently. Please rephrase or ask about a different "
-                    "Ghana legal topic."
-                )
-                envelope = {
-                    "claims": [],
-                    "holding": None,
-                    "principle": None,
-                    "human_text": refusal_text,
-                    "retrieval_used": bool(sources),
-                    "confidence": "insufficient",
-                }
-                yield f"data: {json.dumps({'chunk': refusal_text})}\n\n"
-                full_response = refusal_text
-            else:
-                for c in streamed_chunks:
-                    yield f"data: {json.dumps({'chunk': c})}\n\n"
+                    yield f"data: {json.dumps({'chunk': chunk})}\n\n"
 
             # Send sources if any
             if sources:
@@ -419,6 +397,7 @@ async def stream_chat(body: StreamChatMessage, user: dict = Depends(get_current_
 
             # Cache the response — but skip low/insufficient so a bad answer
             # isn't served from cache for 2 hours.
+            confidence = (envelope or {}).get("confidence")
             if len(full_response) > 50 and confidence not in ("low", "insufficient"):
                 cache.set(body.message, body.expert_id, full_response, ttl=7200)
 
@@ -436,16 +415,20 @@ async def stream_chat(body: StreamChatMessage, user: dict = Depends(get_current_
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 @app.post("/reset-memory")
-async def reset_conversation():
-    """Resets the conversation state. It deletes the two collections needed for keeping LangGraph state in MongoDB.
+async def reset_conversation(
+    user: dict = Depends(get_current_user),
+    expert_id: Optional[str] = None,
+):
+    """Delete the requesting user's LangGraph PostgresSaver thread(s).
 
-    Raises:
-        HTTPException: If there is an error resetting the conversation state.
-    Returns:
-        dict: A dictionary containing the result of the reset operation.
+    Backs the "New Consultation" / "Clear History" sidebar buttons. Scoped to
+    the authenticated clerk_id so one user can't wipe another user's history.
+    If expert_id is supplied as a query param, only that expert's thread is
+    cleared; otherwise every thread for the user is cleared.
     """
+    clerk_id = user["sub"]
     try:
-        result = await reset_conversation_state()
+        result = await reset_conversation_state(clerk_id=clerk_id, expert_id=expert_id)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
