@@ -318,6 +318,7 @@ async def stream_chat(body: StreamChatMessage, user: dict = Depends(get_current_
     Event types:
       - data: {"chunk": "..."} — partial token
       - data: {"sources": [...]} — cited legal sources
+      - data: {"envelope": {...}} — structured LegalAnswer (PR 2; UI may ignore)
       - data: {"error": "..."} — error message
       - data: {"done": true} — stream complete
     """
@@ -364,10 +365,16 @@ async def stream_chat(body: StreamChatMessage, user: dict = Depends(get_current_
 
             full_response = ""
             sources = []
+            envelope = None
             async for chunk in response_stream:
                 if chunk.startswith('{"__sources__"'):
                     try:
                         sources = json.loads(chunk)["__sources__"]
+                    except Exception:
+                        pass
+                elif chunk.startswith('{"__envelope__"'):
+                    try:
+                        envelope = json.loads(chunk)["__envelope__"]
                     except Exception:
                         pass
                 else:
@@ -377,6 +384,10 @@ async def stream_chat(body: StreamChatMessage, user: dict = Depends(get_current_
             # Send sources if any
             if sources:
                 yield f"data: {json.dumps({'sources': sources})}\n\n"
+
+            # Send the structured envelope (PR 2 dual-write).
+            if envelope:
+                yield f"data: {json.dumps({'envelope': envelope})}\n\n"
 
             # Cache the response
             if len(full_response) > 50:

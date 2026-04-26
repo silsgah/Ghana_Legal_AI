@@ -16,6 +16,12 @@ retriever = get_retriever(
 _retrieved_sources: contextvars.ContextVar[list] = contextvars.ContextVar(
     "retrieved_sources", default=[]
 )
+# Full per-doc payloads (case_id, paragraph_id, page_content, score, …) so the
+# answer pass and validator can bind citations against actual retrieved content,
+# not just the user-facing source summary.
+_retrieved_docs: contextvars.ContextVar[list] = contextvars.ContextVar(
+    "retrieved_docs", default=[]
+)
 
 
 def get_retrieved_sources() -> list:
@@ -23,9 +29,15 @@ def get_retrieved_sources() -> list:
     return _retrieved_sources.get([])
 
 
+def get_retrieved_docs() -> list:
+    """Get the full retrieved payloads captured during the last retrieval."""
+    return _retrieved_docs.get([])
+
+
 def clear_retrieved_sources():
     """Reset sources for a new request."""
     _retrieved_sources.set([])
+    _retrieved_docs.set([])
 
 
 @tool
@@ -39,10 +51,22 @@ def retrieve_legal_context(query: str) -> str:
     docs = retriever.retrieve(query)
 
     sources: List[dict] = []
+    full_docs: List[dict] = []
     formatted_parts: List[str] = []
 
     for i, doc in enumerate(docs, 1):
         meta = doc.metadata
+        full_docs.append({
+            "case_id": meta.get("case_id", ""),
+            "paragraph_id": meta.get("paragraph_id", ""),
+            "paragraph_hash": meta.get("paragraph_hash", ""),
+            "case_title": meta.get("parties") or meta.get("filename", "").replace(".pdf", "").replace("_", " ").strip(),
+            "court": meta.get("court", ""),
+            "year": meta.get("year"),
+            "document_type": meta.get("document_type", ""),
+            "score": meta.get("score"),
+            "page_content": doc.page_content,
+        })
 
         # Build structured source info
         title = (
@@ -69,6 +93,7 @@ def retrieve_legal_context(query: str) -> str:
         formatted_parts.append(f"[Source {i}: {header}]\n{content}")
 
     _retrieved_sources.set(sources)
+    _retrieved_docs.set(full_docs)
 
     return "\n\n---\n\n".join(formatted_parts)
 

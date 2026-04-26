@@ -178,10 +178,31 @@ async def get_streaming_response(
                     full_response += content
                     yield content
 
+            # Pull final state to recover the structured LegalAnswer envelope.
+            # The structured-output answer pass does not yield AIMessageChunks,
+            # so full_response will be empty when retrieval ran successfully —
+            # we synthesize visible text from envelope.human_text below.
+            envelope = None
+            try:
+                snapshot = await graph.aget_state(config)
+                envelope = (snapshot.values or {}).get("legal_answer") if snapshot else None
+            except Exception as state_error:
+                logger.warning(f"Could not fetch final state for envelope: {state_error}")
+
+            if envelope and not full_response:
+                human_text = envelope.get("human_text", "") or ""
+                if human_text:
+                    full_response = human_text
+                    yield human_text
+
             # Yield sources captured during retrieval
             sources = get_retrieved_sources()
             if sources:
                 yield json.dumps({"__sources__": sources})
+
+            # Yield the structured envelope marker (PR 2 dual-write).
+            if envelope:
+                yield json.dumps({"__envelope__": envelope})
 
             # Trigger async evaluation
             try:

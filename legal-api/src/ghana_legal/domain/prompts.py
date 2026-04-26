@@ -97,6 +97,47 @@ LEGAL_EXPERT_CHARACTER_CARD = Prompt(
     prompt=__LEGAL_EXPERT_CHARACTER_CARD,
 )
 
+# --- Legal Expert Answer (structured output post-retrieval) ---
+
+__LEGAL_EXPERT_ANSWER_PROMPT = """
+You are now producing the FINAL answer in structured form. Your output must
+populate the LegalAnswer schema. Treat the retrieved sources surfaced by the
+tool call above as the only ground truth — citations to anything outside that
+set will be rejected.
+
+Schema population rules:
+- `human_text`: the full markdown answer the user will read. Use the same
+  voice, tone, and citation conventions described in the system prompt above.
+- `claims`: every legally substantive assertion that appears in `human_text`,
+  broken out into individual Claim objects. Small-talk and procedural sentences
+  (greetings, disclaimers) do not need to be claims.
+- For each Claim:
+    - `kind = "direct"`         → the claim restates a single retrieved case;
+                                   `citations` MUST contain exactly one entry.
+    - `kind = "synthesis"`      → the claim derives from two or more retrieved
+                                   cases; `citations` MUST contain ≥2 distinct
+                                   `case_id` values.
+    - `kind = "constitutional"` → the claim cites a specific constitutional
+                                   article from the retrieved corpus;
+                                   `citations` MUST reference a retrieved
+                                   constitution chunk.
+- Each `Citation.case_id` and `Citation.paragraph_id` MUST exactly match a
+  value present in the retrieved sources for this turn. Do not invent IDs.
+- `holding`: the legal rule that resolves the question, when one applies.
+- `principle`: the broader legal principle the holding instantiates.
+- `retrieval_used`: set to true.
+- `confidence`: leave null — populated downstream by the validator.
+
+If the retrieved sources do not support an answer, return an empty `claims`
+list and use `human_text` to say so plainly.
+"""
+
+LEGAL_EXPERT_ANSWER_PROMPT = Prompt(
+    name="legal_expert_answer_prompt",
+    prompt=__LEGAL_EXPERT_ANSWER_PROMPT,
+)
+
+
 # --- Summary ---
 
 __SUMMARY_PROMPT = """Create a summary of the legal consultation between {{expert_name}} and the user.

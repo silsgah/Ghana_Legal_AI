@@ -1,35 +1,74 @@
-from langchain_core.messages import RemoveMessage
+from langchain_core.messages import AIMessage, RemoveMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.prebuilt import ToolNode
+from loguru import logger
 
 from ghana_legal.application.conversation_service.workflow.chains import (
     get_conversation_summary_chain,
+    get_legal_expert_answer_chain,
     get_legal_expert_response_chain,
 )
 from ghana_legal.application.conversation_service.workflow.state import LegalExpertState
-from ghana_legal.application.conversation_service.workflow.tools import tools
+from ghana_legal.application.conversation_service.workflow.tools import (
+    get_retrieved_docs,
+    tools,
+)
 from ghana_legal.config import settings
+from ghana_legal.domain.legal_answer import LegalAnswer
 
 retriever_node = ToolNode(tools)
 
 
 async def conversation_node(state: LegalExpertState, config: RunnableConfig):
-    summary = state.get("summary", "")
-    conversation_chain = get_legal_expert_response_chain()
+    """Router/answer dispatcher.
 
-    response = await conversation_chain.ainvoke(
-        {
-            "messages": state["messages"],
-            "legal_context": state.get("legal_context", ""),
-            "expert_name": state["expert_name"],
-            "expertise": state["expertise"],
-            "style": state["style"],
-            "summary": summary,
-        },
-        config,
-    )
-    
-    return {"messages": response}
+    First pass (no ToolMessage in history) → router chain (free-text + bind_tools).
+    Second pass (last message is a ToolMessage from retrieval) → answer chain
+    that emits a structured LegalAnswer envelope and writes it to state.
+    """
+    summary = state.get("summary", "")
+    messages = state["messages"]
+    is_post_retrieval = bool(messages) and isinstance(messages[-1], ToolMessage)
+
+    chain_inputs = {
+        "messages": messages,
+        "legal_context": state.get("legal_context", ""),
+        "expert_name": state["expert_name"],
+        "expertise": state["expertise"],
+        "style": state["style"],
+        "summary": summary,
+    }
+
+    if not is_post_retrieval:
+        # Router pass — unchanged from previous behavior.
+        chain = get_legal_expert_response_chain()
+        response = await chain.ainvoke(chain_inputs, config)
+        return {"messages": response}
+
+    # Answer pass — hoist retrieved docs into state and emit structured envelope.
+    retrieved = get_retrieved_docs()
+    chain = get_legal_expert_answer_chain()
+    result = await chain.ainvoke(chain_inputs, config)
+
+    if isinstance(result, LegalAnswer):
+        envelope = result
+    elif isinstance(result, dict):
+        envelope = LegalAnswer(**result)
+    else:
+        # Local Ollama fallback returns an AIMessage — synthesize a minimal envelope
+        # so downstream code always sees a LegalAnswer-shaped dict.
+        logger.warning("Answer chain returned non-LegalAnswer; synthesizing envelope")
+        envelope = LegalAnswer(
+            human_text=getattr(result, "content", str(result)),
+            retrieval_used=True,
+        )
+
+    envelope.retrieval_used = True
+    return {
+        "messages": AIMessage(content=envelope.human_text),
+        "retrieved": retrieved,
+        "legal_answer": envelope.model_dump(),
+    }
 
 
 async def summarize_conversation_node(state: LegalExpertState):
@@ -65,4 +104,17 @@ async def summarize_context_node(state: LegalExpertState):
 
 
 async def connector_node(state: LegalExpertState):
-    return {}
+    """Backfill a synthetic envelope when the router answered without retrieval.
+
+    Ensures downstream consumers (SSE emitter, validator, UI renderer) always
+    see a `legal_answer` dict in state regardless of which branch the graph took.
+    """
+    if state.get("legal_answer"):
+        return {}
+
+    last = state["messages"][-1] if state.get("messages") else None
+    text = getattr(last, "content", "") if last else ""
+    if not isinstance(text, str):
+        text = str(text)
+    envelope = LegalAnswer(human_text=text, retrieval_used=False)
+    return {"legal_answer": envelope.model_dump()}
