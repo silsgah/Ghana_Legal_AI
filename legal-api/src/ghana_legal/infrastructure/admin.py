@@ -502,11 +502,14 @@ async def trigger_ingestion(
     background_tasks: BackgroundTasks,
     user: dict = Depends(require_admin),
 ):
-    """Trigger constitution ingestion as a background task.
+    """Trigger case ingestion as a dedicated Modal function.
 
     Returns immediately — poll GET /api/admin/pipeline/ingestion-status for progress.
     Only one ingestion can run at a time. State is persisted in PostgreSQL so it
     survives container replicas and restarts.
+
+    In production (Modal), spawns the `run_ingestion` function in its own
+    container with a 30-min timeout. Falls back to subprocess for local dev.
     """
     from ghana_legal.infrastructure.database import get_session
     from ghana_legal.domain.models import IngestionRun
@@ -543,11 +546,24 @@ async def trigger_ingestion(
         await session.flush()  # populate new_run.id before commit
         run_id = new_run.id
 
-    background_tasks.add_task(_run_ingestion, run_id)
+    # Try to spawn the dedicated Modal function (production).
+    # Falls back to subprocess background task (local dev / non-Modal).
+    dispatch_method = "subprocess"
+    try:
+        import modal
+        fn = modal.Function.from_name("ghana-legal-ai", "run_ingestion")
+        fn.spawn(run_id=run_id, max_cases=10)
+        dispatch_method = "modal"
+        logger.info(f"Spawned Modal run_ingestion function for run_id={run_id}")
+    except Exception as e:
+        logger.warning(f"Modal dispatch failed ({e}), falling back to subprocess")
+        background_tasks.add_task(_run_ingestion, run_id)
+
     return {
         "success": True,
-        "message": "Ingestion triggered. Poll /api/admin/pipeline/ingestion-status for progress.",
+        "message": f"Ingestion triggered via {dispatch_method}. Poll /api/admin/pipeline/ingestion-status for progress.",
         "run_id": run_id,
+        "dispatch": dispatch_method,
     }
 
 

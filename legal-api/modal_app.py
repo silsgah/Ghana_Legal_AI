@@ -33,7 +33,7 @@ app = modal.App("ghana-legal-ai")
 @app.function(
     image=image,
     secrets=[modal.Secret.from_name("ghana-legal-secrets")],
-    timeout=900,  # 15 min — ingestion background task needs time to complete
+    timeout=900,  # 15 min for web requests
     memory=2048,
 )
 @modal.asgi_app()
@@ -44,6 +44,157 @@ def api():
 
     from ghana_legal.infrastructure.api import app as fastapi_app
     return fastapi_app
+
+
+# ---------------------------------------------------------------------------
+# Dedicated Ingestion Function — runs in its own container with generous timeout
+# ---------------------------------------------------------------------------
+@app.function(
+    image=image,
+    secrets=[modal.Secret.from_name("ghana-legal-secrets")],
+    timeout=1800,  # 30 min — plenty of room for Voyage AI embedding batches
+    memory=2048,
+)
+def run_ingestion(run_id: int, max_cases: int = 10):
+    """Ingest pending legal PDFs into Qdrant Cloud.
+
+    Spawned asynchronously from the admin API via:
+        run_ingestion.spawn(run_id=..., max_cases=10)
+
+    This function:
+    1. Runs the ingest_to_qdrant pipeline (PDF → Voyage AI → Qdrant)
+    2. Updates the IngestionRun row in PostgreSQL with final status
+    3. Logs diagnostics (matched case_ids, chunks processed, etc.)
+    """
+    import sys
+    import os
+    import traceback
+    sys.path.insert(0, "/root/src")
+
+    from datetime import datetime, timezone
+    from loguru import logger
+
+    logger.info(f"=== Modal run_ingestion started | run_id={run_id} max_cases={max_cases} ===")
+
+    # --- Helper to update the IngestionRun row (sync psycopg) ---
+    def update_run(**fields):
+        """Update the IngestionRun row in PostgreSQL using sync psycopg."""
+        import psycopg
+        db_url = os.environ.get("DATABASE_URL", "")
+        db_url = db_url.replace("postgresql+asyncpg://", "postgresql://")
+        if "pooler.supabase.com" in db_url and ":5432" in db_url:
+            db_url = db_url.replace(":5432", ":6543")
+
+        # Build SET clause dynamically
+        set_parts = []
+        values = []
+        for key, val in fields.items():
+            set_parts.append(f"{key} = %s")
+            # Serialize dicts to JSON for the 'result' column
+            if isinstance(val, dict):
+                import json
+                values.append(json.dumps(val))
+            else:
+                values.append(val)
+        values.append(run_id)
+
+        try:
+            with psycopg.connect(db_url, prepare_threshold=0) as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        f"UPDATE ingestion_runs SET {', '.join(set_parts)} WHERE id = %s",
+                        values,
+                    )
+                conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to update IngestionRun {run_id}: {e}")
+
+    # --- Run the ingestion pipeline ---
+    try:
+        from scripts.ingest_to_qdrant import load_pdf_documents, split_documents, ingest_to_qdrant
+        from scripts.ingest_to_qdrant import update_db_statuses
+        from ghana_legal.config import settings
+        from pathlib import Path
+
+        start_time = datetime.now(timezone.utc)
+
+        # Resolve data directories (inside Modal container: /data/)
+        project_root = Path("/root/src").resolve().parents[0]
+        data_dirs = [
+            Path("/data/ghana_legal/constitution"),
+            Path("/data/ghana_legal/cases"),
+            Path("/data/cases"),
+        ]
+
+        logger.info(f"Data directories: {[str(d) for d in data_dirs]}")
+        for d in data_dirs:
+            if d.exists():
+                pdfs = list(d.rglob("*.pdf"))
+                logger.info(f"  {d}: {len(pdfs)} PDFs")
+            else:
+                logger.warning(f"  {d}: DOES NOT EXIST")
+
+        # Step 1: Load PDFs (filtered to pending cases via PostgreSQL)
+        documents = load_pdf_documents(data_dirs, max_cases=max_cases)
+
+        if not documents:
+            logger.warning("No documents to process — all cases may already be indexed or no PDF matches found.")
+            update_run(
+                status="completed",
+                completed_at=datetime.now(timezone.utc),
+                result={"exit_code": 0, "summary": "No pending documents to process. All cases may already be indexed."},
+            )
+            return {"status": "completed", "documents": 0, "chunks": 0}
+
+        # Log which case_ids were loaded (diagnostic for the numbers issue)
+        loaded_case_ids = {doc.metadata.get("case_id") for doc in documents if doc.metadata.get("case_id")}
+        logger.info(f"Loaded {len(documents)} pages from {len(loaded_case_ids)} cases: {list(loaded_case_ids)[:20]}")
+
+        # Step 2: Split into chunks
+        chunked_docs = split_documents(documents, chunk_size=512, chunk_overlap=100)
+
+        # Step 3: Ingest to Qdrant Cloud
+        stats = ingest_to_qdrant(chunked_docs)
+
+        # Step 4: Update PostgreSQL — mark ingested cases as 'indexed'
+        updated_count = 0
+        if stats["successful"] > 0:
+            case_law_ids = {
+                doc.metadata["case_id"]
+                for doc in documents
+                if doc.metadata.get("source_type") == "case_law" and doc.metadata.get("case_id")
+            }
+            if case_law_ids:
+                updated_count = update_db_statuses(case_law_ids)
+                logger.info(f"Marked {updated_count} cases as 'indexed' in PostgreSQL")
+            else:
+                logger.warning("No case_law case_ids found to mark as indexed")
+
+        elapsed = (datetime.now(timezone.utc) - start_time).total_seconds()
+
+        summary = (
+            f"✓ Ingested {stats['successful']} chunks from {len(loaded_case_ids)} cases in {elapsed:.0f}s. "
+            f"DB updated: {updated_count} cases marked indexed."
+        )
+        logger.success(summary)
+
+        update_run(
+            status="completed",
+            completed_at=datetime.now(timezone.utc),
+            result={"exit_code": 0, "summary": summary},
+        )
+
+        return {"status": "completed", "documents": len(documents), "chunks": stats["successful"]}
+
+    except Exception as e:
+        logger.error(f"Ingestion failed: {e}\n{traceback.format_exc()}")
+        update_run(
+            status="failed",
+            completed_at=datetime.now(timezone.utc),
+            error=str(e)[:500],
+        )
+        return {"status": "failed", "error": str(e)}
+
 
 
 @app.function(
