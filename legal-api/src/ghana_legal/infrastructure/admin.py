@@ -442,7 +442,7 @@ async def _run_ingestion(run_id: int):
             [sys.executable, str(script_path)],
             capture_output=True,
             text=True,
-            timeout=600,  # 10 min max
+            timeout=840,  # 14 min — leaves 1 min headroom before Modal's 900s limit
             cwd=str(src_dir.parent),
         )
 
@@ -484,9 +484,9 @@ async def _run_ingestion(run_id: int):
             run_id,
             status="failed",
             completed_at=datetime.now(timezone.utc),
-            error="Ingestion timed out after 10 minutes",
+            error="Ingestion timed out after 14 minutes",
         )
-        logger.error("Admin-triggered ingestion timed out after 600s")
+        logger.error("Admin-triggered ingestion timed out after 840s")
     except Exception as e:
         await _update_run(
             run_id,

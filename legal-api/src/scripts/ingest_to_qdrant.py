@@ -181,7 +181,7 @@ class CaseMetadataExtractor:
 # PDF loading
 # ---------------------------------------------------------------------------
 
-def load_pdf_documents(data_dirs: List[Path], max_cases: int = 50) -> List[Document]:
+def load_pdf_documents(data_dirs: List[Path], max_cases: int = 10) -> List[Document]:
     """Load Constitution PDFs and pending case PDFs incrementally.
 
     - Always loads Constitution PDFs (no filtering).
