@@ -206,8 +206,10 @@ def load_pdf_documents(data_dirs: List[Path], max_cases: int = 10) -> List[Docum
         # For case directories: filter to pending-only and cap
         is_case_dir = "cases" in data_dir.name.lower()
         if is_case_dir:
-            if pending_filenames:
-                pdf_files = [p for p in pdf_files if p.name in pending_filenames]
+            if not pending_filenames:
+                logger.info(f"No pending cases in DB — skipping {data_dir.name}/")
+                continue
+            pdf_files = [p for p in pdf_files if p.name in pending_filenames]
             pdf_files = pdf_files[:max_cases]
 
         if not pdf_files:
