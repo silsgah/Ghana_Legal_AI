@@ -211,40 +211,37 @@ def insert_new_cases(cases: List[Dict]) -> int:
 
     try:
         import psycopg
-        with psycopg.connect(db_url, prepare_threshold=0) as conn:
-            with conn.cursor() as cur:
-                for case in cases:
-                    cur.execute(
-                        """INSERT INTO pipeline_cases
-                           (case_id, url, pdf_url, title, court_id, status, updated_at)
-                           VALUES (%s, %s, %s, %s, %s, 'pending', NOW())
-                           ON CONFLICT (case_id) DO NOTHING""",
-                        (
-                            case["case_id"],
-                            case["url"],
-                            case["pdf_url"],
-                            case["title"],
-                            case["court_id"],
-                        ),
-                    )
-                count = cur.rowcount  # rows inserted (last statement)
-            conn.commit()
+        rows = [
+            (
+                case["case_id"],
+                case["url"],
+                case["pdf_url"],
+                case["title"],
+                case["court_id"],
+                case.get("pdf_path"),
+            )
+            for case in cases
+        ]
 
-        # Re-count to get the actual number inserted
         with psycopg.connect(db_url, prepare_threshold=0) as conn:
             with conn.cursor() as cur:
-                case_ids = [c["case_id"] for c in cases]
-                cur.execute(
-                    "SELECT COUNT(*) FROM pipeline_cases WHERE case_id = ANY(%s) AND status = 'pending'",
-                    (case_ids,),
+                # Use executemany — ON CONFLICT DO NOTHING skips duplicates
+                cur.executemany(
+                    """INSERT INTO pipeline_cases
+                       (case_id, url, pdf_url, title, court_id, pdf_path, status, updated_at)
+                       VALUES (%s, %s, %s, %s, %s, %s, 'pending', NOW())
+                       ON CONFLICT (case_id) DO NOTHING""",
+                    rows,
                 )
-                inserted = cur.fetchone()[0]
+                inserted = cur.rowcount  # total rows affected across all statements
+            conn.commit()
 
         logger.info(f"Inserted {inserted} new cases into pipeline_cases")
         return inserted
     except Exception as e:
         logger.error(f"Failed to insert cases: {e}")
         return 0
+
 
 
 # ---------------------------------------------------------------------------
