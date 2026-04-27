@@ -589,3 +589,113 @@ async def ingestion_status(user: dict = Depends(require_admin)):
             "error": None,
         }
     return _serialize_run(run)
+
+
+# ---------------------------------------------------------------------------
+# Case Discovery (scraping ghalii.org)
+# ---------------------------------------------------------------------------
+
+DISCOVERY_STALE_AFTER = timedelta(minutes=35)
+
+
+@router.post("/pipeline/trigger-discovery")
+async def trigger_discovery(
+    user: dict = Depends(require_admin),
+):
+    """Trigger case discovery: scrape ghalii.org for new cases.
+
+    Returns immediately — poll GET /api/admin/pipeline/discovery-status.
+    Spawns a dedicated Modal function that:
+      1. Scrapes ghalii.org/judgments/all/ (newest first)
+      2. Filters out already-known cases
+      3. Downloads PDFs for new cases
+      4. Inserts new rows into pipeline_cases (status='pending')
+    """
+    from ghana_legal.infrastructure.database import get_session
+    from ghana_legal.domain.models import DiscoveryRun
+    from sqlalchemy import select, update
+
+    now = datetime.now(timezone.utc)
+
+    async with get_session() as session:
+        latest = await session.execute(
+            select(DiscoveryRun).order_by(DiscoveryRun.created_at.desc()).limit(1)
+        )
+        latest_run = latest.scalar_one_or_none()
+
+        if latest_run and latest_run.status == "running":
+            started = latest_run.started_at
+            if started and (now - started) < DISCOVERY_STALE_AFTER:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Discovery is already running. Please wait for it to complete.",
+                )
+            await session.execute(
+                update(DiscoveryRun)
+                .where(DiscoveryRun.id == latest_run.id)
+                .values(
+                    status="failed",
+                    completed_at=now,
+                    error="Marked stale by trigger — process likely crashed.",
+                )
+            )
+
+        new_run = DiscoveryRun(status="running", started_at=now)
+        session.add(new_run)
+        await session.flush()
+        run_id = new_run.id
+
+    # Spawn dedicated Modal function
+    dispatch_method = "error"
+    try:
+        import modal
+        fn = modal.Function.from_name("ghana-legal-ai", "run_discovery")
+        fn.spawn(run_id=run_id, max_pages=5)
+        dispatch_method = "modal"
+        logger.info(f"Spawned Modal run_discovery function for run_id={run_id}")
+    except Exception as e:
+        logger.error(f"Failed to spawn discovery: {e}")
+        # Mark the run as failed since we can't run discovery locally easily
+        from ghana_legal.infrastructure.database import get_session as _gs
+        from ghana_legal.domain.models import DiscoveryRun as _DR
+        async with _gs() as session:
+            await session.execute(
+                update(_DR).where(_DR.id == run_id).values(
+                    status="failed",
+                    completed_at=datetime.now(timezone.utc),
+                    error=f"Could not spawn Modal function: {e}",
+                )
+            )
+        dispatch_method = "failed"
+
+    return {
+        "success": dispatch_method != "failed",
+        "message": f"Discovery triggered via {dispatch_method}. Poll /api/admin/pipeline/discovery-status for progress.",
+        "run_id": run_id,
+        "dispatch": dispatch_method,
+    }
+
+
+@router.get("/pipeline/discovery-status")
+async def discovery_status(user: dict = Depends(require_admin)):
+    """Get the current discovery job status from PostgreSQL."""
+    from ghana_legal.infrastructure.database import get_session
+    from ghana_legal.domain.models import DiscoveryRun
+    from sqlalchemy import select
+
+    async with get_session() as session:
+        result = await session.execute(
+            select(DiscoveryRun).order_by(DiscoveryRun.created_at.desc()).limit(1)
+        )
+        run = result.scalar_one_or_none()
+
+    if run is None:
+        return {
+            "status": "idle",
+            "started_at": None,
+            "completed_at": None,
+            "result": None,
+            "error": None,
+        }
+    return _serialize_run(run)
+

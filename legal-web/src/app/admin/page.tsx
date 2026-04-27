@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { UserButton, useAuth } from '@clerk/nextjs';
 import {
     Scale, Database, FileText, AlertCircle, CheckCircle,
-    Download, Clock, ArrowLeft, RefreshCw, Search,
+    Download, Clock, ArrowLeft, RefreshCw, Search, Globe,
     ChevronLeft, ChevronRight, Filter, ShieldX,
     Users, Settings, Crown, Trash2, Pencil, Save, X,
     BadgeCheck, UserCheck, UserX, RotateCcw
@@ -132,6 +132,18 @@ export default function AdminPage() {
     const [ingestionFeedback, setIngestionFeedback] = useState<string | null>(null);
     const [isIngestionModalOpen, setIsIngestionModalOpen] = useState(false);
 
+    // Discovery state
+    const [discoveryStatus, setDiscoveryStatus] = useState<{
+        status: string;
+        started_at: string | null;
+        completed_at: string | null;
+        result: { summary: string; scraped?: number; new?: number; downloaded?: number; inserted?: number } | null;
+        error: string | null;
+    }>({ status: 'idle', started_at: null, completed_at: null, result: null, error: null });
+    const [triggeringDiscovery, setTriggeringDiscovery] = useState(false);
+    const [discoveryFeedback, setDiscoveryFeedback] = useState<string | null>(null);
+    const [isDiscoveryModalOpen, setIsDiscoveryModalOpen] = useState(false);
+
     const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
         const token = await getToken();
         return token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : {};
@@ -208,6 +220,17 @@ export default function AdminPage() {
         } catch (e) { console.error(e); }
     }, [authHeaders]);
 
+    const fetchDiscoveryStatus = useCallback(async () => {
+        try {
+            const headers = await authHeaders();
+            const res = await fetch(`${config.apiUrl}/api/admin/pipeline/discovery-status`, { headers });
+            if (res.ok) {
+                const d = await res.json();
+                setDiscoveryStatus(d);
+            }
+        } catch (e) { console.error(e); }
+    }, [authHeaders]);
+
     const triggerIngestion = async () => {
         setIsIngestionModalOpen(false);
         setTriggeringIngestion(true);
@@ -232,9 +255,33 @@ export default function AdminPage() {
         }
     };
 
+    const triggerDiscovery = async () => {
+        setIsDiscoveryModalOpen(false);
+        setTriggeringDiscovery(true);
+        setDiscoveryFeedback(null);
+        try {
+            const headers = await authHeaders();
+            const res = await fetch(`${config.apiUrl}/api/admin/pipeline/trigger-discovery`, {
+                method: 'POST', headers,
+            });
+            const d = await res.json();
+            if (res.ok) {
+                setDiscoveryFeedback('✓ Discovery triggered — scraping ghalii.org...');
+                setDiscoveryStatus(prev => ({ ...prev, status: 'running' }));
+            } else {
+                setDiscoveryFeedback(`✗ ${d.detail || 'Failed to trigger'}`);
+            }
+        } catch {
+            setDiscoveryFeedback('✗ Network error');
+        } finally {
+            setTriggeringDiscovery(false);
+            setTimeout(() => setDiscoveryFeedback(null), 5000);
+        }
+    };
+
     const fetchAll = async () => {
         setLoading(true);
-        await Promise.all([fetchStats(), fetchCases(), fetchReports(), fetchIngestionStatus()]);
+        await Promise.all([fetchStats(), fetchCases(), fetchReports(), fetchIngestionStatus(), fetchDiscoveryStatus()]);
         setLoading(false);
     };
 
@@ -258,6 +305,23 @@ export default function AdminPage() {
             fetchStats();
         }
     }, [ingestionStatus.status]);
+
+    // Auto-poll discovery status when running
+    useEffect(() => {
+        if (discoveryStatus.status !== 'running') return;
+        const interval = setInterval(async () => {
+            await fetchDiscoveryStatus();
+        }, 4000);
+        return () => clearInterval(interval);
+    }, [discoveryStatus.status, fetchDiscoveryStatus]);
+
+    // Refresh stats when discovery completes
+    useEffect(() => {
+        if (discoveryStatus.status === 'completed') {
+            fetchStats();
+            fetchCases();
+        }
+    }, [discoveryStatus.status]);
 
     // ── User Actions ──────────────────────────────────────────────────────────
 
@@ -390,7 +454,7 @@ export default function AdminPage() {
                         </div>
                         <h3 className="text-xl font-bold mb-2">Run Ingestion Pipeline</h3>
                         <p className="text-sm mb-6" style={{ color: 'var(--muted-foreground)' }}>
-                            This will process all legal datasets securely uploaded to the Modal Cloud volume and natively insert them into Qdrant Cloud. Existing vectors will not be forcibly wiped unless specifically flagged.
+                            This will process pending cases and embed them into Qdrant Cloud using Voyage AI. Existing vectors will not be wiped.
                         </p>
                         <div className="flex gap-3 justify-end items-center">
                             <button onClick={() => setIsIngestionModalOpen(false)}
@@ -402,6 +466,38 @@ export default function AdminPage() {
                                     className="flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-semibold transition-transform hover:scale-[1.02]"
                                     style={{ background: 'var(--primary)', color: 'white', boxShadow: '0 4px 14px rgba(91,106,240,0.3)' }}>
                                 Confirm & Run
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Discovery Confirmation Modal */}
+            {isDiscoveryModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200"
+                     style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }}
+                     onClick={() => setIsDiscoveryModalOpen(false)}>
+                    <div className="relative w-full max-w-md rounded-2xl overflow-hidden shadow-2xl p-6 md:p-8 animate-in zoom-in-95"
+                         style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}
+                         onClick={e => e.stopPropagation()}>
+                        <div className="w-12 h-12 rounded-full flex items-center justify-center mb-5"
+                             style={{ background: 'rgba(234, 179, 8, 0.1)' }}>
+                            <Globe size={24} style={{ color: 'var(--ghana-gold)' }} />
+                        </div>
+                        <h3 className="text-xl font-bold mb-2">Discover New Cases</h3>
+                        <p className="text-sm mb-6" style={{ color: 'var(--muted-foreground)' }}>
+                            This will scrape ghalii.org for the latest Ghana court judgments, download PDFs for any new cases, and add them to the pipeline as &quot;pending&quot;. Run ingestion afterwards to embed them.
+                        </p>
+                        <div className="flex gap-3 justify-end items-center">
+                            <button onClick={() => setIsDiscoveryModalOpen(false)}
+                                    className="px-4 py-2 rounded-lg text-sm font-medium hover:bg-white/5 transition-colors"
+                                    style={{ color: 'var(--muted-foreground)' }}>
+                                Cancel
+                            </button>
+                            <button onClick={triggerDiscovery}
+                                    className="flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-semibold transition-transform hover:scale-[1.02]"
+                                    style={{ background: 'var(--ghana-gold)', color: '#000', boxShadow: '0 4px 14px rgba(234,179,8,0.3)' }}>
+                                Confirm & Discover
                             </button>
                         </div>
                     </div>
@@ -476,69 +572,133 @@ export default function AdminPage() {
                             }))} />
                         </div>
 
-                        {/* Ingestion Trigger Card */}
-                        <div className="p-5 rounded-xl" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
-                            <div className="flex items-center justify-between mb-3">
-                                <div>
-                                    <h3 className="text-sm font-bold" style={{ color: 'var(--foreground)' }}>Pipeline Ingestion</h3>
-                                    <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
-                                        Re-embed constitution and case law into Qdrant using Voyage AI
-                                    </p>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    {/* Status badge */}
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
-                                          style={{
-                                              background: ingestionStatus.status === 'running' ? 'var(--warning)18' :
-                                                         ingestionStatus.status === 'completed' ? 'var(--ghana-green)18' :
-                                                         ingestionStatus.status === 'failed' ? 'var(--error)18' : 'var(--surface-2)',
-                                              color: ingestionStatus.status === 'running' ? 'var(--warning)' :
-                                                     ingestionStatus.status === 'completed' ? 'var(--ghana-green)' :
-                                                     ingestionStatus.status === 'failed' ? 'var(--error)' : 'var(--muted-foreground)',
-                                          }}>
-                                        {ingestionStatus.status === 'running' && <RefreshCw size={11} className="animate-spin" />}
-                                        {ingestionStatus.status === 'completed' && <CheckCircle size={11} />}
-                                        {ingestionStatus.status === 'failed' && <AlertCircle size={11} />}
-                                        {ingestionStatus.status}
-                                    </span>
+                        {/* Pipeline Operations — Discovery + Ingestion */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-                                    {/* Trigger button */}
-                                    <button
-                                        onClick={() => setIsIngestionModalOpen(true)}
-                                        disabled={triggeringIngestion || ingestionStatus.status === 'running'}
-                                        className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-40 transition-opacity"
-                                        style={{ background: 'var(--primary)', color: '#fff' }}>
-                                        {triggeringIngestion || ingestionStatus.status === 'running'
-                                            ? <><RefreshCw size={13} className="animate-spin" /> Running…</>
-                                            : <><Database size={13} /> Run Ingestion</>}
-                                    </button>
+                            {/* Discovery Card */}
+                            <div className="p-5 rounded-xl" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+                                <div className="flex items-center justify-between mb-3">
+                                    <div>
+                                        <h3 className="text-sm font-bold" style={{ color: 'var(--foreground)' }}>Case Discovery</h3>
+                                        <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+                                            Scrape ghalii.org for new Ghana court judgments
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
+                                              style={{
+                                                  background: discoveryStatus.status === 'running' ? 'var(--warning)18' :
+                                                             discoveryStatus.status === 'completed' ? 'var(--ghana-green)18' :
+                                                             discoveryStatus.status === 'failed' ? 'var(--error)18' : 'var(--surface-2)',
+                                                  color: discoveryStatus.status === 'running' ? 'var(--warning)' :
+                                                         discoveryStatus.status === 'completed' ? 'var(--ghana-green)' :
+                                                         discoveryStatus.status === 'failed' ? 'var(--error)' : 'var(--muted-foreground)',
+                                              }}>
+                                            {discoveryStatus.status === 'running' && <RefreshCw size={11} className="animate-spin" />}
+                                            {discoveryStatus.status === 'completed' && <CheckCircle size={11} />}
+                                            {discoveryStatus.status === 'failed' && <AlertCircle size={11} />}
+                                            {discoveryStatus.status}
+                                        </span>
+                                        <button
+                                            onClick={() => setIsDiscoveryModalOpen(true)}
+                                            disabled={triggeringDiscovery || discoveryStatus.status === 'running'}
+                                            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-40 transition-opacity"
+                                            style={{ background: 'var(--ghana-gold)', color: '#000' }}>
+                                            {triggeringDiscovery || discoveryStatus.status === 'running'
+                                                ? <><RefreshCw size={13} className="animate-spin" /> Scraping…</>
+                                                : <><Globe size={13} /> Discover Cases</>}
+                                        </button>
+                                    </div>
                                 </div>
+                                {discoveryStatus.status === 'completed' && discoveryStatus.result && (
+                                    <div className="mt-3 p-3 rounded-lg text-xs font-mono whitespace-pre-wrap"
+                                         style={{ background: 'var(--ghana-green)08', border: '1px solid var(--ghana-green)30', color: 'var(--ghana-green)' }}>
+                                        ✓ {discoveryStatus.result.summary}
+                                        {discoveryStatus.result.new !== undefined && (
+                                            <span className="block mt-1" style={{ color: 'var(--foreground)', fontFamily: 'inherit' }}>
+                                                New: {discoveryStatus.result.new} · Downloaded: {discoveryStatus.result.downloaded ?? 0} · Inserted: {discoveryStatus.result.inserted ?? 0}
+                                            </span>
+                                        )}
+                                        {discoveryStatus.completed_at && (
+                                            <span className="block mt-1" style={{ color: 'var(--muted-foreground)', fontFamily: 'inherit' }}>
+                                                Completed: {new Date(discoveryStatus.completed_at).toLocaleString()}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                                {discoveryStatus.status === 'failed' && discoveryStatus.error && (
+                                    <div className="mt-3 p-3 rounded-lg text-xs font-mono whitespace-pre-wrap"
+                                         style={{ background: 'var(--error)08', border: '1px solid var(--error)30', color: 'var(--error)' }}>
+                                        ✗ {discoveryStatus.error}
+                                    </div>
+                                )}
+                                {discoveryFeedback && (
+                                    <div className="mt-2 text-xs font-medium"
+                                         style={{ color: discoveryFeedback.startsWith('✓') ? 'var(--ghana-green)' : 'var(--error)' }}>
+                                        {discoveryFeedback}
+                                    </div>
+                                )}
                             </div>
 
-                            {/* Result / Error display */}
-                            {ingestionStatus.status === 'completed' && ingestionStatus.result && (
-                                <div className="mt-3 p-3 rounded-lg text-xs font-mono whitespace-pre-wrap"
-                                     style={{ background: 'var(--ghana-green)08', border: '1px solid var(--ghana-green)30', color: 'var(--ghana-green)' }}>
-                                    ✓ {ingestionStatus.result.summary}
-                                    {ingestionStatus.completed_at && (
-                                        <span className="block mt-1" style={{ color: 'var(--muted-foreground)', fontFamily: 'inherit' }}>
-                                            Completed: {new Date(ingestionStatus.completed_at).toLocaleString()}
+                            {/* Ingestion Card */}
+                            <div className="p-5 rounded-xl" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+                                <div className="flex items-center justify-between mb-3">
+                                    <div>
+                                        <h3 className="text-sm font-bold" style={{ color: 'var(--foreground)' }}>Pipeline Ingestion</h3>
+                                        <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+                                            Embed pending cases into Qdrant using Voyage AI
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
+                                              style={{
+                                                  background: ingestionStatus.status === 'running' ? 'var(--warning)18' :
+                                                             ingestionStatus.status === 'completed' ? 'var(--ghana-green)18' :
+                                                             ingestionStatus.status === 'failed' ? 'var(--error)18' : 'var(--surface-2)',
+                                                  color: ingestionStatus.status === 'running' ? 'var(--warning)' :
+                                                         ingestionStatus.status === 'completed' ? 'var(--ghana-green)' :
+                                                         ingestionStatus.status === 'failed' ? 'var(--error)' : 'var(--muted-foreground)',
+                                              }}>
+                                            {ingestionStatus.status === 'running' && <RefreshCw size={11} className="animate-spin" />}
+                                            {ingestionStatus.status === 'completed' && <CheckCircle size={11} />}
+                                            {ingestionStatus.status === 'failed' && <AlertCircle size={11} />}
+                                            {ingestionStatus.status}
                                         </span>
-                                    )}
+                                        <button
+                                            onClick={() => setIsIngestionModalOpen(true)}
+                                            disabled={triggeringIngestion || ingestionStatus.status === 'running'}
+                                            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-40 transition-opacity"
+                                            style={{ background: 'var(--primary)', color: '#fff' }}>
+                                            {triggeringIngestion || ingestionStatus.status === 'running'
+                                                ? <><RefreshCw size={13} className="animate-spin" /> Running…</>
+                                                : <><Database size={13} /> Run Ingestion</>}
+                                        </button>
+                                    </div>
                                 </div>
-                            )}
-                            {ingestionStatus.status === 'failed' && ingestionStatus.error && (
-                                <div className="mt-3 p-3 rounded-lg text-xs font-mono whitespace-pre-wrap"
-                                     style={{ background: 'var(--error)08', border: '1px solid var(--error)30', color: 'var(--error)' }}>
-                                    ✗ {ingestionStatus.error}
-                                </div>
-                            )}
-                            {ingestionFeedback && (
-                                <div className="mt-2 text-xs font-medium"
-                                     style={{ color: ingestionFeedback.startsWith('✓') ? 'var(--ghana-green)' : 'var(--error)' }}>
-                                    {ingestionFeedback}
-                                </div>
-                            )}
+                                {ingestionStatus.status === 'completed' && ingestionStatus.result && (
+                                    <div className="mt-3 p-3 rounded-lg text-xs font-mono whitespace-pre-wrap"
+                                         style={{ background: 'var(--ghana-green)08', border: '1px solid var(--ghana-green)30', color: 'var(--ghana-green)' }}>
+                                        ✓ {ingestionStatus.result.summary}
+                                        {ingestionStatus.completed_at && (
+                                            <span className="block mt-1" style={{ color: 'var(--muted-foreground)', fontFamily: 'inherit' }}>
+                                                Completed: {new Date(ingestionStatus.completed_at).toLocaleString()}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                                {ingestionStatus.status === 'failed' && ingestionStatus.error && (
+                                    <div className="mt-3 p-3 rounded-lg text-xs font-mono whitespace-pre-wrap"
+                                         style={{ background: 'var(--error)08', border: '1px solid var(--error)30', color: 'var(--error)' }}>
+                                        ✗ {ingestionStatus.error}
+                                    </div>
+                                )}
+                                {ingestionFeedback && (
+                                    <div className="mt-2 text-xs font-medium"
+                                         style={{ color: ingestionFeedback.startsWith('✓') ? 'var(--ghana-green)' : 'var(--error)' }}>
+                                        {ingestionFeedback}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 )}

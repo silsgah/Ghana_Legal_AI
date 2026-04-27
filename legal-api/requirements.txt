@@ -36,3 +36,5 @@ cryptography
 sqlalchemy
 asyncpg
 httpx
+requests
+beautifulsoup4

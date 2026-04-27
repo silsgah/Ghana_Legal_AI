@@ -196,6 +196,101 @@ def run_ingestion(run_id: int, max_cases: int = 10):
         return {"status": "failed", "error": str(e)}
 
 
+# ---------------------------------------------------------------------------
+# Dedicated Discovery Function — scrapes ghalii.org for new cases
+# ---------------------------------------------------------------------------
+@app.function(
+    image=image,
+    secrets=[modal.Secret.from_name("ghana-legal-secrets")],
+    timeout=1800,  # 30 min — scraping + downloading PDFs takes time
+    memory=1024,
+)
+def run_discovery(run_id: int, max_pages: int = 5):
+    """Discover and download new cases from ghalii.org.
+
+    Spawned asynchronously from the admin API via:
+        run_discovery.spawn(run_id=..., max_pages=5)
+
+    This function:
+    1. Scrapes ghalii.org/judgments/all/ for case listings
+    2. Filters out cases already in PostgreSQL
+    3. Downloads PDFs for new cases to /data/cases/{court_id}/
+    4. Inserts new rows into pipeline_cases (status='pending')
+    5. Updates the DiscoveryRun row with results
+    """
+    import sys
+    import os
+    import traceback
+    sys.path.insert(0, "/root/src")
+
+    from datetime import datetime, timezone
+    from loguru import logger
+
+    logger.info(f"=== Modal run_discovery started | run_id={run_id} max_pages={max_pages} ===")
+
+    # --- Helper to update the DiscoveryRun row ---
+    def update_run(**fields):
+        import psycopg
+        import json as _json
+        db_url = os.environ.get("DATABASE_URL", "")
+        db_url = db_url.replace("postgresql+asyncpg://", "postgresql://")
+        if "pooler.supabase.com" in db_url and ":5432" in db_url:
+            db_url = db_url.replace(":5432", ":6543")
+
+        set_parts = []
+        values = []
+        for key, val in fields.items():
+            set_parts.append(f"{key} = %s")
+            if isinstance(val, dict):
+                values.append(_json.dumps(val))
+            else:
+                values.append(val)
+        values.append(run_id)
+
+        try:
+            with psycopg.connect(db_url, prepare_threshold=0) as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        f"UPDATE discovery_runs SET {', '.join(set_parts)} WHERE id = %s",
+                        values,
+                    )
+                conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to update DiscoveryRun {run_id}: {e}")
+
+    # --- Run discovery ---
+    try:
+        from scripts.discover_cases import run_discovery as _discover
+        from pathlib import Path
+
+        result = _discover(max_pages=max_pages, data_dir=Path("/data"))
+
+        summary = (
+            f"Scraped {result['scraped']} cases from ghalii.org. "
+            f"Found {result['new']} new cases. "
+            f"Downloaded {result['downloaded']} PDFs. "
+            f"Inserted {result['inserted']} into pipeline."
+        )
+        logger.success(summary)
+
+        update_run(
+            status="completed",
+            completed_at=datetime.now(timezone.utc),
+            result={**result, "summary": summary},
+        )
+
+        return {"status": "completed", **result}
+
+    except Exception as e:
+        logger.error(f"Discovery failed: {e}\n{traceback.format_exc()}")
+        update_run(
+            status="failed",
+            completed_at=datetime.now(timezone.utc),
+            error=str(e)[:500],
+        )
+        return {"status": "failed", "error": str(e)}
+
+
 
 @app.function(
     image=image,

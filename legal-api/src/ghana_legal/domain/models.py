@@ -225,3 +225,30 @@ class IngestionRun(Base):
 
     def __repr__(self) -> str:
         return f"<IngestionRun id={self.id} status={self.status}>"
+
+
+class DiscoveryRun(Base):
+    """Tracks admin-triggered case discovery jobs (scraping ghalii.org).
+
+    Follows the same pattern as IngestionRun: create row as 'running',
+    update to 'completed'/'failed' when done. Status is polled by
+    the frontend via GET /api/admin/pipeline/discovery-status.
+    """
+    __tablename__ = "discovery_runs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    status = Column(String(50), nullable=False, index=True)  # running | completed | failed
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    result = Column(JSON, nullable=True)  # {scraped, new, downloaded, inserted, ...}
+    error = Column(Text, nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        index=True,
+    )
+
+    def __repr__(self) -> str:
+        return f"<DiscoveryRun id={self.id} status={self.status}>"
+
