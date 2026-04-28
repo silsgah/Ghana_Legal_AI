@@ -159,16 +159,18 @@ def run_ingestion(run_id: int, max_cases: int = 10):
         # Step 4: Update PostgreSQL — mark ingested cases as 'indexed'
         updated_count = 0
         if stats["successful"] > 0:
+            # Derive case_id from the filename (e.g. GHADC_2026_2.pdf → GHADC_2026_2)
             case_law_ids = {
-                doc.metadata["case_id"]
+                doc.metadata.get("filename", "").replace(".pdf", "")
                 for doc in documents
-                if doc.metadata.get("source_type") == "case_law" and doc.metadata.get("case_id")
+                if doc.metadata.get("source_type") == "case_law" and doc.metadata.get("filename")
             }
+            case_law_ids.discard("")  # remove empty strings
             if case_law_ids:
                 updated_count = update_db_statuses(case_law_ids)
                 logger.info(f"Marked {updated_count} cases as 'indexed' in PostgreSQL")
             else:
-                logger.warning("No case_law case_ids found to mark as indexed")
+                logger.warning("No case_law filenames found to mark as indexed")
 
         elapsed = (datetime.now(timezone.utc) - start_time).total_seconds()
 
