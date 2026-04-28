@@ -569,16 +569,44 @@ async def trigger_ingestion(
 
 @router.get("/pipeline/ingestion-status")
 async def ingestion_status(user: dict = Depends(require_admin)):
-    """Get the current ingestion job status from PostgreSQL."""
+    """Get the current ingestion job status from PostgreSQL.
+
+    If the latest run has been 'running' for longer than INGESTION_STALE_AFTER,
+    it is auto-marked as failed (the process likely crashed or the container
+    was recycled). This prevents the frontend from spinning forever.
+    """
     from ghana_legal.infrastructure.database import get_session
     from ghana_legal.domain.models import IngestionRun
-    from sqlalchemy import select
+    from sqlalchemy import select, update
 
     async with get_session() as session:
         result = await session.execute(
             select(IngestionRun).order_by(IngestionRun.created_at.desc()).limit(1)
         )
         run = result.scalar_one_or_none()
+
+        # Auto-recover stale "running" rows
+        if run and run.status == "running" and run.started_at:
+            now = datetime.now(timezone.utc)
+            if (now - run.started_at) > INGESTION_STALE_AFTER:
+                logger.warning(
+                    f"Ingestion run {run.id} has been running for >{INGESTION_STALE_AFTER}. "
+                    f"Marking as failed (stale)."
+                )
+                await session.execute(
+                    update(IngestionRun)
+                    .where(IngestionRun.id == run.id)
+                    .values(
+                        status="failed",
+                        completed_at=now,
+                        error="Auto-recovered: process likely crashed or container was recycled.",
+                    )
+                )
+                # Re-fetch after update
+                result = await session.execute(
+                    select(IngestionRun).where(IngestionRun.id == run.id)
+                )
+                run = result.scalar_one_or_none()
 
     if run is None:
         return {
