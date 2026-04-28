@@ -706,16 +706,42 @@ async def trigger_discovery(
 
 @router.get("/pipeline/discovery-status")
 async def discovery_status(user: dict = Depends(require_admin)):
-    """Get the current discovery job status from PostgreSQL."""
+    """Get the current discovery job status from PostgreSQL.
+
+    Auto-recovers stale 'running' rows after DISCOVERY_STALE_AFTER to
+    prevent the frontend button from spinning forever.
+    """
     from ghana_legal.infrastructure.database import get_session
     from ghana_legal.domain.models import DiscoveryRun
-    from sqlalchemy import select
+    from sqlalchemy import select, update
 
     async with get_session() as session:
         result = await session.execute(
             select(DiscoveryRun).order_by(DiscoveryRun.created_at.desc()).limit(1)
         )
         run = result.scalar_one_or_none()
+
+        # Auto-recover stale "running" rows
+        if run and run.status == "running" and run.started_at:
+            now = datetime.now(timezone.utc)
+            if (now - run.started_at) > DISCOVERY_STALE_AFTER:
+                logger.warning(
+                    f"Discovery run {run.id} has been running for >{DISCOVERY_STALE_AFTER}. "
+                    f"Marking as failed (stale)."
+                )
+                await session.execute(
+                    update(DiscoveryRun)
+                    .where(DiscoveryRun.id == run.id)
+                    .values(
+                        status="failed",
+                        completed_at=now,
+                        error="Auto-recovered: process likely crashed or container was recycled.",
+                    )
+                )
+                result = await session.execute(
+                    select(DiscoveryRun).where(DiscoveryRun.id == run.id)
+                )
+                run = result.scalar_one_or_none()
 
     if run is None:
         return {
