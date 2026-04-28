@@ -348,30 +348,29 @@ def run_discovery(max_pages: int = 5, data_dir: Optional[Path] = None) -> Dict:
             "inserted": 0,
         }
 
-    # Step 3: Download PDFs for new cases
-    dl_stats = download_case_pdfs(new_cases, data_dir)
-    logger.info(
-        f"Download results: {dl_stats['downloaded']} downloaded, "
-        f"{dl_stats['skipped']} skipped, {dl_stats['failed']} failed"
-    )
+    # Step 3: Insert new cases into PostgreSQL immediately (status='pending')
+    # Don't gate insertion on PDF download — PDFs in Modal containers are
+    # ephemeral anyway. The ingestion script downloads from pdf_url on-the-fly.
+    inserted = insert_new_cases(new_cases)
 
-    # Step 4: Insert into PostgreSQL (only cases that have a PDF on disk)
-    cases_with_pdfs = []
-    for case in new_cases:
-        pdf_path = data_dir / "cases" / case["court_id"] / f"{case['case_id']}.pdf"
-        if pdf_path.exists():
-            case["pdf_path"] = str(pdf_path)
-            cases_with_pdfs.append(case)
-
-    inserted = insert_new_cases(cases_with_pdfs)
+    # Step 4: Best-effort PDF download (useful for local dev, skippable in Modal)
+    dl_stats = {"downloaded": 0, "skipped": 0, "failed": 0}
+    try:
+        dl_stats = download_case_pdfs(new_cases, data_dir)
+        logger.info(
+            f"Download results: {dl_stats['downloaded']} downloaded, "
+            f"{dl_stats['skipped']} skipped, {dl_stats['failed']} failed"
+        )
+    except Exception as e:
+        logger.warning(f"PDF download step failed (non-blocking): {e}")
 
     summary = {
         "scraped": len(scraped),
         "new": len(new_cases),
         "already_known": already_known,
         "downloaded": dl_stats["downloaded"],
-        "download_skipped": dl_stats["skipped"],
-        "download_failed": dl_stats["failed"],
+        "download_skipped": dl_stats.get("skipped", 0),
+        "download_failed": dl_stats.get("failed", 0),
         "inserted": inserted,
     }
 

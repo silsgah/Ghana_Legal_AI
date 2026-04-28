@@ -74,31 +74,31 @@ def _get_sync_db_url() -> str:
     return db_url
 
 
-def get_pending_case_ids_from_db() -> Set[str]:
-    """Query PostgreSQL for case IDs with pending/downloaded status."""
+def get_pending_cases_from_db() -> Dict[str, str]:
+    """Query PostgreSQL for pending cases. Returns {case_id: pdf_url}."""
     try:
         import psycopg
     except ImportError:
-        logger.warning("psycopg not installed, falling back to manifest file")
-        return set()
+        logger.warning("psycopg not installed")
+        return {}
 
     db_url = _get_sync_db_url()
     if not db_url:
         logger.warning("DATABASE_URL not configured, cannot query pending cases")
-        return set()
+        return {}
 
     try:
         with psycopg.connect(db_url, prepare_threshold=0) as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT case_id FROM pipeline_cases WHERE status IN ('pending', 'downloaded')"
+                    "SELECT case_id, pdf_url FROM pipeline_cases WHERE status IN ('pending', 'downloaded')"
                 )
-                ids = {row[0] for row in cur.fetchall()}
-                logger.info(f"Found {len(ids)} pending cases in PostgreSQL")
-                return ids
+                cases = {row[0]: row[1] for row in cur.fetchall()}
+                logger.info(f"Found {len(cases)} pending cases in PostgreSQL")
+                return cases
     except Exception as e:
         logger.error(f"Failed to query pending cases from PostgreSQL: {e}")
-        return set()
+        return {}
 
 
 def update_db_statuses(case_ids: Set[str]) -> int:
@@ -181,76 +181,143 @@ class CaseMetadataExtractor:
 # PDF loading
 # ---------------------------------------------------------------------------
 
+def _download_pdf(pdf_url: str, dest_path: Path) -> bool:
+    """Download a PDF from a URL to a local path. Returns True on success."""
+    import requests
+    try:
+        resp = requests.get(pdf_url, timeout=60, stream=True, headers={
+            "User-Agent": "Mozilla/5.0 GhanaLegalAI/1.0"
+        })
+        resp.raise_for_status()
+        content = resp.content
+        if len(content) < 100:
+            logger.warning(f"PDF too small ({len(content)} bytes), skipping")
+            return False
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        dest_path.write_bytes(content)
+        logger.info(f"Downloaded PDF: {dest_path.name} ({len(content)/1024:.1f} KB)")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to download {pdf_url}: {e}")
+        return False
+
+
 def load_pdf_documents(data_dirs: List[Path], max_cases: int = 10) -> List[Document]:
     """Load Constitution PDFs and pending case PDFs incrementally.
 
     - Always loads Constitution PDFs (no filtering).
     - For case directories, only loads PDFs that are 'pending' in PostgreSQL.
+    - If a pending case's PDF is not on disk, downloads it from pdf_url.
     - Caps case loading at max_cases to stay within Modal timeout limits.
     """
     all_documents = []
 
-    # Get pending case IDs from PostgreSQL
-    pending_case_ids = get_pending_case_ids_from_db()
-    pending_filenames = {f"{cid}.pdf" for cid in pending_case_ids}
+    # Get pending cases from PostgreSQL: {case_id: pdf_url}
+    pending_cases = get_pending_cases_from_db()
+    pending_filenames = {f"{cid}.pdf" for cid in pending_cases}
 
     logger.info(f"Targeting {len(pending_filenames)} pending cases for ingestion")
 
+    # --- Load constitution PDFs (always, no filtering) ---
     for data_dir in data_dirs:
         if not data_dir.exists():
-            logger.warning(f"Directory not found, skipping: {data_dir}")
             continue
+        if "cases" in data_dir.name.lower():
+            continue  # handle case dirs separately below
 
         pdf_files = sorted(data_dir.rglob("*.pdf"))
-
-        # For case directories: filter to pending-only and cap
-        is_case_dir = "cases" in data_dir.name.lower()
-        if is_case_dir:
-            if not pending_filenames:
-                logger.info(f"No pending cases in DB — skipping {data_dir.name}/")
-                continue
-            pdf_files = [p for p in pdf_files if p.name in pending_filenames]
-            pdf_files = pdf_files[:max_cases]
-
         if not pdf_files:
-            logger.info(f"No eligible PDFs in {data_dir.name}")
             continue
 
-        label = "case" if is_case_dir else "constitution"
-        logger.info(f"Loading {len(pdf_files)} {label} PDF(s) from {data_dir.name}/")
-
+        logger.info(f"Loading {len(pdf_files)} constitution PDF(s) from {data_dir.name}/")
         for pdf_path in tqdm(pdf_files, desc=f"Loading {data_dir.name}", unit="file"):
             try:
                 loader = PyPDFLoader(str(pdf_path))
                 pages = loader.load()
-
                 if not pages:
-                    logger.warning(f"No content extracted from {pdf_path.name}")
                     continue
 
                 file_metadata = CaseMetadataExtractor.extract_from_filename(pdf_path.name)
-
-                # Determine source type
-                source_type = "constitution" if "constitution" in str(data_dir).lower() or "constitution" in pdf_path.name.lower() else "case_law"
-                file_metadata["source_type"] = source_type
+                file_metadata["source_type"] = "constitution"
                 file_metadata["source"] = str(pdf_path)
                 file_metadata["total_pages"] = len(pages)
                 file_metadata["ingestion_date"] = datetime.now().isoformat()
-                # case_id = filename stem; the canonical key used by pipeline_cases
-                # in PostgreSQL and what the citation validator will bind against.
                 file_metadata["case_id"] = pdf_path.stem
 
-                # Emit one Document per page so paragraph_id can carry page number.
                 for page_idx, page in enumerate(pages):
                     page_meta = {**file_metadata, "page_number": page_idx + 1}
                     all_documents.append(
                         Document(page_content=page.page_content, metadata=page_meta)
                     )
-
                 logger.success(f"✓ Loaded: {pdf_path.name} ({len(pages)} pages)")
-
             except Exception as e:
                 logger.error(f"✗ Failed to load {pdf_path.name}: {e}")
+
+    # --- Load case PDFs (filtered to pending, with on-the-fly download) ---
+    if not pending_cases:
+        logger.info("No pending cases in DB — skipping case ingestion")
+        logger.info(f"\nTotal documents loaded: {len(all_documents)}")
+        return all_documents
+
+    # Collect case PDFs: first check disk, then download missing ones
+    case_pdfs_to_load: List[Path] = []
+
+    # Check all case directories for existing PDFs
+    existing_on_disk: Dict[str, Path] = {}
+    for data_dir in data_dirs:
+        if not data_dir.exists() or "cases" not in data_dir.name.lower():
+            continue
+        for pdf in data_dir.rglob("*.pdf"):
+            if pdf.name in pending_filenames:
+                existing_on_disk[pdf.stem] = pdf
+
+    # For pending cases not on disk, download from pdf_url
+    import tempfile
+    tmp_dir = Path(tempfile.mkdtemp(prefix="legal_ingest_"))
+
+    cases_to_process = list(pending_cases.keys())[:max_cases]
+    for case_id in cases_to_process:
+        if case_id in existing_on_disk:
+            case_pdfs_to_load.append(existing_on_disk[case_id])
+        else:
+            # Download on-the-fly
+            pdf_url = pending_cases.get(case_id)
+            if not pdf_url:
+                logger.warning(f"No pdf_url for {case_id}, skipping")
+                continue
+            dest = tmp_dir / f"{case_id}.pdf"
+            if _download_pdf(pdf_url, dest):
+                case_pdfs_to_load.append(dest)
+
+    if not case_pdfs_to_load:
+        logger.info("No case PDFs to load after filtering + download")
+        logger.info(f"\nTotal documents loaded: {len(all_documents)}")
+        return all_documents
+
+    logger.info(f"Loading {len(case_pdfs_to_load)} case PDF(s)")
+    for pdf_path in tqdm(case_pdfs_to_load, desc="Loading cases", unit="file"):
+        try:
+            loader = PyPDFLoader(str(pdf_path))
+            pages = loader.load()
+            if not pages:
+                logger.warning(f"No content extracted from {pdf_path.name}")
+                continue
+
+            file_metadata = CaseMetadataExtractor.extract_from_filename(pdf_path.name)
+            file_metadata["source_type"] = "case_law"
+            file_metadata["source"] = str(pdf_path)
+            file_metadata["total_pages"] = len(pages)
+            file_metadata["ingestion_date"] = datetime.now().isoformat()
+            file_metadata["case_id"] = pdf_path.stem
+
+            for page_idx, page in enumerate(pages):
+                page_meta = {**file_metadata, "page_number": page_idx + 1}
+                all_documents.append(
+                    Document(page_content=page.page_content, metadata=page_meta)
+                )
+            logger.success(f"✓ Loaded: {pdf_path.name} ({len(pages)} pages)")
+        except Exception as e:
+            logger.error(f"✗ Failed to load {pdf_path.name}: {e}")
 
     logger.info(f"\nTotal documents loaded: {len(all_documents)}")
     return all_documents
