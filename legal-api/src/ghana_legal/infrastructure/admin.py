@@ -499,7 +499,6 @@ async def _run_ingestion(run_id: int):
 
 @router.post("/pipeline/trigger-ingestion")
 async def trigger_ingestion(
-    background_tasks: BackgroundTasks,
     user: dict = Depends(require_admin),
 ):
     """Trigger case ingestion as a dedicated Modal function.
@@ -508,8 +507,9 @@ async def trigger_ingestion(
     Only one ingestion can run at a time. State is persisted in PostgreSQL so it
     survives container replicas and restarts.
 
-    In production (Modal), spawns the `run_ingestion` function in its own
-    container with a 30-min timeout. Falls back to subprocess for local dev.
+    Spawns the `run_ingestion` function in its own Modal container with a
+    30-min timeout. If Modal dispatch fails, the run is immediately marked
+    as failed (no unreliable subprocess fallback).
     """
     from ghana_legal.infrastructure.database import get_session
     from ghana_legal.domain.models import IngestionRun
@@ -546,22 +546,59 @@ async def trigger_ingestion(
         await session.flush()  # populate new_run.id before commit
         run_id = new_run.id
 
-    # Try to spawn the dedicated Modal function (production).
-    # Falls back to subprocess background task (local dev / non-Modal).
-    dispatch_method = "subprocess"
+    # --- Spawn the dedicated Modal function ---
+    dispatch_error = None
+    dispatch_method = "failed"
+
     try:
         import modal
-        fn = modal.Function.from_name("ghana-legal-ai", "run_ingestion")
+
+        # Try both Modal APIs (lookup = newer, from_name = older)
+        fn = None
+        for method_name, method in [
+            ("lookup", getattr(modal.Function, "lookup", None)),
+            ("from_name", getattr(modal.Function, "from_name", None)),
+        ]:
+            if method is None:
+                continue
+            try:
+                fn = method("ghana-legal-ai", "run_ingestion")
+                logger.info(f"Modal function resolved via {method_name}")
+                break
+            except Exception as lookup_err:
+                logger.warning(f"Modal {method_name} failed: {lookup_err}")
+                continue
+
+        if fn is None:
+            raise RuntimeError("Could not resolve Modal function via lookup or from_name")
+
         fn.spawn(run_id=run_id, max_cases=10)
         dispatch_method = "modal"
-        logger.info(f"Spawned Modal run_ingestion function for run_id={run_id}")
+        logger.info(f"✓ Spawned Modal run_ingestion for run_id={run_id}")
+
     except Exception as e:
-        logger.warning(f"Modal dispatch failed ({e}), falling back to subprocess")
-        background_tasks.add_task(_run_ingestion, run_id)
+        dispatch_error = str(e)
+        logger.error(f"✗ Modal dispatch FAILED: {e}")
+
+        # Mark run as failed immediately — no unreliable subprocess fallback
+        async with get_session() as session:
+            await session.execute(
+                update(IngestionRun)
+                .where(IngestionRun.id == run_id)
+                .values(
+                    status="failed",
+                    completed_at=datetime.now(timezone.utc),
+                    error=f"Modal dispatch failed: {e}",
+                )
+            )
 
     return {
-        "success": True,
-        "message": f"Ingestion triggered via {dispatch_method}. Poll /api/admin/pipeline/ingestion-status for progress.",
+        "success": dispatch_method == "modal",
+        "message": (
+            f"Ingestion triggered via {dispatch_method}. Poll /api/admin/pipeline/ingestion-status for progress."
+            if dispatch_method == "modal"
+            else f"Failed to spawn ingestion: {dispatch_error}"
+        ),
         "run_id": run_id,
         "dispatch": dispatch_method,
     }
