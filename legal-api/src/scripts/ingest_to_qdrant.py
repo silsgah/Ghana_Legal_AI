@@ -88,7 +88,7 @@ def get_pending_cases_from_db() -> Dict[str, str]:
         return {}
 
     try:
-        with psycopg.connect(db_url, prepare_threshold=0) as conn:
+        with psycopg.connect(db_url, prepare_threshold=None) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT case_id, pdf_url FROM pipeline_cases WHERE status IN ('pending', 'downloaded')"
@@ -118,7 +118,7 @@ def update_db_statuses(case_ids: Set[str]) -> int:
         return 0
 
     try:
-        with psycopg.connect(db_url, prepare_threshold=0) as conn:
+        with psycopg.connect(db_url, prepare_threshold=None) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "UPDATE pipeline_cases SET status = 'indexed', updated_at = NOW() "

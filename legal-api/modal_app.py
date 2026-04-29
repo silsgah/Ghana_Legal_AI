@@ -94,7 +94,7 @@ def run_ingestion(run_id: int, max_cases: int = 10):
                 set_parts.append(f"{key} = %s")
                 values.append(json.dumps(val) if isinstance(val, dict) else val)
             values.append(run_id)
-            with psycopg.connect(db_url, prepare_threshold=0) as conn:
+            with psycopg.connect(db_url, prepare_threshold=None) as conn:
                 with conn.cursor() as cur:
                     cur.execute(
                         f"UPDATE ingestion_runs SET {', '.join(set_parts)} WHERE id = %s",
@@ -108,7 +108,7 @@ def run_ingestion(run_id: int, max_cases: int = 10):
     # --- Step 0: Verify DB connection ---
     try:
         import psycopg
-        with psycopg.connect(db_url, prepare_threshold=0) as conn:
+        with psycopg.connect(db_url, prepare_threshold=None) as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT 1")
         logger.info("✓ Step 0: DB connection verified")
@@ -264,7 +264,7 @@ def run_discovery(run_id: int, max_pages: int = 5):
         values.append(run_id)
 
         try:
-            with psycopg.connect(db_url, prepare_threshold=0) as conn:
+            with psycopg.connect(db_url, prepare_threshold=None) as conn:
                 with conn.cursor() as cur:
                     cur.execute(
                         f"UPDATE discovery_runs SET {', '.join(set_parts)} WHERE id = %s",

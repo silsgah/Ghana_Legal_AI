@@ -189,7 +189,7 @@ def get_existing_case_ids() -> Set[str]:
 
     try:
         import psycopg
-        with psycopg.connect(db_url, prepare_threshold=0) as conn:
+        with psycopg.connect(db_url, prepare_threshold=None) as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT case_id FROM pipeline_cases")
                 ids = {row[0] for row in cur.fetchall()}
@@ -223,7 +223,7 @@ def insert_new_cases(cases: List[Dict]) -> int:
             for case in cases
         ]
 
-        with psycopg.connect(db_url, prepare_threshold=0) as conn:
+        with psycopg.connect(db_url, prepare_threshold=None) as conn:
             with conn.cursor() as cur:
                 # Use executemany — ON CONFLICT DO NOTHING skips duplicates
                 cur.executemany(
