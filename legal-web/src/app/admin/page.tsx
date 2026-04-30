@@ -567,9 +567,9 @@ export default function AdminPage() {
                             <BreakdownCard title="By Status" items={Object.entries(stats.by_status).map(([k, v]) => ({
                                 label: k, value: v, color: STATUS_CONFIG[k]?.color || 'var(--muted-foreground)',
                             }))} />
-                            <BreakdownCard title="By Court" items={Object.entries(stats.by_court).map(([k, v]) => ({
-                                label: COURT_NAMES[k] || k, value: v, color: 'var(--ghana-gold)',
-                            }))} />
+                            <CourtBreakdownCard title="By Court" items={Object.entries(stats.by_court)
+                                .map(([k, v]) => ({ label: COURT_NAMES[k] || k, value: v }))
+                                .sort((a, b) => b.value - a.value)} />
                         </div>
 
                         {/* Pipeline Operations — Discovery + Ingestion */}
@@ -1151,14 +1151,62 @@ function BreakdownCard({ title, items }: { title: string; items: { label: string
             <h3 className="text-sm font-semibold mb-4" style={{ color: 'var(--foreground)' }}>{title}</h3>
             <div className="space-y-3">
                 {items.map(({ label, value, color }) => (
-                    <div key={label} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full" style={{ background: color }} />
-                            <span className="text-sm capitalize" style={{ color: 'var(--foreground)' }}>{label}</span>
+                    <div key={label} className="flex items-center justify-between gap-3 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+                            <span className="text-sm capitalize truncate" style={{ color: 'var(--foreground)' }}>{label}</span>
                         </div>
-                        <span className="text-sm font-mono font-semibold" style={{ color }}>{value}</span>
+                        <span className="text-sm font-mono font-semibold tabular-nums shrink-0" style={{ color }}>{value.toLocaleString()}</span>
                     </div>
                 ))}
+            </div>
+        </div>
+    );
+}
+
+function CourtBreakdownCard({ title, items }: { title: string; items: { label: string; value: number }[] }) {
+    const total = items.reduce((sum, i) => sum + i.value, 0);
+    const max = Math.max(...items.map(i => i.value), 1);
+
+    return (
+        <div className="p-5 rounded-xl" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+            <div className="flex items-center justify-between mb-4 gap-3">
+                <h3 className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>{title}</h3>
+                <span className="text-xs font-mono tabular-nums" style={{ color: 'var(--muted-foreground)' }}>
+                    {total.toLocaleString()} total
+                </span>
+            </div>
+            <div className="space-y-3">
+                {items.map(({ label, value }) => {
+                    const pct = total > 0 ? (value / total) * 100 : 0;
+                    const barWidth = (value / max) * 100;
+                    return (
+                        <div key={label} className="min-w-0">
+                            <div className="flex items-baseline justify-between gap-3 mb-1.5 min-w-0">
+                                <span className="text-sm truncate" style={{ color: 'var(--foreground)' }} title={label}>
+                                    {label}
+                                </span>
+                                <div className="flex items-baseline gap-2 shrink-0">
+                                    <span className="text-xs font-mono tabular-nums" style={{ color: 'var(--muted-foreground)' }}>
+                                        {pct.toFixed(1)}%
+                                    </span>
+                                    <span className="text-sm font-mono font-semibold tabular-nums" style={{ color: 'var(--ghana-gold)' }}>
+                                        {value.toLocaleString()}
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--surface-2, rgba(127,127,127,0.15))' }}>
+                                <div
+                                    className="h-full rounded-full transition-all duration-500"
+                                    style={{ width: `${barWidth}%`, background: 'var(--ghana-gold)' }}
+                                />
+                            </div>
+                        </div>
+                    );
+                })}
+                {items.length === 0 && (
+                    <div className="text-sm" style={{ color: 'var(--muted-foreground)' }}>No data</div>
+                )}
             </div>
         </div>
     );
