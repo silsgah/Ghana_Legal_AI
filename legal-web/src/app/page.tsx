@@ -74,46 +74,83 @@ function DatabaseStats() {
 
     const filteredCourts = Object.entries(stats.by_court)
         .filter(([id, count]) => id !== 'UNKNOWN' && count > 0)
-        .sort((a, b) => b[1] - a[1]);
+        .map(([id, count]) => ({ id, label: COURT_NAMES[id] || id, value: count }))
+        .sort((a, b) => b.value - a.value);
+
+    const total = filteredCourts.reduce((sum, c) => sum + c.value, 0);
+    const max = Math.max(...filteredCourts.map(c => c.value), 1);
 
     return (
-        <section className="px-6 max-w-6xl mx-auto -mt-8 mb-20 relative z-10 animate-fade-in flex justify-center">
-            <div className="rounded-2xl p-6 lg:p-8 lg:px-10 flex flex-col lg:flex-row items-center justify-center gap-8 lg:gap-12 overflow-hidden w-fit max-w-full inline-flex"
+        <section className="px-6 max-w-3xl mx-auto -mt-8 mb-20 relative z-10 animate-fade-in">
+            <div className="rounded-2xl p-6 lg:p-8"
                  style={{
                      background: 'rgba(12, 14, 20, 0.7)',
                      backdropFilter: 'blur(20px)',
                      border: '1px solid rgba(255, 255, 255, 0.1)',
                      boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
                  }}>
-                
-                {/* Global Total */}
-                <div className="flex items-center gap-5 shrink-0 lg:pr-12 lg:border-r border-white/10">
-                    <div className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.05)' }}>
-                        <Database size={24} style={{ color: 'var(--ghana-gold)' }} />
+
+                {/* Header: icon + total */}
+                <div className="flex items-center justify-between gap-4 mb-6 pb-5 border-b border-white/10">
+                    <div className="flex items-center gap-4 min-w-0">
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+                             style={{ background: 'rgba(255,255,255,0.05)' }}>
+                            <Database size={22} style={{ color: 'var(--ghana-gold)' }} />
+                        </div>
+                        <div className="min-w-0">
+                            <div className="text-[11px] font-bold uppercase tracking-widest text-[#a1a1aa] mb-0.5">
+                                Database Statistics
+                            </div>
+                            <div className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
+                                Judgments indexed across Ghanaian courts
+                            </div>
+                        </div>
                     </div>
-                    <div className="whitespace-nowrap">
-                        <div className="text-[11px] font-bold uppercase tracking-widest text-[#a1a1aa] mb-1">Database Statistics</div>
-                        <div className="text-4xl font-extrabold text-white flex items-baseline gap-2">
-                            <span>{stats.total_cases.toLocaleString()}</span>
-                            <span className="text-base font-medium" style={{ color: 'var(--muted-foreground)' }}>Indexed Cases</span>
+                    <div className="text-right shrink-0">
+                        <div className="text-3xl sm:text-4xl font-extrabold tabular-nums bg-clip-text text-transparent leading-none"
+                             style={{ backgroundImage: 'linear-gradient(135deg, var(--ghana-gold), #fff)' }}>
+                            {stats.total_cases.toLocaleString()}
+                        </div>
+                        <div className="text-[11px] font-semibold uppercase tracking-wider mt-1"
+                             style={{ color: 'var(--muted-foreground)' }}>
+                            Total Cases
                         </div>
                     </div>
                 </div>
-                
-                {/* Court Breakdown */}
-                <div className="flex items-center gap-10 lg:gap-12 overflow-x-auto pb-4 lg:pb-0 shrink-0 justify-start"
-                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                    {filteredCourts.map(([id, count]) => (
-                        <div key={id} className="text-left shrink-0 whitespace-nowrap">
-                            <div className="text-[11px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--muted-foreground)' }}>
-                                {COURT_NAMES[id] || id}
+
+                {/* Court breakdown — bar chart */}
+                <div className="space-y-3.5">
+                    {filteredCourts.map(({ id, label, value }) => {
+                        const pct = total > 0 ? (value / total) * 100 : 0;
+                        const barWidth = (value / max) * 100;
+                        return (
+                            <div key={id} className="min-w-0">
+                                <div className="flex items-baseline justify-between gap-3 mb-1.5 min-w-0">
+                                    <span className="text-sm font-medium truncate text-white" title={label}>
+                                        {label}
+                                    </span>
+                                    <div className="flex items-baseline gap-2 shrink-0">
+                                        <span className="text-[11px] font-mono tabular-nums"
+                                              style={{ color: 'var(--muted-foreground)' }}>
+                                            {pct.toFixed(1)}%
+                                        </span>
+                                        <span className="text-sm font-mono font-semibold tabular-nums"
+                                              style={{ color: 'var(--ghana-gold)' }}>
+                                            {value.toLocaleString()}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="h-2 rounded-full overflow-hidden"
+                                     style={{ background: 'rgba(255,255,255,0.06)' }}>
+                                    <div className="h-full rounded-full transition-all duration-700"
+                                         style={{
+                                             width: `${barWidth}%`,
+                                             background: 'linear-gradient(90deg, var(--ghana-gold), #e6a817)',
+                                         }} />
+                                </div>
                             </div>
-                            <div className="text-3xl font-bold bg-clip-text text-transparent"
-                                 style={{ backgroundImage: 'linear-gradient(135deg, var(--ghana-gold), #fff)' }}>
-                                {count.toLocaleString()}
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </div>
         </section>
