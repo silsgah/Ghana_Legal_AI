@@ -16,7 +16,7 @@ import re
 import time
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 from urllib.parse import urljoin
 
 import requests
@@ -107,19 +107,39 @@ def _get_sync_db_url() -> Optional[str]:
 def discover_cases_from_ghalii(
     max_pages: int = DEFAULT_MAX_PAGES,
     request_delay: float = DEFAULT_REQUEST_DELAY,
-) -> List[Dict]:
+    start_page: int = 1,
+    sort_order: str = "-date",
+) -> Tuple[List[Dict], Dict[str, int]]:
     """Scrape ghalii.org/judgments/all/ for case listings.
 
-    Returns list of dicts: {case_id, url, pdf_url, title, court_id}
+    Args:
+        max_pages: how many pages to scrape (a "batch").
+        request_delay: seconds to sleep between page fetches.
+        start_page: page index to start from (1-based).
+        sort_order: ghalii sort param. ``-date`` = newest first (incremental),
+                    ``date`` = oldest first (backfill — page numbers stable
+                    because new uploads extend the back of pagination).
+
+    Returns:
+        (cases, meta) where meta = {
+            'pages_scraped': int,           # how many pages actually fetched
+            'last_page_attempted': int,
+            'reached_end': bool,            # True if a page returned 0 cases (end of pagination)
+        }
     """
     from bs4 import BeautifulSoup
 
     session = _make_session()
-    all_cases = []
+    all_cases: List[Dict] = []
     seen_urls: Set[str] = set()
+    end_page = start_page + max_pages - 1
+    last_page = start_page - 1
+    reached_end = False
+    pages_scraped = 0
 
-    for page in range(1, max_pages + 1):
-        url = f"{ALL_JUDGMENTS_URL}?page={page}&sort=-date"
+    for page in range(start_page, end_page + 1):
+        last_page = page
+        url = f"{ALL_JUDGMENTS_URL}?page={page}&sort={sort_order}"
         logger.info(f"Fetching listing page {page}: {url}")
 
         try:
@@ -153,8 +173,11 @@ def discover_cases_from_ghalii(
                 "court_id": court_id_from_url(full_url),
             })
 
+        pages_scraped += 1
+
         if not page_cases:
-            logger.info(f"No cases found on page {page}, stopping pagination.")
+            logger.info(f"No cases found on page {page} — end of pagination.")
+            reached_end = True
             break
 
         new_count = 0
@@ -166,14 +189,24 @@ def discover_cases_from_ghalii(
 
         logger.info(f"Page {page}: found {new_count} new cases (total: {len(all_cases)})")
 
+        # Within-session dedup: if a page returned only URLs we've already
+        # collected this run, ghalii is repeating itself — usually the end of
+        # pagination wrapping back. Treat as end-of-listing.
         if new_count == 0:
-            logger.info("No new cases on this page, stopping.")
+            logger.info("Page returned only already-seen URLs — treating as end of pagination.")
+            reached_end = True
             break
 
-        time.sleep(request_delay)
+        if page < end_page:
+            time.sleep(request_delay)
 
-    logger.info(f"Discovery complete: {len(all_cases)} total cases from {min(page, max_pages)} pages")
-    return all_cases
+    meta = {
+        "pages_scraped": pages_scraped,
+        "last_page_attempted": last_page,
+        "reached_end": reached_end,
+    }
+    logger.info(f"Scrape batch complete: {len(all_cases)} cases, meta={meta}")
+    return all_cases, meta
 
 
 # ---------------------------------------------------------------------------
@@ -303,66 +336,181 @@ def download_case_pdfs(
 
 
 # ---------------------------------------------------------------------------
+# Discovery state (cursor)
+# ---------------------------------------------------------------------------
+
+DEFAULT_BACKFILL_BATCH_SIZE = 5
+INCREMENTAL_PAGES = 2  # newest-first pages to scan in incremental mode
+
+
+def get_discovery_state() -> Dict:
+    """Read the singleton discovery_state row, creating it if missing."""
+    db_url = _get_sync_db_url()
+    if not db_url:
+        return {
+            "mode": "backfill",
+            "backfill_next_page": 1,
+            "batch_size": DEFAULT_BACKFILL_BATCH_SIZE,
+            "backfill_completed_at": None,
+        }
+
+    import psycopg
+    with psycopg.connect(db_url, prepare_threshold=None) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT mode, backfill_next_page, batch_size, backfill_completed_at "
+                "FROM discovery_state WHERE id = 1"
+            )
+            row = cur.fetchone()
+            if row is None:
+                cur.execute(
+                    "INSERT INTO discovery_state (id, mode, backfill_next_page, batch_size, updated_at) "
+                    "VALUES (1, 'backfill', 1, %s, NOW()) ON CONFLICT (id) DO NOTHING",
+                    (DEFAULT_BACKFILL_BATCH_SIZE,),
+                )
+                conn.commit()
+                return {
+                    "mode": "backfill",
+                    "backfill_next_page": 1,
+                    "batch_size": DEFAULT_BACKFILL_BATCH_SIZE,
+                    "backfill_completed_at": None,
+                }
+            return {
+                "mode": row[0],
+                "backfill_next_page": row[1],
+                "batch_size": row[2],
+                "backfill_completed_at": row[3],
+            }
+
+
+def update_discovery_state(**fields) -> None:
+    """Update arbitrary columns on the singleton discovery_state row."""
+    if not fields:
+        return
+    db_url = _get_sync_db_url()
+    if not db_url:
+        return
+    set_parts = [f"{k} = %s" for k in fields]
+    set_parts.append("updated_at = NOW()")
+    values = list(fields.values())
+
+    import psycopg
+    with psycopg.connect(db_url, prepare_threshold=None) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"UPDATE discovery_state SET {', '.join(set_parts)} WHERE id = 1",
+                values,
+            )
+        conn.commit()
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
-def run_discovery(max_pages: int = 5, data_dir: Optional[Path] = None) -> Dict:
-    """Full discovery pipeline: scrape → filter → download → insert to DB.
+def run_discovery(
+    max_pages: Optional[int] = None,
+    data_dir: Optional[Path] = None,
+    batch_size_override: Optional[int] = None,
+) -> Dict:
+    """Mode-aware discovery: scrape → filter → download → insert.
 
-    Returns summary dict.
+    Reads ``discovery_state`` for the current cursor and mode.
+
+    - **Backfill mode** (default while archiving the historical corpus):
+      walks pages ascending by date with a stable cursor. Each run scrapes
+      ``batch_size`` pages starting at ``backfill_next_page`` and advances
+      the cursor on success. When pagination exhausts (a page returns 0
+      cases), mode flips to 'incremental'.
+    - **Incremental mode**: scrapes the first ``INCREMENTAL_PAGES`` pages
+      newest-first. Dedup catches anything we already have; the rest is
+      genuinely new.
+
+    ``max_pages`` is accepted for backwards compat with old call sites but
+    only honored as a one-off override in incremental mode.
     """
     if data_dir is None:
         data_dir = Path("/data")
 
-    logger.info(f"=== Starting case discovery (max_pages={max_pages}) ===")
+    state = get_discovery_state()
+    mode = state["mode"]
+    batch_size = batch_size_override or state["batch_size"] or DEFAULT_BACKFILL_BATCH_SIZE
 
-    # Step 1: Scrape ghalii.org
-    scraped = discover_cases_from_ghalii(max_pages=max_pages)
-
-    if not scraped:
-        return {
-            "scraped": 0,
-            "new": 0,
-            "already_known": 0,
-            "downloaded": 0,
-            "download_failed": 0,
-            "inserted": 0,
-        }
-
-    # Step 2: Filter to only new cases
-    existing_ids = get_existing_case_ids()
-    new_cases = [c for c in scraped if c["case_id"] not in existing_ids]
-    already_known = len(scraped) - len(new_cases)
+    if mode == "backfill":
+        start_page = state["backfill_next_page"] or 1
+        sort_order = "date"  # ascending — oldest first, page numbers stable
+        pages_to_scrape = batch_size
+    else:
+        start_page = 1
+        sort_order = "-date"  # descending — newest first
+        pages_to_scrape = max_pages or INCREMENTAL_PAGES
 
     logger.info(
-        f"Scraped {len(scraped)} cases: {len(new_cases)} new, {already_known} already known"
+        f"=== Discovery starting (mode={mode}, sort={sort_order}, "
+        f"start_page={start_page}, batch={pages_to_scrape}) ==="
     )
 
-    if not new_cases:
-        return {
-            "scraped": len(scraped),
-            "new": 0,
-            "already_known": already_known,
-            "downloaded": 0,
-            "download_failed": 0,
-            "inserted": 0,
-        }
+    # Step 1: Scrape
+    scraped, scrape_meta = discover_cases_from_ghalii(
+        max_pages=pages_to_scrape,
+        start_page=start_page,
+        sort_order=sort_order,
+    )
 
-    # Step 3: Insert new cases into PostgreSQL immediately (status='pending')
-    # Don't gate insertion on PDF download — PDFs in Modal containers are
-    # ephemeral anyway. The ingestion script downloads from pdf_url on-the-fly.
-    inserted = insert_new_cases(new_cases)
-
-    # Step 4: Best-effort PDF download (useful for local dev, skippable in Modal)
+    # Step 2: Dedup against pipeline_cases
+    new_cases: List[Dict] = []
+    already_known = 0
+    inserted = 0
     dl_stats = {"downloaded": 0, "skipped": 0, "failed": 0}
-    try:
-        dl_stats = download_case_pdfs(new_cases, data_dir)
+
+    if scraped:
+        existing_ids = get_existing_case_ids()
+        new_cases = [c for c in scraped if c["case_id"] not in existing_ids]
+        already_known = len(scraped) - len(new_cases)
         logger.info(
-            f"Download results: {dl_stats['downloaded']} downloaded, "
-            f"{dl_stats['skipped']} skipped, {dl_stats['failed']} failed"
+            f"Scraped {len(scraped)} cases: {len(new_cases)} new, "
+            f"{already_known} already known"
         )
-    except Exception as e:
-        logger.warning(f"PDF download step failed (non-blocking): {e}")
+
+        if new_cases:
+            # Step 3: Insert into PostgreSQL (status='pending')
+            inserted = insert_new_cases(new_cases)
+
+            # Step 4: Best-effort PDF download
+            try:
+                dl_stats = download_case_pdfs(new_cases, data_dir)
+                logger.info(
+                    f"Download results: {dl_stats['downloaded']} downloaded, "
+                    f"{dl_stats['skipped']} skipped, {dl_stats['failed']} failed"
+                )
+            except Exception as e:
+                logger.warning(f"PDF download step failed (non-blocking): {e}")
+
+    # Step 5: Advance cursor / flip mode
+    cursor_before = start_page
+    cursor_after = start_page
+    flipped_to_incremental = False
+
+    if mode == "backfill":
+        if scrape_meta["reached_end"]:
+            # Pagination exhausted — backfill is complete.
+            from datetime import datetime, timezone
+            update_discovery_state(
+                mode="incremental",
+                backfill_completed_at=datetime.now(timezone.utc),
+            )
+            flipped_to_incremental = True
+            logger.success("Backfill complete — switching to incremental mode.")
+        else:
+            cursor_after = start_page + scrape_meta["pages_scraped"]
+            update_discovery_state(backfill_next_page=cursor_after)
+
+    summary_text = (
+        f"Scraped {len(scraped)} cases from ghalii.org. "
+        f"Found {len(new_cases)} new cases. "
+        f"Downloaded {dl_stats['downloaded']} PDFs. "
+        f"Inserted {inserted} into pipeline."
+    )
 
     summary = {
         "scraped": len(scraped),
@@ -372,6 +520,13 @@ def run_discovery(max_pages: int = 5, data_dir: Optional[Path] = None) -> Dict:
         "download_skipped": dl_stats.get("skipped", 0),
         "download_failed": dl_stats.get("failed", 0),
         "inserted": inserted,
+        "mode": mode,
+        "cursor_before": cursor_before,
+        "cursor_after": cursor_after,
+        "pages_scraped": scrape_meta["pages_scraped"],
+        "reached_end": scrape_meta["reached_end"],
+        "flipped_to_incremental": flipped_to_incremental,
+        "summary": summary_text,
     }
 
     logger.info(f"=== Discovery complete: {summary} ===")
@@ -386,10 +541,13 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Discover new cases from ghalii.org")
-    parser.add_argument("--pages", type=int, default=5, help="Max pages to scrape")
+    parser.add_argument(
+        "--batch-size", type=int, default=None,
+        help="Pages to scrape this run (overrides discovery_state.batch_size)",
+    )
     parser.add_argument("--data-dir", type=str, default=None, help="Data directory")
     args = parser.parse_args()
 
     data_dir = Path(args.data_dir) if args.data_dir else None
-    result = run_discovery(max_pages=args.pages, data_dir=data_dir)
+    result = run_discovery(batch_size_override=args.batch_size, data_dir=data_dir)
     print(f"\nResult: {result}")

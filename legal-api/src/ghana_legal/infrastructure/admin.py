@@ -663,18 +663,28 @@ async def ingestion_status(user: dict = Depends(require_admin)):
 DISCOVERY_STALE_AFTER = timedelta(minutes=35)
 
 
+class TriggerDiscoveryBody(BaseModel):
+    batch_size: Optional[int] = None  # one-off override of discovery_state.batch_size
+
+
 @router.post("/pipeline/trigger-discovery")
 async def trigger_discovery(
+    body: TriggerDiscoveryBody = TriggerDiscoveryBody(),
     user: dict = Depends(require_admin),
 ):
-    """Trigger case discovery: scrape ghalii.org for new cases.
+    """Trigger case discovery: scrape ghalii.org for new or archived cases.
 
     Returns immediately — poll GET /api/admin/pipeline/discovery-status.
     Spawns a dedicated Modal function that:
-      1. Scrapes ghalii.org/judgments/all/ (newest first)
-      2. Filters out already-known cases
-      3. Downloads PDFs for new cases
-      4. Inserts new rows into pipeline_cases (status='pending')
+      1. Reads discovery_state for the current cursor + mode (backfill/incremental)
+      2. Scrapes the appropriate page range from ghalii.org
+      3. Filters out already-known cases
+      4. Downloads PDFs for new cases
+      5. Inserts new rows into pipeline_cases (status='pending')
+      6. Advances the cursor (backfill) or flips to incremental at end of pagination
+
+    Optional ``batch_size`` body field overrides the cursor's batch size for
+    this run only — useful for kicking off a deeper one-off backfill.
     """
     from ghana_legal.infrastructure.database import get_session
     from ghana_legal.domain.models import DiscoveryRun
@@ -715,9 +725,12 @@ async def trigger_discovery(
     try:
         import modal
         fn = modal.Function.from_name("ghana-legal-ai", "run_discovery")
-        fn.spawn(run_id=run_id, max_pages=5)
+        fn.spawn(run_id=run_id, batch_size=body.batch_size)
         dispatch_method = "modal"
-        logger.info(f"Spawned Modal run_discovery function for run_id={run_id}")
+        logger.info(
+            f"Spawned Modal run_discovery for run_id={run_id} "
+            f"batch_size={body.batch_size}"
+        )
     except Exception as e:
         logger.error(f"Failed to spawn discovery: {e}")
         # Mark the run as failed since we can't run discovery locally easily
@@ -789,4 +802,42 @@ async def discovery_status(user: dict = Depends(require_admin)):
             "error": None,
         }
     return _serialize_run(run)
+
+
+@router.get("/pipeline/discovery-state")
+async def discovery_state(user: dict = Depends(require_admin)):
+    """Return the discovery cursor: mode, next page, batch size.
+
+    Used by the admin UI to show progress through the ghalii.org backfill.
+    """
+    from ghana_legal.infrastructure.database import get_session
+    from ghana_legal.domain.models import DiscoveryState
+    from sqlalchemy import select
+
+    async with get_session() as session:
+        result = await session.execute(
+            select(DiscoveryState).where(DiscoveryState.id == 1)
+        )
+        state = result.scalar_one_or_none()
+
+        if state is None:
+            state = DiscoveryState(
+                id=1,
+                mode="backfill",
+                backfill_next_page=1,
+                batch_size=5,
+            )
+            session.add(state)
+            await session.flush()
+
+    return {
+        "mode": state.mode,
+        "backfill_next_page": state.backfill_next_page,
+        "batch_size": state.batch_size,
+        "backfill_completed_at": (
+            state.backfill_completed_at.isoformat()
+            if state.backfill_completed_at else None
+        ),
+        "updated_at": state.updated_at.isoformat() if state.updated_at else None,
+    }
 

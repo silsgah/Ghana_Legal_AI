@@ -252,3 +252,36 @@ class DiscoveryRun(Base):
     def __repr__(self) -> str:
         return f"<DiscoveryRun id={self.id} status={self.status}>"
 
+
+class DiscoveryState(Base):
+    """Singleton row tracking the discovery cursor.
+
+    The scraper walks ghalii.org in two phases:
+
+    1. **Backfill** (default until the archive is fully ingested): scrapes pages
+       starting at ``backfill_next_page`` using ``?sort=date`` (oldest first,
+       which keeps page numbers stable as new judgments are added at the end of
+       pagination). Each successful run advances the cursor by ``batch_size``.
+    2. **Incremental**: when a backfill run hits an empty page, mode flips to
+       ``incremental`` and subsequent runs scrape only the first 1-2 pages with
+       ``?sort=-date`` to catch genuinely new uploads.
+
+    Stored as a singleton (``id=1``) for simplicity.
+    """
+    __tablename__ = "discovery_state"
+
+    id = Column(Integer, primary_key=True, default=1)
+    mode = Column(String(20), nullable=False, default="backfill")  # backfill | incremental
+    backfill_next_page = Column(Integer, nullable=False, default=1)
+    batch_size = Column(Integer, nullable=False, default=5)
+    backfill_completed_at = Column(DateTime(timezone=True), nullable=True)
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    def __repr__(self) -> str:
+        return f"<DiscoveryState mode={self.mode} next_page={self.backfill_next_page}>"
+

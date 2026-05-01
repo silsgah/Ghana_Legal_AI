@@ -137,12 +137,32 @@ export default function AdminPage() {
         status: string;
         started_at: string | null;
         completed_at: string | null;
-        result: { summary: string; scraped?: number; new?: number; downloaded?: number; inserted?: number } | null;
+        result: {
+            summary: string;
+            scraped?: number;
+            new?: number;
+            downloaded?: number;
+            inserted?: number;
+            already_known?: number;
+            mode?: string;
+            cursor_before?: number;
+            cursor_after?: number;
+            pages_scraped?: number;
+            reached_end?: boolean;
+            flipped_to_incremental?: boolean;
+        } | null;
         error: string | null;
     }>({ status: 'idle', started_at: null, completed_at: null, result: null, error: null });
     const [triggeringDiscovery, setTriggeringDiscovery] = useState(false);
     const [discoveryFeedback, setDiscoveryFeedback] = useState<string | null>(null);
     const [isDiscoveryModalOpen, setIsDiscoveryModalOpen] = useState(false);
+    const [discoveryState, setDiscoveryState] = useState<{
+        mode: string;
+        backfill_next_page: number;
+        batch_size: number;
+        backfill_completed_at: string | null;
+    } | null>(null);
+    const [discoveryBatchSize, setDiscoveryBatchSize] = useState<number>(5);
 
     const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
         const token = await getToken();
@@ -231,6 +251,18 @@ export default function AdminPage() {
         } catch (e) { console.error(e); }
     }, [authHeaders]);
 
+    const fetchDiscoveryState = useCallback(async () => {
+        try {
+            const headers = await authHeaders();
+            const res = await fetch(`${config.apiUrl}/api/admin/pipeline/discovery-state`, { headers });
+            if (res.ok) {
+                const d = await res.json();
+                setDiscoveryState(d);
+                if (d.batch_size) setDiscoveryBatchSize(d.batch_size);
+            }
+        } catch (e) { console.error(e); }
+    }, [authHeaders]);
+
     const triggerIngestion = async () => {
         setIsIngestionModalOpen(false);
         setTriggeringIngestion(true);
@@ -262,7 +294,9 @@ export default function AdminPage() {
         try {
             const headers = await authHeaders();
             const res = await fetch(`${config.apiUrl}/api/admin/pipeline/trigger-discovery`, {
-                method: 'POST', headers,
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ batch_size: discoveryBatchSize }),
             });
             const d = await res.json();
             if (res.ok) {
@@ -281,7 +315,7 @@ export default function AdminPage() {
 
     const fetchAll = async () => {
         setLoading(true);
-        await Promise.all([fetchStats(), fetchCases(), fetchReports(), fetchIngestionStatus(), fetchDiscoveryStatus()]);
+        await Promise.all([fetchStats(), fetchCases(), fetchReports(), fetchIngestionStatus(), fetchDiscoveryStatus(), fetchDiscoveryState()]);
         setLoading(false);
     };
 
@@ -315,11 +349,12 @@ export default function AdminPage() {
         return () => clearInterval(interval);
     }, [discoveryStatus.status, fetchDiscoveryStatus]);
 
-    // Refresh stats when discovery completes
+    // Refresh stats + cursor when discovery completes
     useEffect(() => {
         if (discoveryStatus.status === 'completed') {
             fetchStats();
             fetchCases();
+            fetchDiscoveryState();
         }
     }, [discoveryStatus.status]);
 
@@ -484,9 +519,11 @@ export default function AdminPage() {
                              style={{ background: 'rgba(234, 179, 8, 0.1)' }}>
                             <Globe size={24} style={{ color: 'var(--ghana-gold)' }} />
                         </div>
-                        <h3 className="text-xl font-bold mb-2">Discover New Cases</h3>
+                        <h3 className="text-xl font-bold mb-2">Run Discovery</h3>
                         <p className="text-sm mb-6" style={{ color: 'var(--muted-foreground)' }}>
-                            This will scrape ghalii.org for the latest Ghana court judgments, download PDFs for any new cases, and add them to the pipeline as &quot;pending&quot;. Run ingestion afterwards to embed them.
+                            {discoveryState?.mode === 'incremental'
+                                ? <>This will scan the newest pages on ghalii.org for any judgments published since the last run, and add new ones to the pipeline as &quot;pending&quot;. Run ingestion afterwards to embed them.</>
+                                : <>This run will scrape <span className="font-mono font-semibold" style={{ color: 'var(--ghana-gold)' }}>{discoveryBatchSize}</span> pages of ghalii.org{discoveryState ? <> starting at page <span className="font-mono font-semibold" style={{ color: 'var(--ghana-gold)' }}>{discoveryState.backfill_next_page}</span></> : null} (oldest first). New cases get added as &quot;pending&quot; — the cursor advances on success so the next run picks up where this one left off.</>}
                         </p>
                         <div className="flex gap-3 justify-end items-center">
                             <button onClick={() => setIsDiscoveryModalOpen(false)}
@@ -577,11 +614,13 @@ export default function AdminPage() {
 
                             {/* Discovery Card */}
                             <div className="p-5 rounded-xl" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
-                                <div className="flex items-center justify-between mb-3">
-                                    <div>
+                                <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+                                    <div className="min-w-0">
                                         <h3 className="text-sm font-bold" style={{ color: 'var(--foreground)' }}>Case Discovery</h3>
                                         <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
-                                            Scrape ghalii.org for new Ghana court judgments
+                                            {discoveryState?.mode === 'incremental'
+                                                ? 'Incremental: scanning newest judgments on ghalii.org'
+                                                : 'Backfill: archiving historical judgments from ghalii.org'}
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-3">
@@ -606,17 +645,73 @@ export default function AdminPage() {
                                             style={{ background: 'var(--ghana-gold)', color: '#000' }}>
                                             {triggeringDiscovery || discoveryStatus.status === 'running'
                                                 ? <><RefreshCw size={13} className="animate-spin" /> Scraping…</>
-                                                : <><Globe size={13} /> Discover Cases</>}
+                                                : <><Globe size={13} /> Run Discovery</>}
                                         </button>
                                     </div>
                                 </div>
+
+                                {/* Cursor + batch-size controls */}
+                                {discoveryState && (
+                                    <div className="mt-3 p-3 rounded-lg flex items-center justify-between gap-4 flex-wrap"
+                                         style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+                                        <div className="flex items-center gap-4 text-xs flex-wrap">
+                                            <div>
+                                                <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: 'var(--muted-foreground)' }}>Mode</div>
+                                                <div className="font-mono font-semibold capitalize" style={{ color: discoveryState.mode === 'backfill' ? 'var(--ghana-gold)' : 'var(--ghana-green)' }}>
+                                                    {discoveryState.mode}
+                                                </div>
+                                            </div>
+                                            {discoveryState.mode === 'backfill' && (
+                                                <div>
+                                                    <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: 'var(--muted-foreground)' }}>Next page</div>
+                                                    <div className="font-mono font-semibold" style={{ color: 'var(--foreground)' }}>
+                                                        {discoveryState.backfill_next_page}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {discoveryState.backfill_completed_at && (
+                                                <div>
+                                                    <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: 'var(--muted-foreground)' }}>Backfill done</div>
+                                                    <div className="font-mono text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                                                        {new Date(discoveryState.backfill_completed_at).toLocaleDateString()}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <label className="flex items-center gap-2 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                                            <span>Pages per run</span>
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                max={50}
+                                                value={discoveryBatchSize}
+                                                onChange={e => setDiscoveryBatchSize(Math.max(1, Math.min(50, Number(e.target.value) || 1)))}
+                                                disabled={triggeringDiscovery || discoveryStatus.status === 'running'}
+                                                className="w-16 px-2 py-1 rounded text-sm font-mono text-center"
+                                                style={{ background: 'var(--surface-1)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
+                                            />
+                                            <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>(≈50/page)</span>
+                                        </label>
+                                    </div>
+                                )}
+
                                 {discoveryStatus.status === 'completed' && discoveryStatus.result && (
                                     <div className="mt-3 p-3 rounded-lg text-xs font-mono whitespace-pre-wrap"
                                          style={{ background: 'var(--ghana-green)08', border: '1px solid var(--ghana-green)30', color: 'var(--ghana-green)' }}>
                                         ✓ {discoveryStatus.result.summary}
                                         {discoveryStatus.result.new !== undefined && (
                                             <span className="block mt-1" style={{ color: 'var(--foreground)', fontFamily: 'inherit' }}>
-                                                New: {discoveryStatus.result.new} · Downloaded: {discoveryStatus.result.downloaded ?? 0} · Inserted: {discoveryStatus.result.inserted ?? 0}
+                                                New: {discoveryStatus.result.new} · Already known: {discoveryStatus.result.already_known ?? 0} · Inserted: {discoveryStatus.result.inserted ?? 0}
+                                            </span>
+                                        )}
+                                        {discoveryStatus.result.cursor_before !== undefined && discoveryStatus.result.cursor_after !== undefined && discoveryStatus.result.mode === 'backfill' && (
+                                            <span className="block mt-1" style={{ color: 'var(--foreground)', fontFamily: 'inherit' }}>
+                                                Pages {discoveryStatus.result.cursor_before}–{(discoveryStatus.result.cursor_after ?? 0) - 1} scraped → next page {discoveryStatus.result.cursor_after}
+                                            </span>
+                                        )}
+                                        {discoveryStatus.result.flipped_to_incremental && (
+                                            <span className="block mt-1 font-semibold" style={{ color: 'var(--ghana-green)', fontFamily: 'inherit' }}>
+                                                🎉 Backfill complete — switched to incremental mode.
                                             </span>
                                         )}
                                         {discoveryStatus.completed_at && (

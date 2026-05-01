@@ -221,18 +221,26 @@ def run_ingestion(run_id: int, max_cases: int = 10):
     timeout=1800,  # 30 min — scraping + downloading PDFs takes time
     memory=1024,
 )
-def run_discovery(run_id: int, max_pages: int = 5):
+def run_discovery(run_id: int, max_pages: int = 5, batch_size: int | None = None):
     """Discover and download new cases from ghalii.org.
 
     Spawned asynchronously from the admin API via:
-        run_discovery.spawn(run_id=..., max_pages=5)
+        run_discovery.spawn(run_id=..., batch_size=5)
+
+    The actual page range and sort order are determined by the cursor in
+    ``discovery_state``: backfill mode walks ascending-by-date with a stable
+    page cursor, incremental mode scans the first few pages newest-first.
+    ``batch_size`` (if provided) overrides the cursor's batch size for this
+    run only. ``max_pages`` is kept for backwards compat.
 
     This function:
-    1. Scrapes ghalii.org/judgments/all/ for case listings
-    2. Filters out cases already in PostgreSQL
-    3. Downloads PDFs for new cases to /data/cases/{court_id}/
-    4. Inserts new rows into pipeline_cases (status='pending')
-    5. Updates the DiscoveryRun row with results
+    1. Reads discovery_state for current mode + cursor
+    2. Scrapes the appropriate page range
+    3. Filters out cases already in PostgreSQL
+    4. Downloads PDFs for new cases to /data/cases/{court_id}/
+    5. Inserts new rows into pipeline_cases (status='pending')
+    6. Advances the cursor (or flips to incremental if backfill is done)
+    7. Updates the DiscoveryRun row with results
     """
     import sys
     import os
@@ -242,7 +250,10 @@ def run_discovery(run_id: int, max_pages: int = 5):
     from datetime import datetime, timezone
     from loguru import logger
 
-    logger.info(f"=== Modal run_discovery started | run_id={run_id} max_pages={max_pages} ===")
+    logger.info(
+        f"=== Modal run_discovery started | run_id={run_id} "
+        f"batch_size={batch_size} max_pages={max_pages} ==="
+    )
 
     # --- Helper to update the DiscoveryRun row ---
     def update_run(**fields):
@@ -279,13 +290,16 @@ def run_discovery(run_id: int, max_pages: int = 5):
         from scripts.discover_cases import run_discovery as _discover
         from pathlib import Path
 
-        result = _discover(max_pages=max_pages, data_dir=Path("/data"))
+        result = _discover(
+            max_pages=max_pages,
+            batch_size_override=batch_size,
+            data_dir=Path("/data"),
+        )
 
-        summary = (
-            f"Scraped {result['scraped']} cases from ghalii.org. "
-            f"Found {result['new']} new cases. "
-            f"Downloaded {result['downloaded']} PDFs. "
-            f"Inserted {result['inserted']} into pipeline."
+        # run_discovery() already builds a human summary; keep it.
+        summary = result.get("summary") or (
+            f"Scraped {result['scraped']} cases. "
+            f"Found {result['new']} new. Inserted {result['inserted']}."
         )
         logger.success(summary)
 
