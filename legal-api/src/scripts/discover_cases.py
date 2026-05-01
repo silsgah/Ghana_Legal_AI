@@ -144,9 +144,23 @@ def discover_cases_from_ghalii(
 
         try:
             resp = session.get(url, timeout=30)
-            resp.raise_for_status()
         except requests.RequestException as e:
             logger.error(f"Failed to fetch page {page}: {e}")
+            break
+
+        # ghalii.org returns 404 once you paginate past the listing's hard cap
+        # (currently 10 pages = ~500 cases for /judgments/all/). Treat that as
+        # end-of-pagination, not as a transient error, so the cursor advances
+        # past it and the mode flips to incremental.
+        if resp.status_code == 404:
+            logger.info(f"Page {page} returned 404 — end of pagination.")
+            reached_end = True
+            break
+
+        try:
+            resp.raise_for_status()
+        except requests.RequestException as e:
+            logger.error(f"Page {page} returned {resp.status_code}: {e}")
             break
 
         soup = BeautifulSoup(resp.text, "html.parser")
