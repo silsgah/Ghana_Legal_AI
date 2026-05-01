@@ -27,6 +27,13 @@ image = (
 # ---------------------------------------------------------------------------
 app = modal.App("ghana-legal-ai")
 
+# Persistent volume for admin-uploaded PDFs. Mounted on both the API
+# (writes during upload) and the ingestion function (reads during embedding).
+# Container disks are ephemeral, but ghalii's robots.txt blocks re-fetching
+# judgments from the server — so PDFs added by manual upload MUST persist.
+pdf_volume = modal.Volume.from_name("ghana-legal-pdfs", create_if_missing=True)
+PDF_VOLUME_MOUNT = "/uploads"
+
 # ---------------------------------------------------------------------------
 # FastAPI Web Endpoint
 # ---------------------------------------------------------------------------
@@ -35,6 +42,7 @@ app = modal.App("ghana-legal-ai")
     secrets=[modal.Secret.from_name("ghana-legal-secrets")],
     timeout=900,  # 15 min for web requests
     memory=2048,
+    volumes={PDF_VOLUME_MOUNT: pdf_volume},
 )
 @modal.asgi_app()
 def api():
@@ -54,6 +62,7 @@ def api():
     secrets=[modal.Secret.from_name("ghana-legal-secrets")],
     timeout=1800,  # 30 min — plenty of room for Voyage AI embedding batches
     memory=2048,
+    volumes={PDF_VOLUME_MOUNT: pdf_volume},
 )
 def run_ingestion(run_id: int, max_cases: int = 10):
     """Ingest pending legal PDFs into Qdrant Cloud.
@@ -141,6 +150,7 @@ def run_ingestion(run_id: int, max_cases: int = 10):
             Path("/data/ghana_legal/constitution"),
             Path("/data/ghana_legal/cases"),
             Path("/data/cases"),
+            Path("/uploads/cases"),  # admin-uploaded PDFs (Modal Volume, persists)
         ]
 
         logger.info(f"Data directories: {[str(d) for d in data_dirs]}")

@@ -8,7 +8,7 @@ import {
     Download, Clock, ArrowLeft, RefreshCw, Search, Globe,
     ChevronLeft, ChevronRight, Filter, ShieldX,
     Users, Settings, Crown, Trash2, Pencil, Save, X,
-    BadgeCheck, UserCheck, UserX, RotateCcw
+    BadgeCheck, UserCheck, UserX, RotateCcw, Upload, FilePlus2
 } from 'lucide-react';
 import { config } from '@/lib/config';
 
@@ -795,6 +795,14 @@ export default function AdminPage() {
                                 )}
                             </div>
                         </div>
+
+                        {/* Bulk Upload — manually-downloaded PDFs */}
+                        <BulkUploadPanel
+                            onUploaded={async () => {
+                                await Promise.all([fetchStats(), fetchCases()]);
+                            }}
+                            authHeaders={authHeaders}
+                        />
                     </div>
                 )}
 
@@ -1349,6 +1357,297 @@ function ConfigField({
                 />
                 <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{unit}</span>
             </div>
+        </div>
+    );
+}
+
+// ─── Bulk Upload Panel ────────────────────────────────────────────────────────
+
+type UploadResult = {
+    accepted: { filename: string; case_id: string; court_id: string; size_kb: number }[];
+    errors: { filename: string; url: string; error: string }[];
+    accepted_count: number;
+    error_count: number;
+};
+
+function deriveCaseIdFromUrl(url: string): { case_id: string; court_id: string } | null {
+    const match = url.match(/\/judgment\/([a-z]+)\/(\d{4})\/(\d+)\//i);
+    if (!match) return null;
+    const slug = match[1].toLowerCase();
+    const slugMap: Record<string, string> = {
+        ghasc: 'GHASC', ghaca: 'GHACA', ghahc: 'GHAHC',
+        ghacc: 'GHACC', ghadc: 'GHADC', ecowascj: 'ECOWASCJ', afchpr: 'AFCHPR',
+    };
+    const court_id = slugMap[slug] || 'UNKNOWN';
+    return { case_id: `${court_id}_${match[2]}_${match[3]}`, court_id };
+}
+
+function BulkUploadPanel({
+    onUploaded,
+    authHeaders,
+}: {
+    onUploaded: () => void | Promise<void>;
+    authHeaders: () => Promise<Record<string, string>>;
+}) {
+    const [files, setFiles] = useState<File[]>([]);
+    const [urlsText, setUrlsText] = useState('');
+    const [uploading, setUploading] = useState(false);
+    const [result, setResult] = useState<UploadResult | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [dragActive, setDragActive] = useState(false);
+
+    const urls = urlsText.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    const pairs = files.map((f, i) => {
+        const url = urls[i] ?? '';
+        const derived = url ? deriveCaseIdFromUrl(url) : null;
+        return { file: f, url, derived };
+    });
+
+    const ready = files.length > 0 && files.length === urls.length && pairs.every(p => p.derived);
+
+    const handleFiles = (fileList: FileList | null) => {
+        if (!fileList) return;
+        const pdfs = Array.from(fileList).filter(f =>
+            f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
+        );
+        setFiles(prev => [...prev, ...pdfs]);
+        setResult(null);
+        setError(null);
+    };
+
+    const removeFile = (idx: number) => {
+        setFiles(prev => prev.filter((_, i) => i !== idx));
+        setResult(null);
+    };
+
+    const clearAll = () => {
+        setFiles([]);
+        setUrlsText('');
+        setResult(null);
+        setError(null);
+    };
+
+    const submit = async () => {
+        if (!ready) return;
+        setUploading(true);
+        setError(null);
+        setResult(null);
+
+        try {
+            const formData = new FormData();
+            files.forEach(f => formData.append('files', f));
+            formData.append('urls', urls.join('\n'));
+
+            const headers = await authHeaders();
+            // Don't set Content-Type — let the browser add the multipart boundary.
+            delete (headers as Record<string, string>)['Content-Type'];
+
+            const res = await fetch(`${config.apiUrl}/api/admin/pipeline/upload-cases`, {
+                method: 'POST',
+                headers,
+                body: formData,
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                setError(data.detail || `Upload failed (HTTP ${res.status})`);
+            } else {
+                setResult(data as UploadResult);
+                if (data.accepted_count > 0) {
+                    await onUploaded();
+                    if (data.error_count === 0) {
+                        // Clean slate when everything succeeded.
+                        setFiles([]);
+                        setUrlsText('');
+                    }
+                }
+            }
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'Network error');
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    return (
+        <div className="p-5 rounded-xl" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+            <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+                <div className="min-w-0">
+                    <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: 'var(--foreground)' }}>
+                        <FilePlus2 size={14} style={{ color: 'var(--ghana-gold)' }} />
+                        Bulk Upload — Manually Downloaded PDFs
+                    </h3>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+                        Drop PDFs you saved from ghalii, paste their URLs (one per line, in matching order), submit. Ingestion picks them up automatically.
+                    </p>
+                </div>
+                {(files.length > 0 || urlsText) && (
+                    <button onClick={clearAll}
+                            disabled={uploading}
+                            className="text-xs px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40"
+                            style={{ background: 'var(--surface-2)', color: 'var(--muted-foreground)' }}>
+                        Clear all
+                    </button>
+                )}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+                {/* Dropzone */}
+                <div
+                    onDragOver={e => { e.preventDefault(); setDragActive(true); }}
+                    onDragLeave={() => setDragActive(false)}
+                    onDrop={e => {
+                        e.preventDefault();
+                        setDragActive(false);
+                        handleFiles(e.dataTransfer.files);
+                    }}
+                    className="relative rounded-lg border-2 border-dashed p-6 text-center transition-colors cursor-pointer"
+                    style={{
+                        borderColor: dragActive ? 'var(--ghana-gold)' : 'var(--border)',
+                        background: dragActive ? 'rgba(234,179,8,0.04)' : 'var(--surface-2)',
+                    }}
+                    onClick={() => document.getElementById('bulk-upload-input')?.click()}>
+                    <input
+                        id="bulk-upload-input"
+                        type="file"
+                        accept="application/pdf,.pdf"
+                        multiple
+                        className="hidden"
+                        onChange={e => handleFiles(e.target.files)}
+                    />
+                    <Upload size={28} className="mx-auto mb-2" style={{ color: 'var(--ghana-gold)' }} />
+                    <div className="text-sm font-semibold mb-1" style={{ color: 'var(--foreground)' }}>
+                        Drop PDFs here or click to choose
+                    </div>
+                    <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                        {files.length === 0 ? 'Multiple files supported · PDF only' : `${files.length} file${files.length === 1 ? '' : 's'} queued`}
+                    </div>
+                </div>
+
+                {/* URLs textarea */}
+                <div>
+                    <label className="text-xs font-semibold uppercase tracking-wider mb-2 block" style={{ color: 'var(--muted-foreground)' }}>
+                        Source URLs · one per line · same order as files
+                    </label>
+                    <textarea
+                        value={urlsText}
+                        onChange={e => setUrlsText(e.target.value)}
+                        placeholder={'https://ghalii.org/akn/gh/judgment/ghasc/2024/15/eng@2024-XX-XX\nhttps://ghalii.org/akn/gh/judgment/ghaca/2023/87/eng@2023-XX-XX'}
+                        rows={6}
+                        className="w-full px-3 py-2 rounded-lg text-xs font-mono"
+                        style={{
+                            background: 'var(--surface-2)',
+                            border: '1px solid var(--border)',
+                            color: 'var(--foreground)',
+                            resize: 'vertical',
+                        }}
+                    />
+                    <div className="text-[11px] mt-1" style={{ color: 'var(--muted-foreground)' }}>
+                        {urls.length} URL{urls.length === 1 ? '' : 's'} · {files.length} file{files.length === 1 ? '' : 's'}
+                        {files.length !== urls.length && (urls.length > 0 || files.length > 0) && (
+                            <span style={{ color: 'var(--warning)' }}> · counts must match</span>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Pair preview table */}
+            {pairs.length > 0 && (
+                <div className="rounded-lg overflow-hidden mb-4" style={{ border: '1px solid var(--border)' }}>
+                    <table className="w-full text-xs">
+                        <thead style={{ background: 'var(--surface-2)' }}>
+                            <tr>
+                                {['#', 'File', 'URL', 'Derived case_id', 'Court', ''].map(h => (
+                                    <th key={h} className="px-3 py-2 text-left font-semibold" style={{ color: 'var(--muted-foreground)' }}>{h}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {pairs.map((p, i) => (
+                                <tr key={i} style={{ borderTop: '1px solid var(--border)' }}>
+                                    <td className="px-3 py-2 font-mono" style={{ color: 'var(--muted-foreground)' }}>{i + 1}</td>
+                                    <td className="px-3 py-2 truncate max-w-[200px]" style={{ color: 'var(--foreground)' }} title={p.file.name}>
+                                        {p.file.name}
+                                        <span className="ml-2 text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
+                                            {(p.file.size / 1024).toFixed(0)} KB
+                                        </span>
+                                    </td>
+                                    <td className="px-3 py-2 truncate max-w-[280px] font-mono text-[11px]" style={{ color: p.url ? 'var(--foreground)' : 'var(--error)' }} title={p.url || 'missing'}>
+                                        {p.url || '— missing —'}
+                                    </td>
+                                    <td className="px-3 py-2 font-mono" style={{ color: p.derived ? 'var(--ghana-gold)' : 'var(--error)' }}>
+                                        {p.derived?.case_id || (p.url ? 'invalid URL' : '—')}
+                                    </td>
+                                    <td className="px-3 py-2 font-mono" style={{ color: 'var(--foreground)' }}>
+                                        {p.derived?.court_id || '—'}
+                                    </td>
+                                    <td className="px-3 py-2">
+                                        <button onClick={() => removeFile(i)}
+                                                disabled={uploading}
+                                                className="p-1 rounded hover:bg-white/5 transition-colors"
+                                                title="Remove">
+                                            <Trash2 size={12} style={{ color: 'var(--muted-foreground)' }} />
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {/* Action row */}
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                    {ready
+                        ? <>Ready: <span className="font-semibold" style={{ color: 'var(--ghana-green)' }}>{files.length}</span> file{files.length === 1 ? '' : 's'} will be uploaded</>
+                        : files.length === 0
+                            ? 'Add files and matching URLs to begin'
+                            : 'Fix mismatches above to enable upload'}
+                </div>
+                <button
+                    onClick={submit}
+                    disabled={!ready || uploading}
+                    className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold disabled:opacity-40 transition-opacity"
+                    style={{ background: 'var(--ghana-gold)', color: '#000' }}>
+                    {uploading
+                        ? <><RefreshCw size={13} className="animate-spin" /> Uploading…</>
+                        : <><Upload size={13} /> Upload {files.length || ''} PDF{files.length === 1 ? '' : 's'}</>}
+                </button>
+            </div>
+
+            {/* Result */}
+            {result && (
+                <div className="mt-4 p-3 rounded-lg text-xs"
+                     style={{
+                         background: result.error_count === 0 ? 'var(--ghana-green)08' : 'var(--warning)08',
+                         border: `1px solid ${result.error_count === 0 ? 'var(--ghana-green)30' : 'var(--warning)30'}`,
+                         color: result.error_count === 0 ? 'var(--ghana-green)' : 'var(--warning)',
+                     }}>
+                    <div className="font-semibold mb-1">
+                        ✓ Accepted {result.accepted_count}{result.error_count > 0 && ` · ✗ Failed ${result.error_count}`}
+                    </div>
+                    {result.error_count > 0 && (
+                        <ul className="mt-2 space-y-1 font-mono text-[11px]" style={{ color: 'var(--error)' }}>
+                            {result.errors.map((e, i) => (
+                                <li key={i}>• {e.filename}: {e.error}</li>
+                            ))}
+                        </ul>
+                    )}
+                    {result.accepted_count > 0 && (
+                        <div className="mt-2 text-[11px]" style={{ color: 'var(--foreground)' }}>
+                            Run ingestion next to embed them.
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {error && (
+                <div className="mt-4 p-3 rounded-lg text-xs"
+                     style={{ background: 'var(--error)08', border: '1px solid var(--error)30', color: 'var(--error)' }}>
+                    ✗ {error}
+                </div>
+            )}
         </div>
     );
 }

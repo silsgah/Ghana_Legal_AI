@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Optional
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 from loguru import logger
 
@@ -840,4 +840,199 @@ async def discovery_state(user: dict = Depends(require_admin)):
         ),
         "updated_at": state.updated_at.isoformat() if state.updated_at else None,
     }
+
+
+# ---------------------------------------------------------------------------
+# Manual Case Upload — bypass scraping by uploading downloaded PDFs directly
+# ---------------------------------------------------------------------------
+#
+# Use case: ghalii.org's /judgments/all/ listing caps at 10 pages (~500 cases)
+# and robots.txt disallows scraping the per-judgment paths and source.pdf files.
+# But anyone can browse and save PDFs by hand. This endpoint lets an admin
+# upload those PDFs along with the source URL, derives the canonical case_id
+# from the URL with the same logic the scraper uses, persists the PDF to a
+# Modal Volume, and inserts/updates a pipeline_cases row so the existing
+# ingestion path picks it up automatically.
+
+UPLOAD_DIR = Path(os.environ.get("PDF_UPLOAD_DIR", "/uploads/cases"))
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25 MB per PDF — generous; ghalii PDFs run 1-5 MB
+
+
+def _classify_uploaded_pdf(url: str):
+    """Parse a ghalii.org URL into (case_id, court_id, normalized_pdf_url).
+
+    Mirrors the scraper logic in scripts.discover_cases so case_ids are stable
+    whether a case arrived via discovery or manual upload.
+    """
+    from scripts.discover_cases import case_id_from_url, court_id_from_url, BASE_URL
+    from urllib.parse import urljoin
+
+    url = (url or "").strip()
+    if not url:
+        raise ValueError("URL is empty")
+
+    if url.startswith("/"):
+        url = urljoin(BASE_URL, url)
+
+    # Reasonable shape check — the scraper expects /judgment/<slug>/<year>/<num>/
+    if "/judgment/" not in url:
+        raise ValueError(f"URL does not look like a ghalii judgment page: {url}")
+
+    case_id = case_id_from_url(url)
+    court_id = court_id_from_url(url)
+
+    # The PDF URL is the page URL with /source.pdf appended (same convention
+    # as the scraper). Stored as a fallback only — ingestion will prefer the
+    # locally-saved PDF on the Modal Volume.
+    pdf_url = urljoin(BASE_URL, url.rstrip("/") + "/source.pdf")
+
+    return case_id, court_id, pdf_url
+
+
+@router.post("/pipeline/upload-cases")
+async def upload_cases(
+    files: list[UploadFile] = File(..., description="One or more PDF files"),
+    urls: str = Form(..., description="Newline- or comma-separated ghalii URLs (must match files in order)"),
+    titles: Optional[str] = Form(None, description="Optional newline-separated titles, one per file"),
+    user: dict = Depends(require_admin),
+):
+    """Bulk-upload manually-downloaded judgment PDFs paired with their URLs.
+
+    Pairing is by upload order: file[i] is paired with url[i]. The endpoint
+    derives ``case_id`` and ``court_id`` from each URL using the same logic
+    the scraper uses, writes the PDF to a Modal Volume at
+    ``/uploads/cases/{court_id}/{case_id}.pdf``, and upserts a
+    ``pipeline_cases`` row with status='downloaded'. Run ingestion afterwards.
+    """
+    # --- Parse URLs / titles ---
+    url_list = [u.strip() for u in urls.replace(",", "\n").splitlines() if u.strip()]
+    title_list = (
+        [t.strip() for t in titles.splitlines()]
+        if titles is not None
+        else [""] * len(url_list)
+    )
+
+    if len(url_list) != len(files):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Mismatch: got {len(files)} files but {len(url_list)} URLs.",
+        )
+
+    if titles is not None and len(title_list) != len(files):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Mismatch: {len(title_list)} titles but {len(files)} files.",
+        )
+
+    # --- Process pairs ---
+    accepted: list[dict] = []
+    errors: list[dict] = []
+
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+    for idx, (upload, url) in enumerate(zip(files, url_list)):
+        filename = upload.filename or f"upload_{idx}.pdf"
+        title_hint = title_list[idx] if idx < len(title_list) else ""
+        try:
+            # Validate URL → derive metadata
+            case_id, court_id, pdf_url = _classify_uploaded_pdf(url)
+
+            # Read + validate PDF magic bytes + size cap
+            content = await upload.read()
+            if len(content) > MAX_UPLOAD_BYTES:
+                raise ValueError(
+                    f"File too large ({len(content)//1024} KB > {MAX_UPLOAD_BYTES//1024} KB)"
+                )
+            if not content[:4] == b"%PDF":
+                raise ValueError("Not a valid PDF (missing %PDF header)")
+
+            # Persist to volume
+            court_dir = UPLOAD_DIR / court_id
+            court_dir.mkdir(parents=True, exist_ok=True)
+            dest = court_dir / f"{case_id}.pdf"
+            dest.write_bytes(content)
+
+            # UPSERT pipeline_cases via psycopg (sync — small batches, fine)
+            await _upsert_uploaded_case(
+                case_id=case_id,
+                url=url,
+                pdf_url=pdf_url,
+                title=title_hint or filename.replace(".pdf", ""),
+                court_id=court_id,
+                pdf_path=str(dest),
+            )
+
+            accepted.append({
+                "filename": filename,
+                "case_id": case_id,
+                "court_id": court_id,
+                "pdf_path": str(dest),
+                "size_kb": len(content) // 1024,
+            })
+            logger.info(f"✓ Uploaded {case_id} → {dest}")
+
+        except Exception as e:
+            errors.append({"filename": filename, "url": url, "error": str(e)})
+            logger.error(f"✗ Upload failed for {filename}: {e}")
+        finally:
+            await upload.close()
+
+    # Persist Modal Volume changes so the ingestion container sees them.
+    try:
+        import modal
+        vol = modal.Volume.from_name("ghana-legal-pdfs", create_if_missing=True)
+        vol.commit()
+    except Exception as e:
+        # In local dev (no Modal), commit isn't applicable — that's OK.
+        logger.debug(f"Volume commit skipped: {e}")
+
+    return {
+        "accepted": accepted,
+        "errors": errors,
+        "accepted_count": len(accepted),
+        "error_count": len(errors),
+    }
+
+
+async def _upsert_uploaded_case(
+    *, case_id: str, url: str, pdf_url: str, title: str, court_id: str, pdf_path: str,
+) -> None:
+    """Insert the case as 'downloaded', or reset an existing row to
+    'downloaded' so it gets re-ingested cleanly with the new PDF."""
+    from ghana_legal.infrastructure.database import get_session
+    from ghana_legal.domain.models import PipelineCase
+    from sqlalchemy import select, update as sql_update
+
+    async with get_session() as session:
+        existing = await session.execute(
+            select(PipelineCase).where(PipelineCase.case_id == case_id)
+        )
+        row = existing.scalar_one_or_none()
+
+        if row is None:
+            session.add(PipelineCase(
+                case_id=case_id,
+                url=url,
+                pdf_url=pdf_url,
+                title=title,
+                court_id=court_id,
+                pdf_path=pdf_path,
+                status="downloaded",
+                error=None,
+                retry_count=0,
+            ))
+        else:
+            await session.execute(
+                sql_update(PipelineCase)
+                .where(PipelineCase.case_id == case_id)
+                .values(
+                    url=url,
+                    pdf_url=pdf_url,
+                    title=title or row.title,
+                    court_id=court_id,
+                    pdf_path=pdf_path,
+                    status="downloaded",
+                    error=None,
+                )
+            )
 
