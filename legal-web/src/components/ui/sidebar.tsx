@@ -6,6 +6,7 @@ import { Scale, Plus, Trash2, WifiOff, Loader2, Settings, PanelLeftClose, PanelL
 import { cn } from '@/lib/utils';
 import { LegalExpert } from '@/lib/legal-experts';
 import { ConnectionStatus } from '@/hooks/use-chat';
+import { useUser } from '@clerk/nextjs';
 
 interface SidebarProps {
     experts: LegalExpert[];
@@ -29,6 +30,9 @@ export function Sidebar({
     collapsed,
     onToggleCollapse,
 }: SidebarProps) {
+    const { user } = useUser();
+    const isAdmin = user?.publicMetadata?.role === 'admin' || user?.publicMetadata?.role === 'ADMIN';
+
     return (
         <div
             className="flex flex-col h-screen transition-all duration-300 ease-out"
@@ -211,20 +215,22 @@ export function Sidebar({
             <div className="p-2 space-y-0.5 flex-shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
                 {!collapsed ? (
                     <>
-                        <Link href="/admin"
-                              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px]"
-                              style={{ color: 'var(--muted-foreground)', transition: 'all 0.15s ease' }}
-                              onMouseEnter={(e) => {
-                                  e.currentTarget.style.color = 'var(--primary)';
-                                  e.currentTarget.style.background = 'var(--primary-muted)';
-                              }}
-                              onMouseLeave={(e) => {
-                                  e.currentTarget.style.color = 'var(--muted-foreground)';
-                                  e.currentTarget.style.background = 'transparent';
-                              }}>
-                            <Settings size={13} />
-                            <span>Admin</span>
-                        </Link>
+                        {isAdmin && (
+                            <Link href="/admin"
+                                  className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px]"
+                                  style={{ color: 'var(--muted-foreground)', transition: 'all 0.15s ease' }}
+                                  onMouseEnter={(e) => {
+                                      e.currentTarget.style.color = 'var(--primary)';
+                                      e.currentTarget.style.background = 'var(--primary-muted)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                      e.currentTarget.style.color = 'var(--muted-foreground)';
+                                      e.currentTarget.style.background = 'transparent';
+                                  }}>
+                                <Settings size={13} />
+                                <span>Admin</span>
+                            </Link>
+                        )}
                         <button onClick={onReset}
                                 className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px]"
                                 style={{ color: 'var(--muted-foreground)', transition: 'all 0.15s ease' }}
@@ -242,20 +248,22 @@ export function Sidebar({
                     </>
                 ) : (
                     <>
-                        <Link href="/admin"
-                              className="w-full flex items-center justify-center p-2 rounded-lg"
-                              style={{ color: 'var(--muted-foreground)', transition: 'all 0.15s ease' }}
-                              onMouseEnter={(e) => {
-                                  e.currentTarget.style.color = 'var(--primary)';
-                                  e.currentTarget.style.background = 'var(--primary-muted)';
-                              }}
-                              onMouseLeave={(e) => {
-                                  e.currentTarget.style.color = 'var(--muted-foreground)';
-                                  e.currentTarget.style.background = 'transparent';
-                              }}
-                              title="Admin">
-                            <Settings size={15} />
-                        </Link>
+                        {isAdmin && (
+                            <Link href="/admin"
+                                  className="w-full flex items-center justify-center p-2 rounded-lg"
+                                  style={{ color: 'var(--muted-foreground)', transition: 'all 0.15s ease' }}
+                                  onMouseEnter={(e) => {
+                                      e.currentTarget.style.color = 'var(--primary)';
+                                      e.currentTarget.style.background = 'var(--primary-muted)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                      e.currentTarget.style.color = 'var(--muted-foreground)';
+                                      e.currentTarget.style.background = 'transparent';
+                                  }}
+                                  title="Admin">
+                                <Settings size={15} />
+                            </Link>
+                        )}
                         <button onClick={onReset}
                                 className="w-full flex items-center justify-center p-2 rounded-lg"
                                 style={{ color: 'var(--muted-foreground)', transition: 'all 0.15s ease' }}
