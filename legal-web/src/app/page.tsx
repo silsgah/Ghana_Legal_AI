@@ -157,8 +157,147 @@ function DatabaseStats() {
     );
 }
 
+interface Feedback {
+    id: number;
+    name: string;
+    content: string;
+    created_at: string;
+}
+
+function Testimonials({ isSignedIn, getToken }: { isSignedIn: boolean; getToken: () => Promise<string | null> }) {
+    const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
+    const [showForm, setShowForm] = useState(false);
+    const [name, setName] = useState('');
+    const [content, setContent] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const [feedbackMessage, setFeedbackMessage] = useState('');
+
+    const fetchFeedbacks = () => {
+        fetch(`${config.apiUrl}/api/public/feedback`)
+            .then(res => res.json())
+            .then(data => {
+                if (Array.isArray(data)) setFeedbacks(data);
+            })
+            .catch(() => {});
+    };
+
+    useEffect(() => {
+        fetchFeedbacks();
+    }, []);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setSubmitting(true);
+        setFeedbackMessage('');
+        try {
+            const token = await getToken();
+            const res = await fetch(`${config.apiUrl}/api/feedback`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({ name, content })
+            });
+            if (res.ok) {
+                setFeedbackMessage('Thank you for your feedback!');
+                setShowForm(false);
+                setName('');
+                setContent('');
+                fetchFeedbacks(); // Refresh list
+            } else {
+                setFeedbackMessage('Failed to submit feedback.');
+            }
+        } catch (err) {
+            setFeedbackMessage('An error occurred.');
+        } finally {
+            setSubmitting(false);
+            setTimeout(() => setFeedbackMessage(''), 5000);
+        }
+    };
+
+    return (
+        <section className="py-20 px-6" style={{ borderTop: '1px solid var(--border)' }}>
+            <div className="max-w-6xl mx-auto">
+                <div className="text-center mb-14">
+                    <h2 className="text-3xl font-bold mb-4">What Our Users Say</h2>
+                    <p className="text-base max-w-xl mx-auto" style={{ color: 'var(--muted-foreground)' }}>
+                        Feedback from legal professionals using LexGH.
+                    </p>
+                </div>
+
+                {feedbacks.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
+                        {feedbacks.map(f => (
+                            <div key={f.id} className="p-6 rounded-2xl flex flex-col" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold"
+                                         style={{ background: 'var(--primary-muted)', color: 'var(--primary)' }}>
+                                        {f.name.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div>
+                                        <div className="font-semibold text-sm">{f.name}</div>
+                                        <div className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
+                                            {new Date(f.created_at).toLocaleDateString()}
+                                        </div>
+                                    </div>
+                                </div>
+                                <p className="text-sm italic leading-relaxed flex-1" style={{ color: 'var(--muted-foreground)' }}>
+                                    "{f.content}"
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-center mb-10 text-sm" style={{ color: 'var(--muted-foreground)' }}>
+                        No feedback yet. Be the first!
+                    </div>
+                )}
+
+                {isSignedIn && (
+                    <div className="max-w-lg mx-auto text-center">
+                        {!showForm ? (
+                            <button onClick={() => setShowForm(true)}
+                                    className="px-6 py-3 rounded-xl text-sm font-semibold transition-transform hover:scale-105"
+                                    style={{ background: 'var(--surface-2)', color: 'var(--foreground)', border: '1px solid var(--border)' }}>
+                                Leave Feedback
+                            </button>
+                        ) : (
+                            <form onSubmit={handleSubmit} className="text-left p-6 rounded-2xl animate-fade-in" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+                                <h3 className="font-bold mb-4">Submit Feedback</h3>
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium mb-1" style={{ color: 'var(--muted-foreground)' }}>Display Name</label>
+                                    <input required type="text" value={name} onChange={e => setName(e.target.value)}
+                                           className="w-full px-4 py-2 rounded-lg text-sm"
+                                           style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--foreground)' }} />
+                                </div>
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium mb-1" style={{ color: 'var(--muted-foreground)' }}>Feedback</label>
+                                    <textarea required rows={4} value={content} onChange={e => setContent(e.target.value)}
+                                              className="w-full px-4 py-2 rounded-lg text-sm resize-none"
+                                              style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--foreground)' }} />
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <button type="button" onClick={() => setShowForm(false)}
+                                            className="text-sm px-4 py-2 transition-colors hover:text-white" style={{ color: 'var(--muted-foreground)' }}>Cancel</button>
+                                    <button type="submit" disabled={submitting}
+                                            className="px-6 py-2 rounded-lg text-sm font-semibold transition-opacity"
+                                            style={{ background: 'var(--primary)', color: '#fff', opacity: submitting ? 0.7 : 1 }}>
+                                        {submitting ? 'Submitting...' : 'Submit'}
+                                    </button>
+                                </div>
+                            </form>
+                        )}
+                        {feedbackMessage && <p className="mt-4 text-sm font-medium animate-fade-in" style={{ color: 'var(--ghana-green)' }}>{feedbackMessage}</p>}
+                    </div>
+                )}
+            </div>
+        </section>
+    );
+}
+
 export default function LandingPage() {
-    const { isSignedIn } = useAuth();
+    const { isSignedIn, getToken } = useAuth();
     const { pricing, loading: pricingLoading } = usePricing();
 
     const PRICING_TIERS = [
@@ -467,6 +606,9 @@ export default function LandingPage() {
                     </div>
                 </div>
             </section>
+
+            {/* ===== Testimonials Section ===== */}
+            <Testimonials isSignedIn={!!isSignedIn} getToken={getToken} />
 
             {/* ===== Footer ===== */}
             <footer className="py-10 px-6"

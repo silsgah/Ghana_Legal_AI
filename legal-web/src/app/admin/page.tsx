@@ -8,7 +8,7 @@ import {
     Download, Clock, ArrowLeft, RefreshCw, Search, Globe,
     ChevronLeft, ChevronRight, Filter, ShieldX,
     Users, Settings, Crown, Trash2, Pencil, Save, X,
-    BadgeCheck, UserCheck, UserX, RotateCcw, Upload, FilePlus2
+    BadgeCheck, UserCheck, UserX, RotateCcw, Upload, FilePlus2, MessageSquare
 } from 'lucide-react';
 import { config } from '@/lib/config';
 
@@ -87,7 +87,7 @@ const PLAN_CONFIG: Record<string, { color: string; label: string; icon: React.Re
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-type Tab = 'overview' | 'cases' | 'reports' | 'users' | 'config';
+type Tab = 'overview' | 'cases' | 'reports' | 'users' | 'config' | 'feedback';
 
 export default function AdminPage() {
     const { getToken } = useAuth();
@@ -114,6 +114,12 @@ export default function AdminPage() {
     const [userFeedback, setUserFeedback] = useState<Record<string, { type: 'success' | 'error'; msg: string }>>({});
     const [enrichingAll, setEnrichingAll] = useState(false);
     const [enrichFeedback, setEnrichFeedback] = useState<string | null>(null);
+
+    // Feedback tab state
+    const [feedbacks, setFeedbacks] = useState<any[]>([]);
+    const [feedbacksLoading, setFeedbacksLoading] = useState(false);
+    const [deletingFeedback, setDeletingFeedback] = useState<Record<number, boolean>>({});
+
     // Config tab state
     const [platformConfig, setPlatformConfig] = useState<PlatformConfig | null>(null);
     const [configDraft, setConfigDraft] = useState<PlatformConfig | null>(null);
@@ -229,6 +235,20 @@ export default function AdminPage() {
         } catch (e) { console.error(e); }
     }, [authHeaders]);
 
+    const fetchAdminFeedbacks = useCallback(async () => {
+        setFeedbacksLoading(true);
+        try {
+            const headers = await authHeaders();
+            const res = await fetch(`${config.apiUrl}/api/admin/feedback`, { headers });
+            if (res.status === 403) { setForbidden(true); return; }
+            if (res.ok) {
+                const d = await res.json();
+                setFeedbacks(d.feedbacks);
+            }
+        } catch (e) { console.error(e); }
+        finally { setFeedbacksLoading(false); }
+    }, [authHeaders]);
+
     const fetchIngestionStatus = useCallback(async () => {
         try {
             const headers = await authHeaders();
@@ -323,6 +343,7 @@ export default function AdminPage() {
     useEffect(() => { fetchCases(); }, [page, statusFilter, courtFilter]);
     useEffect(() => { if (activeTab === 'users') fetchUsers(); }, [activeTab, usersPage, userSearch]);
     useEffect(() => { if (activeTab === 'config') fetchConfig(); }, [activeTab]);
+    useEffect(() => { if (activeTab === 'feedback') fetchAdminFeedbacks(); }, [activeTab, fetchAdminFeedbacks]);
 
     // Auto-poll ingestion status when running
     useEffect(() => {
@@ -409,6 +430,27 @@ export default function AdminPage() {
         }
     };
 
+    const deleteFeedback = async (id: number) => {
+        if (!confirm('Are you sure you want to delete this feedback?')) return;
+        setDeletingFeedback(prev => ({ ...prev, [id]: true }));
+        try {
+            const headers = await authHeaders();
+            const res = await fetch(`${config.apiUrl}/api/admin/feedback/${id}`, {
+                method: 'DELETE',
+                headers,
+            });
+            if (res.ok) {
+                setFeedbacks(prev => prev.filter(f => f.id !== id));
+            } else {
+                alert('Failed to delete feedback');
+            }
+        } catch (e) {
+            alert('Network error');
+        } finally {
+            setDeletingFeedback(prev => { const n = { ...prev }; delete n[id]; return n; });
+        }
+    };
+
     // ── Config Actions ────────────────────────────────────────────────────────
 
     const saveConfig = async () => {
@@ -469,6 +511,7 @@ export default function AdminPage() {
         { id: 'cases', label: 'Cases', icon: <FileText size={14} /> },
         { id: 'reports', label: 'Reports', icon: <Clock size={14} /> },
         { id: 'users', label: 'Users', icon: <Users size={14} /> },
+        { id: 'feedback', label: 'Feedback', icon: <MessageSquare size={14} /> },
         { id: 'config', label: 'Config', icon: <Settings size={14} /> },
     ];
 
@@ -1219,6 +1262,70 @@ export default function AdminPage() {
                              style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--muted-foreground)' }}>
                             <p><strong style={{ color: 'var(--foreground)' }}>Free limit</strong> — sets <code>FREE_TIER_DAILY_LIMIT</code> at runtime, overriding the .env value.</p>
                             <p><strong style={{ color: 'var(--foreground)' }}>Prices</strong> — displayed on the upgrade UI. Update Paystack plan prices separately in your Paystack dashboard.</p>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'feedback' && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <div className="p-6 rounded-2xl" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+                            <div className="flex items-center justify-between mb-6">
+                                <h2 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>User Feedback</h2>
+                                <span className="text-sm font-mono bg-primary/10 text-primary px-3 py-1 rounded-lg">
+                                    {feedbacks.length} Total
+                                </span>
+                            </div>
+
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-sm">
+                                    <thead>
+                                        <tr style={{ color: 'var(--muted-foreground)', borderBottom: '1px solid var(--border)' }}>
+                                            <th className="pb-3 font-semibold w-1/4">User</th>
+                                            <th className="pb-3 font-semibold w-1/2">Content</th>
+                                            <th className="pb-3 font-semibold w-1/6">Date</th>
+                                            <th className="pb-3 font-semibold text-right w-1/12">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                                        {feedbacksLoading ? (
+                                            <tr>
+                                                <td colSpan={4} className="py-10 text-center">
+                                                    <RefreshCw size={20} className="animate-spin inline" style={{ color: 'var(--primary)' }} />
+                                                </td>
+                                            </tr>
+                                        ) : feedbacks.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={4} className="py-10 text-center text-muted-foreground">
+                                                    No feedback submissions yet.
+                                                </td>
+                                            </tr>
+                                        ) : feedbacks.map((f: any) => (
+                                            <tr key={f.id} className="group transition-colors hover:bg-surface-2/50">
+                                                <td className="py-4 pr-4">
+                                                    <div className="font-medium" style={{ color: 'var(--foreground)' }}>{f.name}</div>
+                                                    <div className="text-xs font-mono" style={{ color: 'var(--muted-foreground)' }}>{f.clerk_id}</div>
+                                                </td>
+                                                <td className="py-4 pr-4">
+                                                    <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--foreground)' }}>{f.content}</p>
+                                                </td>
+                                                <td className="py-4 whitespace-nowrap text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                                                    {new Date(f.created_at).toLocaleString()}
+                                                </td>
+                                                <td className="py-4 text-right">
+                                                    <button
+                                                        onClick={() => deleteFeedback(f.id)}
+                                                        disabled={deletingFeedback[f.id]}
+                                                        className="p-2 rounded-lg transition-colors hover:bg-error/10 text-error disabled:opacity-50"
+                                                        title="Delete feedback"
+                                                    >
+                                                        {deletingFeedback[f.id] ? <RefreshCw size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 )}

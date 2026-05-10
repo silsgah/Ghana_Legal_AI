@@ -1036,3 +1036,55 @@ async def _upsert_uploaded_case(
                 )
             )
 
+@router.get("/feedback")
+async def get_all_feedback(user: dict = Depends(require_admin)):
+    """Get all user feedback for the admin panel."""
+    from ghana_legal.infrastructure.database import get_session
+    from ghana_legal.domain.models import UserFeedback
+    from sqlalchemy import select
+
+    try:
+        async with get_session() as session:
+            result = await session.execute(
+                select(UserFeedback).order_by(UserFeedback.created_at.desc())
+            )
+            feedbacks = result.scalars().all()
+            return {"feedbacks": [
+                {
+                    "id": f.id,
+                    "clerk_id": f.clerk_id,
+                    "name": f.name,
+                    "content": f.content,
+                    "created_at": f.created_at.isoformat()
+                }
+                for f in feedbacks
+            ]}
+    except Exception as e:
+        logger.error(f"Failed to load all feedback: {e}")
+        return {"feedbacks": []}
+
+
+@router.delete("/feedback/{feedback_id}")
+async def delete_feedback(feedback_id: int, user: dict = Depends(require_admin)):
+    """Delete a user feedback entry."""
+    from ghana_legal.infrastructure.database import get_session
+    from ghana_legal.domain.models import UserFeedback
+    from sqlalchemy import select
+
+    try:
+        async with get_session() as session:
+            result = await session.execute(
+                select(UserFeedback).where(UserFeedback.id == feedback_id)
+            )
+            feedback = result.scalar_one_or_none()
+            if not feedback:
+                raise HTTPException(status_code=404, detail="Feedback not found")
+            
+            await session.delete(feedback)
+            # The session context manager handles commit
+        return {"status": "success"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete feedback {feedback_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

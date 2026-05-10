@@ -73,6 +73,7 @@ class User(Base):
     # Relationships
     usage_logs = relationship("UsageLog", back_populates="user", lazy="selectin")
     subscriptions = relationship("Subscription", back_populates="user", lazy="selectin")
+    feedbacks = relationship("UserFeedback", back_populates="user", lazy="selectin")
 
     def __repr__(self) -> str:
         return f"<User clerk_id={self.clerk_id} plan={self.plan}>"
@@ -284,4 +285,32 @@ class DiscoveryState(Base):
 
     def __repr__(self) -> str:
         return f"<DiscoveryState mode={self.mode} next_page={self.backfill_next_page}>"
+
+
+class UserFeedback(Base):
+    """User feedback submitted from the frontend.
+    
+    Used to display testimonials on the home page and managed via the admin dashboard.
+    """
+    __tablename__ = "user_feedbacks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    clerk_id = Column(
+        String(255),
+        ForeignKey("users.clerk_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    name = Column(String(255), nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    # Relationships
+    user = relationship("User", back_populates="feedbacks")
+
+    def __repr__(self) -> str:
+        return f"<UserFeedback id={self.id} clerk_id={self.clerk_id}>"
 

@@ -88,6 +88,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "https://ghana-legal-ai.vercel.app",
+        "https://ghanalexai.com",
+        "https://www.ghanalexai.com",
     ],
     allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
@@ -149,6 +151,60 @@ async def get_public_stats():
         from loguru import logger
         logger.error(f"Failed to load public stats: {e}")
         return {"total_cases": 0, "by_court": {}}
+
+
+class FeedbackCreate(BaseModel):
+    name: str
+    content: str
+
+
+@app.post("/api/feedback", tags=["feedback"])
+async def submit_feedback(feedback: FeedbackCreate, user: dict = Depends(get_current_user)):
+    """Submit user feedback."""
+    from ghana_legal.infrastructure.database import get_session
+    from ghana_legal.domain.models import UserFeedback
+    
+    clerk_id = user["sub"]
+    
+    try:
+        async with get_session() as session:
+            new_feedback = UserFeedback(
+                clerk_id=clerk_id,
+                name=feedback.name,
+                content=feedback.content
+            )
+            session.add(new_feedback)
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/public/feedback", tags=["public"])
+async def get_public_feedback():
+    """Get the latest user feedback for the landing page."""
+    from ghana_legal.infrastructure.database import get_session
+    from ghana_legal.domain.models import UserFeedback
+    from sqlalchemy import select
+
+    try:
+        async with get_session() as session:
+            result = await session.execute(
+                select(UserFeedback).order_by(UserFeedback.created_at.desc()).limit(10)
+            )
+            feedbacks = result.scalars().all()
+            return [
+                {
+                    "id": f.id,
+                    "name": f.name,
+                    "content": f.content,
+                    "created_at": f.created_at.isoformat()
+                }
+                for f in feedbacks
+            ]
+    except Exception as e:
+        from loguru import logger
+        logger.error(f"Failed to load public feedback: {e}")
+        return []
 
 
 class ChatMessage(BaseModel):
