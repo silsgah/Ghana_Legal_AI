@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@clerk/nextjs';
 import {
     Scale, Shield, Zap, BookOpen, Users, ArrowRight,
-    Check, Star, ChevronRight, Gavel, ScrollText, Database
+    Check, Star, ChevronRight, Gavel, ScrollText, Database, Loader2
 } from 'lucide-react';
 import { usePricing } from '@/hooks/use-pricing';
 
@@ -570,8 +570,9 @@ export default function LandingPage() {
                                         </span>
                                     )}
                                     {tier.priceLoading ? (
-                                        <span className="h-10 w-16 rounded-lg inline-block animate-pulse"
-                                              style={{ background: 'var(--surface-2)' }} />
+                                        <div className="flex items-center h-[40px]">
+                                            <Loader2 size={24} className="animate-spin text-muted-foreground" />
+                                        </div>
                                     ) : (
                                         <span className="text-4xl font-extrabold">{tier.price}</span>
                                     )}
