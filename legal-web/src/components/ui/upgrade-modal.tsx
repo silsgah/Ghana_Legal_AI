@@ -73,6 +73,7 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
                 email: user?.primaryEmailAddress?.emailAddress || 'user@ghanalegal.ai',
                 amount: amountPesewas,
                 currency: 'GHS',
+                channels: ['card', 'mobile_money', 'bank', 'ussd'],
                 metadata: {
                     clerk_id: user?.id,
                     custom_fields: [
@@ -294,7 +295,7 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
                 )}
 
                 <div className="p-4 text-center text-xs" style={{ background: 'var(--surface-1)', color: 'var(--muted-foreground)', borderTop: '1px solid var(--border)' }}>
-                    Payments are securely processed by Paystack. Cancel anytime.
+                    Pay with Card, Mobile Money, Bank, or USSD — securely processed by Paystack. Cancel anytime.
                 </div>
             </div>
         </div>
