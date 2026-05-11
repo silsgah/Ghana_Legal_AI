@@ -7,7 +7,7 @@ import { MessageBubble } from '@/components/ui/message-bubble';
 import { ChatInput } from '@/components/ui/chat-input';
 import { TypingIndicator } from '@/components/ui/typing-indicator';
 import { UpgradeModal } from '@/components/ui/upgrade-modal';
-import { Menu, Scale, BookOpen, Gavel, ScrollText, Sparkles, Zap, Crown } from 'lucide-react';
+import { Menu, Scale, BookOpen, Gavel, ScrollText, Sparkles, Zap, Crown, ArrowUpRight } from 'lucide-react';
 import { useChat } from '@/hooks/use-chat';
 import { useUsage } from '@/hooks/use-usage';
 import { LEGAL_EXPERTS, getLegalExpert } from '@/lib/legal-experts';
@@ -142,36 +142,56 @@ export default function ChatPage() {
                             </span>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-3">
                         {/* Plan & Usage Badge */}
                         {usage && (
                             <div className="hidden sm:flex items-center gap-2">
                                 {usage.plan === 'free' ? (
                                     <>
-                                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
-                                             style={{ background: 'var(--surface-2)' }}>
-                                            <Zap size={10} style={{ color: 'var(--ghana-gold)' }} />
-                                            <span className="text-[10px] font-semibold"
+                                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+                                             style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+                                            <Zap size={12} style={{ color: 'var(--ghana-gold)' }} />
+                                            <span className="text-xs font-semibold tabular-nums"
                                                   style={{ color: usage.remaining > 0 ? 'var(--foreground)' : 'var(--error)' }}>
-                                                {usage.used_today}/{usage.daily_limit} used
+                                                {usage.used_today}/{usage.daily_limit}
+                                            </span>
+                                            <span className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
+                                                used today
                                             </span>
                                         </div>
-                                        <button onClick={() => setIsUpgradeModalOpen(true)}
-                                                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold"
-                                                style={{
-                                                    background: 'linear-gradient(135deg, var(--primary), #8b5cf6)',
-                                                    color: '#fff',
-                                                    transition: 'opacity 0.2s',
-                                                }}>
-                                            <Crown size={10} />
-                                            Upgrade
+                                        <button
+                                            onClick={() => setIsUpgradeModalOpen(true)}
+                                            type="button"
+                                            aria-label="Upgrade to Pro"
+                                            className="group inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-1)] focus-visible:ring-[var(--primary)]"
+                                            style={{
+                                                background: 'linear-gradient(135deg, var(--primary), #8b5cf6)',
+                                                color: '#fff',
+                                                boxShadow: '0 4px 14px rgba(91,106,240,0.35)',
+                                                transition: 'transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease',
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                e.currentTarget.style.transform = 'translateY(-1px)';
+                                                e.currentTarget.style.boxShadow = '0 6px 20px rgba(91,106,240,0.5)';
+                                                e.currentTarget.style.filter = 'brightness(1.08)';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                e.currentTarget.style.transform = 'translateY(0)';
+                                                e.currentTarget.style.boxShadow = '0 4px 14px rgba(91,106,240,0.35)';
+                                                e.currentTarget.style.filter = 'brightness(1)';
+                                            }}
+                                            onMouseDown={(e) => {
+                                                e.currentTarget.style.transform = 'translateY(0)';
+                                            }}>
+                                            <Crown size={13} className="drop-shadow-sm" />
+                                            <span>Upgrade to Pro</span>
                                         </button>
                                     </>
                                 ) : (
-                                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
-                                         style={{ background: 'rgba(91,106,240,0.1)' }}>
-                                        <Crown size={10} style={{ color: 'var(--primary)' }} />
-                                        <span className="text-[10px] font-semibold" style={{ color: 'var(--primary)' }}>
+                                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+                                         style={{ background: 'rgba(91,106,240,0.12)', border: '1px solid rgba(91,106,240,0.25)' }}>
+                                        <Crown size={12} style={{ color: 'var(--primary)' }} />
+                                        <span className="text-xs font-semibold" style={{ color: 'var(--primary)' }}>
                                             {usage.plan === 'professional' ? 'Pro' : 'Enterprise'}
                                         </span>
                                     </div>
@@ -179,15 +199,15 @@ export default function ChatPage() {
                             </div>
                         )}
                         {/* Connection Status */}
-                        <div className="flex items-center gap-1.5 px-2 py-1 rounded-full"
-                             style={{ background: 'var(--surface-2)' }}>
+                        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full"
+                             style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
                             <div className="w-1.5 h-1.5 rounded-full animate-pulse"
                                  style={{
                                      background: connectionStatus === 'connected' ? 'var(--success)'
                                          : connectionStatus === 'connecting' ? 'var(--warning)'
                                          : 'var(--error)',
                                  }} />
-                            <span className="text-[10px] font-medium"
+                            <span className="text-[11px] font-medium"
                                   style={{ color: 'var(--muted-foreground)' }}>
                                 {connectionStatus === 'connected' ? 'Online'
                                     : connectionStatus === 'connecting' ? 'Connecting...'
@@ -195,7 +215,8 @@ export default function ChatPage() {
                             </span>
                             {(connectionStatus === 'disconnected' || connectionStatus === 'error') && (
                                 <button onClick={reconnect}
-                                        className="text-[10px] font-semibold ml-0.5"
+                                        type="button"
+                                        className="text-[11px] font-semibold ml-1 cursor-pointer hover:underline"
                                         style={{ color: 'var(--primary)' }}>
                                     Retry
                                 </button>
@@ -210,61 +231,96 @@ export default function ChatPage() {
                     {messages.length === 0 ? (
                         /* Empty state */
                         <div className="h-full flex flex-col items-center justify-center p-6 animate-float-in">
-                            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5"
-                                 style={{
-                                     background: `linear-gradient(135deg, ${selectedExpert?.accentColor || 'var(--primary)'}22, ${selectedExpert?.accentColor || 'var(--primary)'}55)`,
-                                     border: `1px solid ${selectedExpert?.accentColor || 'var(--primary)'}33`,
-                                 }}>
-                                <Scale size={28} style={{ color: selectedExpert?.accentColor || 'var(--primary)' }} />
+                            <div className="relative mb-6">
+                                <div
+                                    aria-hidden
+                                    className="absolute inset-0 rounded-3xl blur-2xl opacity-50"
+                                    style={{ background: `radial-gradient(circle, ${selectedExpert?.accentColor || 'var(--primary)'}55, transparent 70%)` }}
+                                />
+                                <div className="relative w-20 h-20 rounded-2xl flex items-center justify-center"
+                                     style={{
+                                         background: `linear-gradient(135deg, ${selectedExpert?.accentColor || 'var(--primary)'}22, ${selectedExpert?.accentColor || 'var(--primary)'}55)`,
+                                         border: `1px solid ${selectedExpert?.accentColor || 'var(--primary)'}44`,
+                                         boxShadow: `0 10px 30px ${selectedExpert?.accentColor || 'var(--primary)'}25`,
+                                     }}>
+                                    <Scale size={34} style={{ color: selectedExpert?.accentColor || 'var(--primary)' }} />
+                                </div>
                             </div>
 
-                            <h2 className="text-xl font-bold mb-1.5" style={{ color: 'var(--foreground)' }}>
+                            <h2 className="text-2xl sm:text-3xl font-bold mb-2 tracking-tight text-center" style={{ color: 'var(--foreground)' }}>
                                 {selectedExpert?.name}
                             </h2>
-                            <p className="text-sm max-w-sm text-center mb-1"
+                            <p className="text-sm sm:text-base max-w-md text-center mb-2 leading-relaxed"
                                style={{ color: 'var(--muted-foreground)' }}>
                                 {selectedExpert?.tagline}
                             </p>
-                            <div className="flex items-center gap-1.5 mb-8">
+                            <div className="flex items-center gap-1.5 mb-10 px-3 py-1 rounded-full"
+                                 style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
                                 <Sparkles size={11} style={{ color: 'var(--ghana-gold)' }} />
-                                <span className="text-[11px] font-medium" style={{ color: 'var(--muted-foreground)', opacity: 0.7 }}>
+                                <span className="text-[11px] font-medium tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
                                     {selectedExpert?.era}
                                 </span>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-w-lg w-full">
-                                {SUGGESTED_PROMPTS.map(({ icon, label, prompt }) => (
-                                    <button
-                                        key={prompt}
-                                        onClick={() => sendMessage(prompt)}
-                                        className="px-3.5 py-3 text-left rounded-xl group"
-                                        style={{
-                                            background: 'var(--surface-1)',
-                                            border: '1px solid var(--border)',
-                                            transition: 'all 0.2s ease',
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.borderColor = 'var(--primary)';
-                                            e.currentTarget.style.background = 'var(--primary-muted)';
-                                            e.currentTarget.style.transform = 'translateY(-1px)';
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.borderColor = 'var(--border)';
-                                            e.currentTarget.style.background = 'var(--surface-1)';
-                                            e.currentTarget.style.transform = 'translateY(0)';
-                                        }}
-                                    >
-                                        <div className="flex items-center gap-1.5 mb-1"
-                                             style={{ color: 'var(--primary)' }}>
-                                            {icon}
-                                            <span className="text-[11px] font-semibold">{label}</span>
-                                        </div>
-                                        <p className="text-[12px] leading-snug"
-                                           style={{ color: 'var(--muted-foreground)' }}>
-                                            {prompt}
-                                        </p>
-                                    </button>
-                                ))}
+                            <div className="w-full max-w-xl">
+                                <div className="flex items-center justify-center mb-4">
+                                    <span className="text-[11px] font-semibold uppercase tracking-[0.18em]"
+                                          style={{ color: 'var(--muted-foreground)' }}>
+                                        Try asking
+                                    </span>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {SUGGESTED_PROMPTS.map(({ icon, label, prompt }) => (
+                                        <button
+                                            key={prompt}
+                                            onClick={() => sendMessage(prompt)}
+                                            type="button"
+                                            className="group relative px-4 py-3.5 text-left rounded-xl cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+                                            style={{
+                                                background: 'var(--surface-1)',
+                                                border: '1px solid var(--border)',
+                                                transition: 'transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease',
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                e.currentTarget.style.borderColor = 'var(--primary)';
+                                                e.currentTarget.style.background = 'var(--primary-muted)';
+                                                e.currentTarget.style.transform = 'translateY(-2px)';
+                                                e.currentTarget.style.boxShadow = '0 8px 24px rgba(91,106,240,0.18)';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                e.currentTarget.style.borderColor = 'var(--border)';
+                                                e.currentTarget.style.background = 'var(--surface-1)';
+                                                e.currentTarget.style.transform = 'translateY(0)';
+                                                e.currentTarget.style.boxShadow = 'none';
+                                            }}
+                                        >
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-center gap-1.5 mb-1.5"
+                                                         style={{ color: 'var(--primary)' }}>
+                                                        {icon}
+                                                        <span className="text-xs font-semibold tracking-wide">{label}</span>
+                                                    </div>
+                                                    <p className="text-[13px] leading-relaxed"
+                                                       style={{ color: 'var(--muted-foreground)' }}>
+                                                        {prompt}
+                                                    </p>
+                                                </div>
+                                                <ArrowUpRight
+                                                    size={14}
+                                                    className="shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    style={{ color: 'var(--primary)' }}
+                                                />
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+
+                                <p className="text-[11px] text-center mt-6"
+                                   style={{ color: 'var(--muted-foreground)', opacity: 0.7 }}>
+                                    Responses are grounded in Ghanaian statutes and case law. Verify before relying on them in legal practice.
+                                </p>
                             </div>
                         </div>
                     ) : (
