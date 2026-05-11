@@ -1064,6 +1064,88 @@ async def get_all_feedback(user: dict = Depends(require_admin)):
         return {"feedbacks": []}
 
 
+@router.get("/payments")
+async def list_payments(
+    user: dict = Depends(require_admin),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=200),
+    status: Optional[str] = Query(None, description="Filter by payment status"),
+    search: str = Query("", description="Filter by email, clerk_id, or reference"),
+):
+    """Paginated audit list of verified Paystack payments.
+
+    Backs the admin Payments tab. Ordered newest-first by paid_at (falling
+    back to created_at for legacy rows that pre-date paid_at being captured).
+    """
+    from ghana_legal.infrastructure.database import get_session
+    from ghana_legal.domain.models import Payment
+    from sqlalchemy import select, func, or_
+
+    async with get_session() as session:
+        query = select(Payment)
+        count_query = select(func.count(Payment.id))
+
+        if status:
+            query = query.where(Payment.status == status)
+            count_query = count_query.where(Payment.status == status)
+
+        if search:
+            pattern = f"%{search.strip()}%"
+            search_filter = or_(
+                Payment.email.ilike(pattern),
+                Payment.clerk_id.ilike(pattern),
+                Payment.reference.ilike(pattern),
+            )
+            query = query.where(search_filter)
+            count_query = count_query.where(search_filter)
+
+        total_result = await session.execute(count_query)
+        total = total_result.scalar() or 0
+
+        offset = (page - 1) * per_page
+        query = (
+            query.order_by(Payment.paid_at.desc().nullslast(), Payment.created_at.desc())
+            .offset(offset)
+            .limit(per_page)
+        )
+        result = await session.execute(query)
+        payments = result.scalars().all()
+
+        # Aggregate totals (across all matching rows, not just this page)
+        totals_result = await session.execute(
+            select(
+                func.coalesce(func.sum(Payment.amount_ghs), 0),
+                func.count(Payment.id),
+            ).where(Payment.status == "success")
+        )
+        total_amount, success_count = totals_result.one()
+
+    return {
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "total_revenue_ghs": float(total_amount or 0),
+        "successful_payments": int(success_count or 0),
+        "payments": [
+            {
+                "id": p.id,
+                "reference": p.reference,
+                "clerk_id": p.clerk_id,
+                "email": p.email,
+                "amount_ghs": p.amount_ghs,
+                "currency": p.currency,
+                "status": p.status,
+                "plan": p.plan.value if p.plan else None,
+                "channel": p.channel,
+                "source": p.source,
+                "paid_at": p.paid_at.isoformat() if p.paid_at else None,
+                "created_at": p.created_at.isoformat() if p.created_at else None,
+            }
+            for p in payments
+        ],
+    }
+
+
 @router.delete("/feedback/{feedback_id}")
 async def delete_feedback(feedback_id: int, user: dict = Depends(require_admin)):
     """Delete a user feedback entry."""

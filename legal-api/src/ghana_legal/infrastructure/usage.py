@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 
 from ghana_legal.config import settings
 from ghana_legal.domain.models import (
+    Payment,
     PlanType,
     PlatformConfig,
     Subscription,
@@ -367,6 +368,132 @@ async def cancel_user_subscription(email: str) -> None:
     Called from Paystack subscription.disable webhook.
     """
     await update_user_plan(email=email, plan=PlanType.FREE)
+
+
+async def update_user_plan_by_clerk_id(
+    clerk_id: str,
+    plan: PlanType,
+    paystack_subscription_code: str | None = None,
+    paystack_customer_code: str | None = None,
+) -> User | None:
+    """Update a user's plan by their Clerk ID.
+
+    Preferred over email lookup since the Clerk ID is the stable user
+    identifier — email-based lookups fail when users were auto-provisioned
+    with placeholder addresses before they paid.
+    """
+    async with get_session() as session:
+        result = await session.execute(
+            select(User).where(User.clerk_id == clerk_id)
+        )
+        user = result.scalar_one_or_none()
+        if user is None:
+            logger.warning(f"Plan update: no user found for clerk_id {clerk_id}")
+            return None
+
+        old_plan = user.plan
+        user.plan = plan
+        user.updated_at = datetime.now(timezone.utc)
+
+        if paystack_subscription_code:
+            sub_result = await session.execute(
+                select(Subscription).where(
+                    Subscription.paystack_subscription_code == paystack_subscription_code
+                )
+            )
+            subscription = sub_result.scalar_one_or_none()
+            if subscription is None:
+                session.add(Subscription(
+                    clerk_id=user.clerk_id,
+                    paystack_subscription_code=paystack_subscription_code,
+                    paystack_customer_code=paystack_customer_code,
+                    plan=plan,
+                    status=SubscriptionStatus.ACTIVE,
+                    started_at=datetime.now(timezone.utc),
+                ))
+            else:
+                subscription.plan = plan
+                subscription.status = (
+                    SubscriptionStatus.ACTIVE
+                    if plan != PlanType.FREE
+                    else SubscriptionStatus.CANCELLED
+                )
+        elif paystack_customer_code:
+            # No subscription code (one-off charge), but we can still link
+            # the customer code to the most recent subscription row.
+            sub_result = await session.execute(
+                select(Subscription)
+                .where(Subscription.clerk_id == user.clerk_id)
+                .order_by(Subscription.created_at.desc())
+                .limit(1)
+            )
+            subscription = sub_result.scalar_one_or_none()
+            if subscription and not subscription.paystack_customer_code:
+                subscription.paystack_customer_code = paystack_customer_code
+
+        logger.info(
+            f"User plan updated by clerk_id: {user.email} | {old_plan.value} → {plan.value}"
+        )
+        return user
+
+
+async def record_payment(
+    *,
+    reference: str,
+    clerk_id: str | None,
+    email: str | None,
+    amount_ghs: float,
+    currency: str,
+    status: str,
+    plan: PlanType,
+    paystack_customer_code: str | None = None,
+    channel: str | None = None,
+    source: str = "verify_endpoint",
+    paid_at: datetime | None = None,
+    raw_response: dict | None = None,
+) -> Payment:
+    """Persist a Paystack payment record for the admin audit trail.
+
+    Idempotent on ``reference`` — re-calling with the same reference updates
+    the existing row rather than creating a duplicate. The verify endpoint
+    and webhook can therefore both write the same payment safely.
+    """
+    async with get_session() as session:
+        result = await session.execute(
+            select(Payment).where(Payment.reference == reference)
+        )
+        payment = result.scalar_one_or_none()
+
+        if payment is None:
+            payment = Payment(
+                reference=reference,
+                clerk_id=clerk_id,
+                email=email,
+                amount_ghs=amount_ghs,
+                currency=currency,
+                status=status,
+                plan=plan,
+                paystack_customer_code=paystack_customer_code,
+                channel=channel,
+                source=source,
+                paid_at=paid_at,
+                raw_response=raw_response,
+            )
+            session.add(payment)
+            logger.info(f"Payment recorded: ref={reference} clerk_id={clerk_id} amount=GHS {amount_ghs}")
+        else:
+            # Backfill fields that may have been missing on the prior write
+            payment.clerk_id = payment.clerk_id or clerk_id
+            payment.email = payment.email or email
+            payment.status = status
+            payment.paystack_customer_code = payment.paystack_customer_code or paystack_customer_code
+            payment.channel = payment.channel or channel
+            payment.paid_at = payment.paid_at or paid_at
+            if raw_response is not None:
+                payment.raw_response = raw_response
+            logger.debug(f"Payment record updated: ref={reference}")
+
+        return payment
 
 
 # ---------------------------------------------------------------------------

@@ -8,7 +8,8 @@ import {
     Download, Clock, ArrowLeft, RefreshCw, Search, Globe,
     ChevronLeft, ChevronRight, Filter, ShieldX,
     Users, Settings, Crown, Trash2, Pencil, Save, X,
-    BadgeCheck, UserCheck, UserX, RotateCcw, Upload, FilePlus2, MessageSquare
+    BadgeCheck, UserCheck, UserX, RotateCcw, Upload, FilePlus2, MessageSquare,
+    CreditCard
 } from 'lucide-react';
 import { config } from '@/lib/config';
 
@@ -60,6 +61,21 @@ interface PlatformConfig {
     enterprise_monthly_price_ghs: number;
 }
 
+interface PaymentRecord {
+    id: number;
+    reference: string;
+    clerk_id: string | null;
+    email: string | null;
+    amount_ghs: number;
+    currency: string;
+    status: string;
+    plan: string | null;
+    channel: string | null;
+    source: string;
+    paid_at: string | null;
+    created_at: string | null;
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<string, { color: string; icon: React.ReactNode }> = {
@@ -87,7 +103,7 @@ const PLAN_CONFIG: Record<string, { color: string; label: string; icon: React.Re
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-type Tab = 'overview' | 'cases' | 'reports' | 'users' | 'config' | 'feedback';
+type Tab = 'overview' | 'cases' | 'reports' | 'users' | 'payments' | 'config' | 'feedback';
 
 export default function AdminPage() {
     const { getToken } = useAuth();
@@ -119,6 +135,15 @@ export default function AdminPage() {
     const [feedbacks, setFeedbacks] = useState<any[]>([]);
     const [feedbacksLoading, setFeedbacksLoading] = useState(false);
     const [deletingFeedback, setDeletingFeedback] = useState<Record<number, boolean>>({});
+
+    // Payments tab state
+    const [payments, setPayments] = useState<PaymentRecord[]>([]);
+    const [paymentsTotal, setPaymentsTotal] = useState(0);
+    const [paymentsRevenue, setPaymentsRevenue] = useState(0);
+    const [paymentsSuccessCount, setPaymentsSuccessCount] = useState(0);
+    const [paymentsPage, setPaymentsPage] = useState(1);
+    const [paymentSearch, setPaymentSearch] = useState('');
+    const [paymentsLoading, setPaymentsLoading] = useState(false);
 
     // Config tab state
     const [platformConfig, setPlatformConfig] = useState<PlatformConfig | null>(null);
@@ -235,6 +260,28 @@ export default function AdminPage() {
         } catch (e) { console.error(e); }
     }, [authHeaders]);
 
+    const fetchPayments = useCallback(async () => {
+        setPaymentsLoading(true);
+        try {
+            const headers = await authHeaders();
+            const params = new URLSearchParams({
+                page: String(paymentsPage),
+                per_page: '50',
+                ...(paymentSearch ? { search: paymentSearch } : {}),
+            });
+            const res = await fetch(`${config.apiUrl}/api/admin/payments?${params}`, { headers });
+            if (res.status === 403) { setForbidden(true); return; }
+            if (res.ok) {
+                const d = await res.json();
+                setPayments(d.payments);
+                setPaymentsTotal(d.total);
+                setPaymentsRevenue(d.total_revenue_ghs);
+                setPaymentsSuccessCount(d.successful_payments);
+            }
+        } catch (e) { console.error(e); }
+        finally { setPaymentsLoading(false); }
+    }, [authHeaders, paymentsPage, paymentSearch]);
+
     const fetchAdminFeedbacks = useCallback(async () => {
         setFeedbacksLoading(true);
         try {
@@ -344,6 +391,7 @@ export default function AdminPage() {
     useEffect(() => { if (activeTab === 'users') fetchUsers(); }, [activeTab, usersPage, userSearch]);
     useEffect(() => { if (activeTab === 'config') fetchConfig(); }, [activeTab]);
     useEffect(() => { if (activeTab === 'feedback') fetchAdminFeedbacks(); }, [activeTab, fetchAdminFeedbacks]);
+    useEffect(() => { if (activeTab === 'payments') fetchPayments(); }, [activeTab, fetchPayments]);
 
     // Auto-poll ingestion status when running
     useEffect(() => {
@@ -511,6 +559,7 @@ export default function AdminPage() {
         { id: 'cases', label: 'Cases', icon: <FileText size={14} /> },
         { id: 'reports', label: 'Reports', icon: <Clock size={14} /> },
         { id: 'users', label: 'Users', icon: <Users size={14} /> },
+        { id: 'payments', label: 'Payments', icon: <CreditCard size={14} /> },
         { id: 'feedback', label: 'Feedback', icon: <MessageSquare size={14} /> },
         { id: 'config', label: 'Config', icon: <Settings size={14} /> },
     ];
@@ -1262,6 +1311,150 @@ export default function AdminPage() {
                              style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--muted-foreground)' }}>
                             <p><strong style={{ color: 'var(--foreground)' }}>Free limit</strong> — sets <code>FREE_TIER_DAILY_LIMIT</code> at runtime, overriding the .env value.</p>
                             <p><strong style={{ color: 'var(--foreground)' }}>Prices</strong> — displayed on the upgrade UI. Update Paystack plan prices separately in your Paystack dashboard.</p>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'payments' && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <StatCard
+                                label="Total Revenue"
+                                value={`GHS ${paymentsRevenue.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}
+                                icon={<CreditCard size={18} />}
+                                color="var(--ghana-green)"
+                            />
+                            <StatCard
+                                label="Successful Payments"
+                                value={paymentsSuccessCount}
+                                icon={<CheckCircle size={18} />}
+                                color="var(--ghana-gold)"
+                            />
+                            <StatCard
+                                label="Records"
+                                value={paymentsTotal}
+                                icon={<FileText size={18} />}
+                                color="var(--primary)"
+                            />
+                        </div>
+
+                        <div className="p-6 rounded-2xl" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+                            <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+                                <h2 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>Payment Records</h2>
+                                <div className="flex items-center gap-2">
+                                    <div className="relative">
+                                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--muted-foreground)' }} />
+                                        <input
+                                            type="text"
+                                            value={paymentSearch}
+                                            onChange={e => { setPaymentSearch(e.target.value); setPaymentsPage(1); }}
+                                            placeholder="email, clerk_id, reference"
+                                            className="pl-9 pr-3 py-2 rounded-lg text-sm"
+                                            style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--foreground)', minWidth: 260 }}
+                                        />
+                                    </div>
+                                    <button onClick={fetchPayments}
+                                            disabled={paymentsLoading}
+                                            className="p-2 rounded-lg disabled:opacity-50"
+                                            style={{ color: 'var(--muted-foreground)', border: '1px solid var(--border)' }}>
+                                        <RefreshCw size={14} className={paymentsLoading ? 'animate-spin' : ''} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-sm">
+                                    <thead>
+                                        <tr style={{ color: 'var(--muted-foreground)', borderBottom: '1px solid var(--border)' }}>
+                                            <th className="pb-3 font-semibold">Date</th>
+                                            <th className="pb-3 font-semibold">Customer</th>
+                                            <th className="pb-3 font-semibold">Amount</th>
+                                            <th className="pb-3 font-semibold">Plan</th>
+                                            <th className="pb-3 font-semibold">Status</th>
+                                            <th className="pb-3 font-semibold">Reference</th>
+                                            <th className="pb-3 font-semibold">Source</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                                        {paymentsLoading ? (
+                                            <tr>
+                                                <td colSpan={7} className="py-10 text-center">
+                                                    <RefreshCw size={20} className="animate-spin inline" style={{ color: 'var(--primary)' }} />
+                                                </td>
+                                            </tr>
+                                        ) : payments.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={7} className="py-10 text-center" style={{ color: 'var(--muted-foreground)' }}>
+                                                    No payments recorded yet.
+                                                </td>
+                                            </tr>
+                                        ) : payments.map(p => (
+                                            <tr key={p.id} className="group transition-colors hover:bg-white/[0.02]">
+                                                <td className="py-3 pr-4 whitespace-nowrap text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                                                    {p.paid_at ? new Date(p.paid_at).toLocaleString() : (p.created_at ? new Date(p.created_at).toLocaleString() : '—')}
+                                                </td>
+                                                <td className="py-3 pr-4">
+                                                    <div className="text-sm" style={{ color: 'var(--foreground)' }}>{p.email || '—'}</div>
+                                                    {p.clerk_id && (
+                                                        <div className="text-[11px] font-mono truncate max-w-[220px]" style={{ color: 'var(--muted-foreground)' }} title={p.clerk_id}>
+                                                            {p.clerk_id}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td className="py-3 pr-4 font-mono text-sm font-semibold" style={{ color: 'var(--ghana-green)' }}>
+                                                    {p.currency} {p.amount_ghs.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                                </td>
+                                                <td className="py-3 pr-4">
+                                                    {p.plan && (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium"
+                                                              style={{ background: `${PLAN_CONFIG[p.plan]?.color || 'var(--muted-foreground)'}15`, color: PLAN_CONFIG[p.plan]?.color || 'var(--muted-foreground)' }}>
+                                                            {PLAN_CONFIG[p.plan]?.icon}
+                                                            {PLAN_CONFIG[p.plan]?.label || p.plan}
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="py-3 pr-4">
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                                                          style={{
+                                                              background: p.status === 'success' ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
+                                                              color: p.status === 'success' ? 'var(--ghana-green)' : 'var(--error)',
+                                                          }}>
+                                                        {p.status}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 pr-4 font-mono text-[11px] truncate max-w-[180px]" style={{ color: 'var(--muted-foreground)' }} title={p.reference}>
+                                                    {p.reference}
+                                                </td>
+                                                <td className="py-3 pr-4 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                                                    {p.source === 'webhook' ? 'Webhook' : p.source === 'verify_endpoint' ? 'Verify' : p.source}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {paymentsTotal > 50 && (
+                                <div className="flex items-center justify-between mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
+                                    <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                                        Page {paymentsPage} of {Math.ceil(paymentsTotal / 50)} · {paymentsTotal} total
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => setPaymentsPage(p => Math.max(1, p - 1))}
+                                                disabled={paymentsPage === 1}
+                                                className="p-2 rounded-lg disabled:opacity-30"
+                                                style={{ border: '1px solid var(--border)', color: 'var(--muted-foreground)' }}>
+                                            <ChevronLeft size={14} />
+                                        </button>
+                                        <button onClick={() => setPaymentsPage(p => p + 1)}
+                                                disabled={paymentsPage >= Math.ceil(paymentsTotal / 50)}
+                                                className="p-2 rounded-lg disabled:opacity-30"
+                                                style={{ border: '1px solid var(--border)', color: 'var(--muted-foreground)' }}>
+                                            <ChevronRight size={14} />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}

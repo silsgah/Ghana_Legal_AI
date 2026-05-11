@@ -23,6 +23,7 @@ from ghana_legal.infrastructure.cache import get_cache
 from ghana_legal.config import settings
 from ghana_legal.infrastructure.webhooks import router as webhooks_router
 from ghana_legal.infrastructure.admin import router as admin_router
+from ghana_legal.infrastructure.billing import router as billing_router
 
 from .opik_utils import configure
 
@@ -82,6 +83,7 @@ app = FastAPI(lifespan=lifespan)
 # Register routes
 app.include_router(webhooks_router)
 app.include_router(admin_router)
+app.include_router(billing_router)
 
 app.add_middleware(
     CORSMiddleware,

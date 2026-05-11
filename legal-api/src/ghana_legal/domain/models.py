@@ -152,6 +152,48 @@ class Subscription(Base):
         return f"<Subscription id={self.id} clerk_id={self.clerk_id} plan={self.plan} status={self.status}>"
 
 
+class Payment(Base):
+    """Verified Paystack payment record.
+
+    One row per successful transaction. Written by the verify-payment endpoint
+    (and the charge.success webhook as a fallback) so the admin dashboard has
+    an authoritative audit trail of every customer payment.
+    """
+    __tablename__ = "payments"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    clerk_id = Column(
+        String(255),
+        ForeignKey("users.clerk_id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    email = Column(String(255), nullable=True, index=True)
+    reference = Column(String(255), nullable=False, unique=True)
+    amount_ghs = Column(Float, nullable=False)
+    currency = Column(String(10), nullable=False, default="GHS")
+    status = Column(String(50), nullable=False, index=True)
+    plan = Column(
+        Enum(PlanType, name="plan_type", native_enum=False, length=50),
+        nullable=False,
+        default=PlanType.PROFESSIONAL,
+    )
+    paystack_customer_code = Column(String(255), nullable=True)
+    channel = Column(String(50), nullable=True)
+    source = Column(String(50), nullable=False, default="verify_endpoint")
+    raw_response = Column(JSON, nullable=True)
+    paid_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        index=True,
+    )
+
+    def __repr__(self) -> str:
+        return f"<Payment ref={self.reference} clerk_id={self.clerk_id} status={self.status}>"
+
+
 class PlatformConfig(Base):
     """Live-editable platform configuration (pricing, quotas).
 

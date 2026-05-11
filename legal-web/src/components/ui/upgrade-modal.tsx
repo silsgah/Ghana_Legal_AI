@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { X, Check, Zap, Shield, Scale, ArrowRight } from 'lucide-react';
-import { useUser } from '@clerk/nextjs';
+import { X, Check, Zap, Shield, Scale, ArrowRight, Loader2 } from 'lucide-react';
+import { useUser, useAuth } from '@clerk/nextjs';
 import { useUsage } from '@/hooks/use-usage';
 import { usePricing } from '@/hooks/use-pricing';
+import { config } from '@/lib/config';
 import { cn } from '@/lib/utils';
 import Script from 'next/script';
 
@@ -14,10 +15,13 @@ interface UpgradeModalProps {
 }
 
 export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
-    const { usage } = useUsage();
+    const { usage, fetchUsage } = useUsage();
     const { user } = useUser();
+    const { getToken } = useAuth();
     const { pricing, loading: pricingLoading } = usePricing();
     const [isMounted, setIsMounted] = useState(false);
+    const [verifying, setVerifying] = useState(false);
+    const [verifyError, setVerifyError] = useState<string | null>(null);
 
     useEffect(() => {
         setIsMounted(true);
@@ -27,9 +31,37 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
 
     const currentPlan = usage?.plan || 'free';
 
+    const verifyPayment = async (reference: string) => {
+        setVerifying(true);
+        setVerifyError(null);
+        try {
+            const token = await getToken();
+            const res = await fetch(`${config.apiUrl}/api/billing/verify-payment`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ reference }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                setVerifyError(data.detail || 'We could not confirm your payment. Please contact support with reference ' + reference);
+                return;
+            }
+            await fetchUsage();
+            onClose();
+        } catch (e) {
+            setVerifyError('Network error confirming your payment. Reference: ' + reference);
+        } finally {
+            setVerifying(false);
+        }
+    };
+
     const handleUpgradeClick = (e: React.MouseEvent) => {
         e.preventDefault();
-        
+        setVerifyError(null);
+
         // Amount in pesewas (GHS × 100)
         const amountPesewas = Math.round(pricing.pro_monthly_price_ghs * 100);
 
@@ -41,9 +73,20 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
                 email: user?.primaryEmailAddress?.emailAddress || 'user@ghanalegal.ai',
                 amount: amountPesewas,
                 currency: 'GHS',
+                metadata: {
+                    clerk_id: user?.id,
+                    custom_fields: [
+                        {
+                            display_name: 'Clerk User ID',
+                            variable_name: 'clerk_id',
+                            value: user?.id || '',
+                        },
+                    ],
+                },
                 callback: function(response: any) {
-                    console.log('Payment complete! Reference: ' + response.reference);
-                    onClose();
+                    // Defer to the next tick so React state updates fire after
+                    // Paystack's success animation finishes.
+                    setTimeout(() => { verifyPayment(response.reference); }, 0);
                 },
                 onClose: function() {
                     console.log('Payment modal closed');
@@ -236,6 +279,20 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
 
                 </div>
                 
+                {verifying && (
+                    <div className="px-6 py-3 flex items-center justify-center gap-2 text-sm"
+                         style={{ background: 'var(--surface-2)', color: 'var(--ghana-gold)', borderTop: '1px solid var(--border)' }}>
+                        <Loader2 size={16} className="animate-spin" />
+                        Confirming your payment — please don&apos;t close this window…
+                    </div>
+                )}
+                {verifyError && !verifying && (
+                    <div className="px-6 py-3 text-sm text-center"
+                         style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--error)', borderTop: '1px solid var(--border)' }}>
+                        {verifyError}
+                    </div>
+                )}
+
                 <div className="p-4 text-center text-xs" style={{ background: 'var(--surface-1)', color: 'var(--muted-foreground)', borderTop: '1px solid var(--border)' }}>
                     Payments are securely processed by Paystack. Cancel anytime.
                 </div>
