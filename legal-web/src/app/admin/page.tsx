@@ -79,6 +79,7 @@ interface PaymentRecord {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<string, { color: string; icon: React.ReactNode }> = {
+    pending: { color: 'var(--muted-foreground)', icon: <Clock size={12} /> },
     discovered: { color: 'var(--info)', icon: <Search size={12} /> },
     downloaded: { color: 'var(--warning)', icon: <Download size={12} /> },
     validated: { color: 'var(--ghana-green)', icon: <CheckCircle size={12} /> },
@@ -988,7 +989,7 @@ export default function AdminPage() {
                                         className="text-sm px-3 py-1.5 rounded-lg"
                                         style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--foreground)' }}>
                                     <option value="">All Statuses</option>
-                                    {['discovered', 'downloaded', 'validated', 'indexed', 'failed'].map(s => (
+                                    {['pending', 'discovered', 'downloaded', 'validated', 'indexed', 'failed'].map(s => (
                                         <option key={s} value={s}>{s}</option>
                                     ))}
                                 </select>
