@@ -181,6 +181,7 @@ export default function AdminPage() {
             pages_scraped?: number;
             reached_end?: boolean;
             flipped_to_incremental?: boolean;
+            years_processed?: number[];
         } | null;
         error: string | null;
     }>({ status: 'idle', started_at: null, completed_at: null, result: null, error: null });
