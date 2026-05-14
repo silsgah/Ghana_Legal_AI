@@ -194,6 +194,8 @@ export default function AdminPage() {
         backfill_completed_at: string | null;
     } | null>(null);
     const [discoveryBatchSize, setDiscoveryBatchSize] = useState<number>(5);
+    const [updatingDiscoveryState, setUpdatingDiscoveryState] = useState(false);
+    const [discoveryStateFeedback, setDiscoveryStateFeedback] = useState<string | null>(null);
 
     const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
         const token = await getToken();
@@ -329,6 +331,32 @@ export default function AdminPage() {
             }
         } catch (e) { console.error(e); }
     }, [authHeaders]);
+
+    const updateDiscoveryState = async (updates: { mode?: string; backfill_next_page?: number; batch_size?: number }) => {
+        setUpdatingDiscoveryState(true);
+        setDiscoveryStateFeedback(null);
+        try {
+            const headers = await authHeaders();
+            const res = await fetch(`${config.apiUrl}/api/admin/pipeline/discovery-state`, {
+                method: 'PUT',
+                headers,
+                body: JSON.stringify(updates),
+            });
+            const d = await res.json();
+            if (res.ok) {
+                setDiscoveryState(d);
+                if (d.batch_size) setDiscoveryBatchSize(d.batch_size);
+                setDiscoveryStateFeedback('✓ Discovery settings saved');
+            } else {
+                setDiscoveryStateFeedback(`✗ ${d.detail || 'Failed to update'}`);
+            }
+        } catch {
+            setDiscoveryStateFeedback('✗ Network error');
+        } finally {
+            setUpdatingDiscoveryState(false);
+            setTimeout(() => setDiscoveryStateFeedback(null), 4000);
+        }
+    };
 
     const triggerIngestion = async () => {
         setIsIngestionModalOpen(false);
@@ -742,48 +770,98 @@ export default function AdminPage() {
                                     </div>
                                 </div>
 
-                                {/* Cursor + batch-size controls */}
+                                {/* Cursor + batch-size + mode controls */}
                                 {discoveryState && (
-                                    <div className="mt-3 p-3 rounded-lg flex items-center justify-between gap-4 flex-wrap"
+                                    <div className="mt-3 p-3 rounded-lg space-y-3"
                                          style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
-                                        <div className="flex items-center gap-4 text-xs flex-wrap">
-                                            <div>
-                                                <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: 'var(--muted-foreground)' }}>Mode</div>
-                                                <div className="font-mono font-semibold capitalize" style={{ color: discoveryState.mode === 'backfill' ? 'var(--ghana-gold)' : 'var(--ghana-green)' }}>
-                                                    {discoveryState.mode}
+                                        <div className="flex items-center justify-between gap-4 flex-wrap">
+                                            <div className="flex items-center gap-4 text-xs flex-wrap">
+                                                <div>
+                                                    <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--muted-foreground)' }}>Mode</div>
+                                                    <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                                                        <button
+                                                            onClick={() => updateDiscoveryState({ mode: 'backfill' })}
+                                                            disabled={updatingDiscoveryState || discoveryStatus.status === 'running'}
+                                                            className="px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-40"
+                                                            style={{
+                                                                background: discoveryState.mode === 'backfill' ? 'var(--ghana-gold)' : 'var(--surface-1)',
+                                                                color: discoveryState.mode === 'backfill' ? '#000' : 'var(--muted-foreground)',
+                                                            }}>
+                                                            Backfill
+                                                        </button>
+                                                        <button
+                                                            onClick={() => updateDiscoveryState({ mode: 'incremental' })}
+                                                            disabled={updatingDiscoveryState || discoveryStatus.status === 'running'}
+                                                            className="px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-40"
+                                                            style={{
+                                                                background: discoveryState.mode === 'incremental' ? 'var(--ghana-green)' : 'var(--surface-1)',
+                                                                color: discoveryState.mode === 'incremental' ? '#000' : 'var(--muted-foreground)',
+                                                            }}>
+                                                            Incremental
+                                                        </button>
+                                                    </div>
                                                 </div>
+                                                {discoveryState.mode === 'backfill' && (
+                                                    <div>
+                                                        <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--muted-foreground)' }}>Start page</div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <input
+                                                                type="number"
+                                                                min={1}
+                                                                value={discoveryState.backfill_next_page}
+                                                                onChange={e => {
+                                                                    const val = Math.max(1, Number(e.target.value) || 1);
+                                                                    setDiscoveryState(prev => prev ? { ...prev, backfill_next_page: val } : prev);
+                                                                }}
+                                                                onBlur={e => {
+                                                                    const val = Math.max(1, Number(e.target.value) || 1);
+                                                                    if (val !== discoveryState.backfill_next_page) {
+                                                                        updateDiscoveryState({ backfill_next_page: val });
+                                                                    }
+                                                                }}
+                                                                disabled={updatingDiscoveryState || discoveryStatus.status === 'running'}
+                                                                className="w-16 px-2 py-1 rounded text-sm font-mono text-center"
+                                                                style={{ background: 'var(--surface-1)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
+                                                            />
+                                                            <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>of ~180</span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {discoveryState.backfill_completed_at && (
+                                                    <div>
+                                                        <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--muted-foreground)' }}>Backfill done</div>
+                                                        <div className="font-mono text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                                                            {new Date(discoveryState.backfill_completed_at).toLocaleDateString()}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
-                                            {discoveryState.mode === 'backfill' && (
-                                                <div>
-                                                    <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: 'var(--muted-foreground)' }}>Next page</div>
-                                                    <div className="font-mono font-semibold" style={{ color: 'var(--foreground)' }}>
-                                                        {discoveryState.backfill_next_page}
-                                                    </div>
-                                                </div>
-                                            )}
-                                            {discoveryState.backfill_completed_at && (
-                                                <div>
-                                                    <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: 'var(--muted-foreground)' }}>Backfill done</div>
-                                                    <div className="font-mono text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                                                        {new Date(discoveryState.backfill_completed_at).toLocaleDateString()}
-                                                    </div>
-                                                </div>
-                                            )}
+                                            <label className="flex items-center gap-2 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                                                <span>Pages/run</span>
+                                                <input
+                                                    type="number"
+                                                    min={1}
+                                                    max={50}
+                                                    value={discoveryBatchSize}
+                                                    onChange={e => setDiscoveryBatchSize(Math.max(1, Math.min(50, Number(e.target.value) || 1)))}
+                                                    disabled={triggeringDiscovery || discoveryStatus.status === 'running'}
+                                                    className="w-16 px-2 py-1 rounded text-sm font-mono text-center"
+                                                    style={{ background: 'var(--surface-1)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
+                                                />
+                                                <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>(≈50/page)</span>
+                                            </label>
                                         </div>
-                                        <label className="flex items-center gap-2 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                                            <span>Pages per run</span>
-                                            <input
-                                                type="number"
-                                                min={1}
-                                                max={50}
-                                                value={discoveryBatchSize}
-                                                onChange={e => setDiscoveryBatchSize(Math.max(1, Math.min(50, Number(e.target.value) || 1)))}
-                                                disabled={triggeringDiscovery || discoveryStatus.status === 'running'}
-                                                className="w-16 px-2 py-1 rounded text-sm font-mono text-center"
-                                                style={{ background: 'var(--surface-1)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
-                                            />
-                                            <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>(≈50/page)</span>
-                                        </label>
+                                        {discoveryState.mode === 'backfill' && (
+                                            <div className="text-[10px] px-2 py-1.5 rounded" style={{ background: 'var(--ghana-gold)08', color: 'var(--ghana-gold)', border: '1px solid var(--ghana-gold)20' }}>
+                                                📦 Backfill mode scrapes oldest → newest with a stable cursor. Each run advances the page pointer. ~9000 cases on ghalii ÷ 50/page ≈ 180 pages total.
+                                            </div>
+                                        )}
+                                        {discoveryStateFeedback && (
+                                            <div className="text-xs font-medium"
+                                                 style={{ color: discoveryStateFeedback.startsWith('✓') ? 'var(--ghana-green)' : 'var(--error)' }}>
+                                                {discoveryStateFeedback}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 

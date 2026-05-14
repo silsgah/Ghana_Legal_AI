@@ -97,11 +97,13 @@ def run_ingestion(run_id: int, max_cases: int = 10):
     def update_run(**fields):
         try:
             import psycopg
+            from psycopg.types.json import Json
             set_parts = []
             values = []
             for key, val in fields.items():
                 set_parts.append(f"{key} = %s")
-                values.append(json.dumps(val) if isinstance(val, dict) else val)
+                # Use psycopg's Json adapter for dicts to avoid double-encoding
+                values.append(Json(val) if isinstance(val, dict) else val)
             values.append(run_id)
             with psycopg.connect(db_url, prepare_threshold=None) as conn:
                 with conn.cursor() as cur:
@@ -268,7 +270,7 @@ def run_discovery(run_id: int, max_pages: int = 5, batch_size: int | None = None
     # --- Helper to update the DiscoveryRun row ---
     def update_run(**fields):
         import psycopg
-        import json as _json
+        from psycopg.types.json import Json
         db_url = os.environ.get("DATABASE_URL", "")
         db_url = db_url.replace("postgresql+asyncpg://", "postgresql://")
         if "pooler.supabase.com" in db_url and ":5432" in db_url:
@@ -278,10 +280,8 @@ def run_discovery(run_id: int, max_pages: int = 5, batch_size: int | None = None
         values = []
         for key, val in fields.items():
             set_parts.append(f"{key} = %s")
-            if isinstance(val, dict):
-                values.append(_json.dumps(val))
-            else:
-                values.append(val)
+            # Use psycopg's Json adapter for dicts to avoid double-encoding
+            values.append(Json(val) if isinstance(val, dict) else val)
         values.append(run_id)
 
         try:

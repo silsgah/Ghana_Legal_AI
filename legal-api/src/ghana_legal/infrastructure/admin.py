@@ -667,6 +667,86 @@ class TriggerDiscoveryBody(BaseModel):
     batch_size: Optional[int] = None  # one-off override of discovery_state.batch_size
 
 
+async def _run_discovery_background(run_id: int, batch_size: Optional[int] = None):
+    """Run discovery in-process as a background task.
+
+    Fallback path when Modal dispatch fails (dev, outage, etc.) or the
+    preferred path when we want discovery to run from the same container
+    as the API — avoids IP-reputation differences between containers.
+    """
+    import json as _json
+    from pathlib import Path as _Path
+
+    logger.info(f"[discovery-bg] Starting in-process discovery for run_id={run_id}")
+
+    def _update_discovery_run(**fields):
+        """Sync helper to update discovery_runs row via psycopg."""
+        try:
+            import psycopg
+            from psycopg.types.json import Json
+
+            db_url = os.environ.get("DATABASE_URL", "")
+            db_url = db_url.replace("postgresql+asyncpg://", "postgresql://")
+            if "pooler.supabase.com" in db_url and ":5432" in db_url:
+                db_url = db_url.replace(":5432", ":6543")
+
+            set_parts = []
+            values = []
+            for key, val in fields.items():
+                set_parts.append(f"{key} = %s")
+                values.append(Json(val) if isinstance(val, dict) else val)
+            values.append(run_id)
+
+            with psycopg.connect(db_url, prepare_threshold=None) as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        f"UPDATE discovery_runs SET {', '.join(set_parts)} WHERE id = %s",
+                        values,
+                    )
+                conn.commit()
+        except Exception as e:
+            logger.error(f"[discovery-bg] Failed to update run {run_id}: {e}")
+
+    try:
+        import sys
+        src_dir = Path(__file__).resolve().parents[1]
+        scripts_dir = src_dir.parent / "scripts"
+        if str(scripts_dir) not in sys.path:
+            sys.path.insert(0, str(scripts_dir))
+        if str(src_dir.parent) not in sys.path:
+            sys.path.insert(0, str(src_dir.parent))
+
+        from scripts.discover_cases import run_discovery as _discover
+
+        # Run blocking scraper in a thread to avoid blocking the event loop
+        result = await asyncio.to_thread(
+            _discover,
+            batch_size_override=batch_size,
+            data_dir=_Path(os.environ.get("PDF_UPLOAD_DIR", "/data")),
+        )
+
+        summary = result.get("summary") or (
+            f"Scraped {result['scraped']} cases. "
+            f"Found {result['new']} new. Inserted {result['inserted']}."
+        )
+        logger.info(f"[discovery-bg] Completed: {summary}")
+
+        _update_discovery_run(
+            status="completed",
+            completed_at=datetime.now(timezone.utc),
+            result={**result, "summary": summary},
+        )
+
+    except Exception as e:
+        import traceback
+        logger.error(f"[discovery-bg] Failed: {e}\n{traceback.format_exc()}")
+        _update_discovery_run(
+            status="failed",
+            completed_at=datetime.now(timezone.utc),
+            error=str(e)[:500],
+        )
+
+
 @router.post("/pipeline/trigger-discovery")
 async def trigger_discovery(
     body: TriggerDiscoveryBody = TriggerDiscoveryBody(),
@@ -675,7 +755,11 @@ async def trigger_discovery(
     """Trigger case discovery: scrape ghalii.org for new or archived cases.
 
     Returns immediately — poll GET /api/admin/pipeline/discovery-status.
-    Spawns a dedicated Modal function that:
+    Tries to spawn a dedicated Modal function first. If that fails (dev mode,
+    Modal outage, etc.), falls back to running discovery in-process as an
+    ``asyncio`` background task in the current API container.
+
+    Pipeline steps:
       1. Reads discovery_state for the current cursor + mode (backfill/incremental)
       2. Scrapes the appropriate page range from ghalii.org
       3. Filters out already-known cases
@@ -720,7 +804,7 @@ async def trigger_discovery(
         await session.flush()
         run_id = new_run.id
 
-    # Spawn dedicated Modal function
+    # --- Dispatch: try Modal first, fall back to in-process ---
     dispatch_method = "error"
     try:
         import modal
@@ -732,22 +816,13 @@ async def trigger_discovery(
             f"batch_size={body.batch_size}"
         )
     except Exception as e:
-        logger.error(f"Failed to spawn discovery: {e}")
-        # Mark the run as failed since we can't run discovery locally easily
-        from ghana_legal.infrastructure.database import get_session as _gs
-        from ghana_legal.domain.models import DiscoveryRun as _DR
-        async with _gs() as session:
-            await session.execute(
-                update(_DR).where(_DR.id == run_id).values(
-                    status="failed",
-                    completed_at=datetime.now(timezone.utc),
-                    error=f"Could not spawn Modal function: {e}",
-                )
-            )
-        dispatch_method = "failed"
+        logger.warning(f"Modal dispatch failed ({e}), falling back to in-process discovery")
+        # Run discovery in-process as a background task
+        asyncio.create_task(_run_discovery_background(run_id, batch_size=body.batch_size))
+        dispatch_method = "in-process"
 
     return {
-        "success": dispatch_method != "failed",
+        "success": True,
         "message": f"Discovery triggered via {dispatch_method}. Poll /api/admin/pipeline/discovery-status for progress.",
         "run_id": run_id,
         "dispatch": dispatch_method,
@@ -831,6 +906,75 @@ async def discovery_state(user: dict = Depends(require_admin)):
             await session.flush()
 
     return {
+        "mode": state.mode,
+        "backfill_next_page": state.backfill_next_page,
+        "batch_size": state.batch_size,
+        "backfill_completed_at": (
+            state.backfill_completed_at.isoformat()
+            if state.backfill_completed_at else None
+        ),
+        "updated_at": state.updated_at.isoformat() if state.updated_at else None,
+    }
+
+
+class UpdateDiscoveryStateBody(BaseModel):
+    mode: Optional[str] = None            # "backfill" or "incremental"
+    backfill_next_page: Optional[int] = None  # reset cursor position
+    batch_size: Optional[int] = None      # pages per discovery run
+
+
+@router.put("/pipeline/discovery-state")
+async def update_discovery_state_endpoint(
+    body: UpdateDiscoveryStateBody,
+    user: dict = Depends(require_admin),
+):
+    """Update discovery cursor: switch modes, reset page cursor, or change batch size.
+
+    Use this to switch from incremental → backfill mode when there are older
+    cases on ghalii.org that haven't been scraped yet. Set ``backfill_next_page``
+    to control where the backfill starts (e.g. 1 to start from scratch).
+    """
+    from ghana_legal.infrastructure.database import get_session
+    from ghana_legal.domain.models import DiscoveryState
+    from sqlalchemy import select
+
+    if body.mode and body.mode not in ("backfill", "incremental"):
+        raise HTTPException(status_code=422, detail="mode must be 'backfill' or 'incremental'")
+    if body.backfill_next_page is not None and body.backfill_next_page < 1:
+        raise HTTPException(status_code=422, detail="backfill_next_page must be ≥ 1")
+    if body.batch_size is not None and (body.batch_size < 1 or body.batch_size > 50):
+        raise HTTPException(status_code=422, detail="batch_size must be between 1 and 50")
+
+    async with get_session() as session:
+        result = await session.execute(
+            select(DiscoveryState).where(DiscoveryState.id == 1)
+        )
+        state = result.scalar_one_or_none()
+
+        if state is None:
+            state = DiscoveryState(id=1, mode="backfill", backfill_next_page=1, batch_size=5)
+            session.add(state)
+            await session.flush()
+
+        if body.mode:
+            state.mode = body.mode
+            # Clear backfill_completed_at when switching to backfill
+            if body.mode == "backfill":
+                state.backfill_completed_at = None
+        if body.backfill_next_page is not None:
+            state.backfill_next_page = body.backfill_next_page
+        if body.batch_size is not None:
+            state.batch_size = body.batch_size
+
+        state.updated_at = datetime.now(timezone.utc)
+
+    logger.info(
+        f"Discovery state updated: mode={state.mode}, "
+        f"next_page={state.backfill_next_page}, batch_size={state.batch_size}"
+    )
+
+    return {
+        "success": True,
         "mode": state.mode,
         "backfill_next_page": state.backfill_next_page,
         "batch_size": state.batch_size,

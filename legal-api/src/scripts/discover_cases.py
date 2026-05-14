@@ -35,11 +35,26 @@ except ImportError:
 
 BASE_URL = "https://ghalii.org"
 ALL_JUDGMENTS_URL = "https://ghalii.org/judgments/all/"
-DEFAULT_REQUEST_DELAY = 1.5
+DEFAULT_REQUEST_DELAY = 5.0  # Match robots.txt Crawl-delay: 5
 DEFAULT_MAX_PAGES = 5
 
+# Full browser-like headers to avoid Cloudflare / WAF blocks on datacenter IPs.
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) GhanaLegalAI/1.0"
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Cache-Control": "max-age=0",
 }
 
 # Known courts and their URL slugs
@@ -130,6 +145,20 @@ def discover_cases_from_ghalii(
     from bs4 import BeautifulSoup
 
     session = _make_session()
+
+    # Helper: detect Cloudflare / WAF challenge pages
+    def _is_cloudflare_challenge(text: str) -> bool:
+        markers = [
+            "cf-browser-verification",
+            "Checking your browser",
+            "challenge-platform",
+            "_cf_chl",
+            "Attention Required",
+            "cf-turnstile",
+            "Just a moment",
+        ]
+        return any(m in text for m in markers)
+
     all_cases: List[Dict] = []
     seen_urls: Set[str] = set()
     end_page = start_page + max_pages - 1
@@ -143,7 +172,11 @@ def discover_cases_from_ghalii(
         logger.info(f"Fetching listing page {page}: {url}")
 
         try:
-            resp = session.get(url, timeout=30)
+            # Set Referer for subsequent pages to look like real browsing
+            extra_headers = {}
+            if page > start_page:
+                extra_headers["Referer"] = f"{ALL_JUDGMENTS_URL}?page={page - 1}&sort={sort_order}"
+            resp = session.get(url, timeout=30, headers=extra_headers)
         except requests.RequestException as e:
             logger.error(f"Failed to fetch page {page}: {e}")
             break
@@ -163,7 +196,18 @@ def discover_cases_from_ghalii(
             logger.error(f"Page {page} returned {resp.status_code}: {e}")
             break
 
-        soup = BeautifulSoup(resp.text, "html.parser")
+        # --- Cloudflare / WAF detection ---
+        resp_text = resp.text
+        if _is_cloudflare_challenge(resp_text):
+            logger.error(
+                f"Page {page}: Cloudflare challenge page detected — "
+                f"the server is blocking this IP (likely a datacenter IP). "
+                f"Response length: {len(resp_text)} chars. "
+                f"First 300 chars: {resp_text[:300]}"
+            )
+            break
+
+        soup = BeautifulSoup(resp_text, "html.parser")
         page_cases = []
 
         for link in soup.find_all("a", href=True):
@@ -190,7 +234,16 @@ def discover_cases_from_ghalii(
         pages_scraped += 1
 
         if not page_cases:
-            logger.info(f"No cases found on page {page} — end of pagination.")
+            # Log diagnostic info so we can tell WHY no cases were found
+            title_tag = soup.find("title")
+            page_title = title_tag.get_text(strip=True) if title_tag else "(no title)"
+            link_count = len(soup.find_all("a", href=True))
+            logger.warning(
+                f"No cases found on page {page} — end of pagination or blocked. "
+                f"Page title: '{page_title}', total links: {link_count}, "
+                f"response length: {len(resp_text)} chars. "
+                f"First 500 chars: {resp_text[:500]}"
+            )
             reached_end = True
             break
 
