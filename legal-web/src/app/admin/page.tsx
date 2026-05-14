@@ -803,27 +803,28 @@ export default function AdminPage() {
                                                 </div>
                                                 {discoveryState.mode === 'backfill' && (
                                                     <div>
-                                                        <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--muted-foreground)' }}>Start page</div>
+                                                        <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--muted-foreground)' }}>Start year</div>
                                                         <div className="flex items-center gap-1.5">
                                                             <input
                                                                 type="number"
-                                                                min={1}
+                                                                min={1958}
+                                                                max={2026}
                                                                 value={discoveryState.backfill_next_page}
                                                                 onChange={e => {
-                                                                    const val = Math.max(1, Number(e.target.value) || 1);
+                                                                    const val = Math.max(1958, Math.min(2026, Number(e.target.value) || 1958));
                                                                     setDiscoveryState(prev => prev ? { ...prev, backfill_next_page: val } : prev);
                                                                 }}
                                                                 onBlur={e => {
-                                                                    const val = Math.max(1, Number(e.target.value) || 1);
+                                                                    const val = Math.max(1958, Math.min(2026, Number(e.target.value) || 1958));
                                                                     if (val !== discoveryState.backfill_next_page) {
                                                                         updateDiscoveryState({ backfill_next_page: val });
                                                                     }
                                                                 }}
                                                                 disabled={updatingDiscoveryState || discoveryStatus.status === 'running'}
-                                                                className="w-16 px-2 py-1 rounded text-sm font-mono text-center"
+                                                                className="w-20 px-2 py-1 rounded text-sm font-mono text-center"
                                                                 style={{ background: 'var(--surface-1)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
                                                             />
-                                                            <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>of ~180</span>
+                                                            <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>– 2026</span>
                                                         </div>
                                                     </div>
                                                 )}
@@ -837,7 +838,7 @@ export default function AdminPage() {
                                                 )}
                                             </div>
                                             <label className="flex items-center gap-2 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                                                <span>Pages/run</span>
+                                                <span>Years/run</span>
                                                 <input
                                                     type="number"
                                                     min={1}
@@ -848,12 +849,12 @@ export default function AdminPage() {
                                                     className="w-16 px-2 py-1 rounded text-sm font-mono text-center"
                                                     style={{ background: 'var(--surface-1)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
                                                 />
-                                                <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>(≈50/page)</span>
+                                                <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>(≈500 cases/yr)</span>
                                             </label>
                                         </div>
                                         {discoveryState.mode === 'backfill' && (
                                             <div className="text-[10px] px-2 py-1.5 rounded" style={{ background: 'var(--ghana-gold)08', color: 'var(--ghana-gold)', border: '1px solid var(--ghana-gold)20' }}>
-                                                📦 Backfill mode scrapes oldest → newest with a stable cursor. Each run advances the page pointer. ~9000 cases on ghalii ÷ 50/page ≈ 180 pages total.
+                                                📦 Backfill scrapes year-by-year (e.g. 2020, 2021, 2022...). Each year has up to 10 pages (~500 cases). Set "Years/run" to control how many years per discovery run. ~45 years on ghalii = ~9000 cases total.
                                             </div>
                                         )}
                                         {discoveryStateFeedback && (
@@ -876,7 +877,7 @@ export default function AdminPage() {
                                         )}
                                         {discoveryStatus.result.cursor_before !== undefined && discoveryStatus.result.cursor_after !== undefined && discoveryStatus.result.mode === 'backfill' && (
                                             <span className="block mt-1" style={{ color: 'var(--foreground)', fontFamily: 'inherit' }}>
-                                                Pages {discoveryStatus.result.cursor_before}–{(discoveryStatus.result.cursor_after ?? 0) - 1} scraped → next page {discoveryStatus.result.cursor_after}
+                                                {discoveryStatus.result.years_processed ? `Years scraped: ${discoveryStatus.result.years_processed.join(', ')}` : `Cursor: ${discoveryStatus.result.cursor_before} → ${discoveryStatus.result.cursor_after}`} — next year: {discoveryStatus.result.cursor_after}
                                             </span>
                                         )}
                                         {discoveryStatus.result.flipped_to_incremental && (

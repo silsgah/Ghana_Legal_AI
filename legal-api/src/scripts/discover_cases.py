@@ -119,21 +119,52 @@ def _get_sync_db_url() -> Optional[str]:
 # Scraper
 # ---------------------------------------------------------------------------
 
+MAX_PAGES_PER_YEAR = 10  # ghalii.org caps pagination at 10 pages per listing URL
+
+
+def discover_available_years() -> List[int]:
+    """Discover all available years from the ghalii.org judgments listing.
+
+    Parses year links like /judgments/all/2023/ from the main page.
+    Returns sorted list of years (ascending: oldest first).
+    """
+    session = _make_session()
+    try:
+        resp = session.get(ALL_JUDGMENTS_URL, timeout=30)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error(f"Failed to fetch years listing: {e}")
+        return []
+
+    years = set()
+    for match in re.finditer(r"/judgments/all/(\d{4})/", resp.text):
+        years.add(int(match.group(1)))
+
+    result = sorted(years)
+    if result:
+        logger.info(f"Found {len(result)} years on ghalii.org: {result[0]}–{result[-1]}")
+    else:
+        logger.warning("No years found on ghalii.org listing page")
+    return result
+
+
 def discover_cases_from_ghalii(
     max_pages: int = DEFAULT_MAX_PAGES,
     request_delay: float = DEFAULT_REQUEST_DELAY,
     start_page: int = 1,
     sort_order: str = "-date",
+    year: Optional[int] = None,
 ) -> Tuple[List[Dict], Dict[str, int]]:
-    """Scrape ghalii.org/judgments/all/ for case listings.
+    """Scrape ghalii.org for case listings.
 
     Args:
         max_pages: how many pages to scrape (a "batch").
         request_delay: seconds to sleep between page fetches.
         start_page: page index to start from (1-based).
         sort_order: ghalii sort param. ``-date`` = newest first (incremental),
-                    ``date`` = oldest first (backfill — page numbers stable
-                    because new uploads extend the back of pagination).
+                    ``date`` = oldest first.
+        year: if set, scrape ``/judgments/all/{year}/`` instead of the global
+              listing. Used by backfill mode to walk year-by-year.
 
     Returns:
         (cases, meta) where meta = {
@@ -159,6 +190,12 @@ def discover_cases_from_ghalii(
         ]
         return any(m in text for m in markers)
 
+    # Build base URL depending on whether we're scraping a specific year
+    if year:
+        base_listing_url = f"{ALL_JUDGMENTS_URL}{year}/"
+    else:
+        base_listing_url = ALL_JUDGMENTS_URL
+
     all_cases: List[Dict] = []
     seen_urls: Set[str] = set()
     end_page = start_page + max_pages - 1
@@ -168,14 +205,14 @@ def discover_cases_from_ghalii(
 
     for page in range(start_page, end_page + 1):
         last_page = page
-        url = f"{ALL_JUDGMENTS_URL}?page={page}&sort={sort_order}"
+        url = f"{base_listing_url}?page={page}&sort={sort_order}"
         logger.info(f"Fetching listing page {page}: {url}")
 
         try:
             # Set Referer for subsequent pages to look like real browsing
             extra_headers = {}
             if page > start_page:
-                extra_headers["Referer"] = f"{ALL_JUDGMENTS_URL}?page={page - 1}&sort={sort_order}"
+                extra_headers["Referer"] = f"{base_listing_url}?page={page - 1}&sort={sort_order}"
             resp = session.get(url, timeout=30, headers=extra_headers)
         except requests.RequestException as e:
             logger.error(f"Failed to fetch page {page}: {e}")
@@ -484,14 +521,14 @@ def run_discovery(
 
     Reads ``discovery_state`` for the current cursor and mode.
 
-    - **Backfill mode** (default while archiving the historical corpus):
-      walks pages ascending by date with a stable cursor. Each run scrapes
-      ``batch_size`` pages starting at ``backfill_next_page`` and advances
-      the cursor on success. When pagination exhausts (a page returns 0
-      cases), mode flips to 'incremental'.
+    - **Backfill mode**: walks year-by-year through ghalii.org's archive.
+      ``backfill_next_page`` stores the *year* to process next (e.g. 1958).
+      ``batch_size`` controls how many years to process per run.
+      Each year is scraped across all its paginated pages (up to 10).
+      When all years are exhausted, mode flips to 'incremental'.
     - **Incremental mode**: scrapes the first ``INCREMENTAL_PAGES`` pages
-      newest-first. Dedup catches anything we already have; the rest is
-      genuinely new.
+      newest-first from the global listing. Dedup catches anything we
+      already have; the rest is genuinely new.
 
     ``max_pages`` is accepted for backwards compat with old call sites but
     only honored as a one-off override in incremental mode.
@@ -503,47 +540,110 @@ def run_discovery(
     mode = state["mode"]
     batch_size = batch_size_override or state["batch_size"] or DEFAULT_BACKFILL_BATCH_SIZE
 
+    all_scraped: List[Dict] = []
+    total_pages_scraped = 0
+    flipped_to_incremental = False
+    cursor_before = state["backfill_next_page"] or 1958
+    cursor_after = cursor_before
+    years_processed: List[int] = []
+
     if mode == "backfill":
-        start_page = state["backfill_next_page"] or 1
-        sort_order = "date"  # ascending — oldest first, page numbers stable
-        pages_to_scrape = batch_size
+        # --- Year-by-year backfill ---
+        current_year_cursor = state["backfill_next_page"] or 1958
+        available_years = discover_available_years()
+
+        if not available_years:
+            logger.error("Could not discover available years from ghalii.org")
+            return {
+                "scraped": 0, "new": 0, "already_known": 0,
+                "downloaded": 0, "download_skipped": 0, "download_failed": 0,
+                "inserted": 0, "mode": mode,
+                "cursor_before": current_year_cursor, "cursor_after": current_year_cursor,
+                "pages_scraped": 0, "reached_end": False,
+                "flipped_to_incremental": False,
+                "summary": "Failed to discover available years from ghalii.org.",
+            }
+
+        # Filter to years >= cursor
+        years_to_process = [y for y in available_years if y >= current_year_cursor]
+        # Take only batch_size years
+        years_batch = years_to_process[:batch_size]
+
+        logger.info(
+            f"=== Discovery starting (mode=backfill, years={years_batch}, "
+            f"cursor={current_year_cursor}, total_remaining={len(years_to_process)}) ==="
+        )
+
+        for yr in years_batch:
+            cases, meta = discover_cases_from_ghalii(
+                max_pages=MAX_PAGES_PER_YEAR,
+                start_page=1,
+                sort_order="date",
+                year=yr,
+            )
+            all_scraped.extend(cases)
+            total_pages_scraped += meta["pages_scraped"]
+            years_processed.append(yr)
+            logger.info(f"Year {yr}: scraped {len(cases)} cases across {meta['pages_scraped']} pages")
+
+            # Delay between years
+            if yr != years_batch[-1]:
+                time.sleep(DEFAULT_REQUEST_DELAY)
+
+        # Advance cursor to the year AFTER the last processed
+        if years_batch:
+            # Find the next year in the full list after the last processed year
+            last_processed = years_batch[-1]
+            remaining = [y for y in available_years if y > last_processed]
+            if remaining:
+                cursor_after = remaining[0]
+                update_discovery_state(backfill_next_page=cursor_after)
+            else:
+                # All years processed — backfill complete!
+                from datetime import datetime, timezone
+                update_discovery_state(
+                    mode="incremental",
+                    backfill_completed_at=datetime.now(timezone.utc),
+                )
+                flipped_to_incremental = True
+                cursor_after = last_processed + 1
+                logger.success("Backfill complete — all years scraped, switching to incremental mode.")
+
     else:
-        start_page = 1
-        sort_order = "-date"  # descending — newest first
+        # --- Incremental mode ---
         pages_to_scrape = max_pages or INCREMENTAL_PAGES
+        logger.info(
+            f"=== Discovery starting (mode=incremental, sort=-date, "
+            f"pages={pages_to_scrape}) ==="
+        )
+        scraped, scrape_meta = discover_cases_from_ghalii(
+            max_pages=pages_to_scrape,
+            start_page=1,
+            sort_order="-date",
+        )
+        all_scraped = scraped
+        total_pages_scraped = scrape_meta["pages_scraped"]
 
-    logger.info(
-        f"=== Discovery starting (mode={mode}, sort={sort_order}, "
-        f"start_page={start_page}, batch={pages_to_scrape}) ==="
-    )
-
-    # Step 1: Scrape
-    scraped, scrape_meta = discover_cases_from_ghalii(
-        max_pages=pages_to_scrape,
-        start_page=start_page,
-        sort_order=sort_order,
-    )
-
-    # Step 2: Dedup against pipeline_cases
+    # --- Dedup against pipeline_cases ---
     new_cases: List[Dict] = []
     already_known = 0
     inserted = 0
     dl_stats = {"downloaded": 0, "skipped": 0, "failed": 0}
 
-    if scraped:
+    if all_scraped:
         existing_ids = get_existing_case_ids()
-        new_cases = [c for c in scraped if c["case_id"] not in existing_ids]
-        already_known = len(scraped) - len(new_cases)
+        new_cases = [c for c in all_scraped if c["case_id"] not in existing_ids]
+        already_known = len(all_scraped) - len(new_cases)
         logger.info(
-            f"Scraped {len(scraped)} cases: {len(new_cases)} new, "
+            f"Scraped {len(all_scraped)} cases: {len(new_cases)} new, "
             f"{already_known} already known"
         )
 
         if new_cases:
-            # Step 3: Insert into PostgreSQL (status='pending')
+            # Insert into PostgreSQL (status='pending')
             inserted = insert_new_cases(new_cases)
 
-            # Step 4: Best-effort PDF download
+            # Best-effort PDF download
             try:
                 dl_stats = download_case_pdfs(new_cases, data_dir)
                 logger.info(
@@ -553,34 +653,16 @@ def run_discovery(
             except Exception as e:
                 logger.warning(f"PDF download step failed (non-blocking): {e}")
 
-    # Step 5: Advance cursor / flip mode
-    cursor_before = start_page
-    cursor_after = start_page
-    flipped_to_incremental = False
-
-    if mode == "backfill":
-        if scrape_meta["reached_end"]:
-            # Pagination exhausted — backfill is complete.
-            from datetime import datetime, timezone
-            update_discovery_state(
-                mode="incremental",
-                backfill_completed_at=datetime.now(timezone.utc),
-            )
-            flipped_to_incremental = True
-            logger.success("Backfill complete — switching to incremental mode.")
-        else:
-            cursor_after = start_page + scrape_meta["pages_scraped"]
-            update_discovery_state(backfill_next_page=cursor_after)
-
+    years_str = f" (years: {years_processed})" if years_processed else ""
     summary_text = (
-        f"Scraped {len(scraped)} cases from ghalii.org. "
+        f"Scraped {len(all_scraped)} cases from ghalii.org{years_str}. "
         f"Found {len(new_cases)} new cases. "
         f"Downloaded {dl_stats['downloaded']} PDFs. "
         f"Inserted {inserted} into pipeline."
     )
 
     summary = {
-        "scraped": len(scraped),
+        "scraped": len(all_scraped),
         "new": len(new_cases),
         "already_known": already_known,
         "downloaded": dl_stats["downloaded"],
@@ -590,9 +672,10 @@ def run_discovery(
         "mode": mode,
         "cursor_before": cursor_before,
         "cursor_after": cursor_after,
-        "pages_scraped": scrape_meta["pages_scraped"],
-        "reached_end": scrape_meta["reached_end"],
+        "pages_scraped": total_pages_scraped,
+        "reached_end": flipped_to_incremental,
         "flipped_to_incremental": flipped_to_incremental,
+        "years_processed": years_processed,
         "summary": summary_text,
     }
 
