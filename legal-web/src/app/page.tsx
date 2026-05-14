@@ -6,40 +6,40 @@ import Link from 'next/link';
 import { useAuth } from '@clerk/nextjs';
 import {
     Scale, Shield, Zap, BookOpen, Users, ArrowRight,
-    Check, Star, ChevronRight, Gavel, ScrollText, Database, Loader2
+    Check, ChevronRight, Gavel, ScrollText, Database, Loader2
 } from 'lucide-react';
 import { usePricing } from '@/hooks/use-pricing';
 
 const FEATURES = [
     {
-        icon: <BookOpen size={22} />,
+        icon: <BookOpen size={24} />,
         title: 'Constitutional Analysis',
-        description: 'Deep analysis of the 1992 Constitution, amendments, and their real-world implications.',
+        description: 'Deep analysis of the 1992 Constitution, amendments, and their real-world implications for practice.',
     },
     {
-        icon: <Gavel size={22} />,
+        icon: <Gavel size={24} />,
         title: 'Case Law Research',
-        description: 'Instantly search and summarize Supreme Court and Court of Appeal judgments.',
+        description: 'Instantly search and summarize Supreme Court and Court of Appeal judgments with citations.',
     },
     {
-        icon: <ScrollText size={22} />,
+        icon: <ScrollText size={24} />,
         title: 'Legal History',
         description: 'Trace the evolution of Ghanaian law from customary traditions to modern statutes.',
     },
     {
-        icon: <Zap size={22} />,
+        icon: <Zap size={24} />,
         title: 'Instant Answers',
-        description: 'AI-powered responses in seconds, not hours of manual research.',
+        description: 'AI-powered responses grounded in real case law, delivered in seconds — not hours.',
     },
     {
-        icon: <Shield size={22} />,
+        icon: <Shield size={24} />,
         title: 'Verified Sources',
-        description: 'Every answer references real case law and constitutional provisions.',
+        description: 'Every answer is linked to retrieved case law and constitutional provisions with citation chips.',
     },
     {
-        icon: <Users size={22} />,
+        icon: <Users size={24} />,
         title: 'Built for Professionals',
-        description: 'Designed for lawyers, judges, law students, and corporate legal teams.',
+        description: 'Designed for lawyers, judges, law students, and corporate legal teams across Ghana.',
     },
 ];
 
@@ -81,37 +81,37 @@ function DatabaseStats() {
     const max = Math.max(...filteredCourts.map(c => c.value), 1);
 
     return (
-        <section className="px-6 max-w-3xl mx-auto -mt-8 mb-20 relative z-10 animate-fade-in">
-            <div className="rounded-2xl p-6 lg:p-8"
+        <section className="px-6 max-w-4xl mx-auto -mt-8 mb-24 relative z-10 animate-fade-in">
+            <div className="rounded-3xl p-8 lg:p-10"
                  style={{
-                     background: 'rgba(12, 14, 20, 0.7)',
-                     backdropFilter: 'blur(20px)',
-                     border: '1px solid rgba(255, 255, 255, 0.1)',
-                     boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                     background: 'rgba(12, 15, 22, 0.75)',
+                     backdropFilter: 'blur(24px)',
+                     border: '1px solid rgba(240, 192, 64, 0.1)',
+                     boxShadow: '0 12px 48px rgba(0,0,0,0.4), 0 0 40px rgba(240,192,64,0.04)',
                  }}>
 
                 {/* Header: icon + total */}
-                <div className="flex items-center justify-between gap-4 mb-6 pb-5 border-b border-white/10">
+                <div className="flex items-center justify-between gap-4 mb-8 pb-6" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                     <div className="flex items-center gap-4 min-w-0">
-                        <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
-                             style={{ background: 'rgba(255,255,255,0.05)' }}>
-                            <Database size={22} style={{ color: 'var(--ghana-gold)' }} />
+                        <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
+                             style={{ background: 'rgba(240,192,64,0.08)', border: '1px solid rgba(240,192,64,0.12)' }}>
+                            <Database size={24} style={{ color: 'var(--ghana-gold)' }} />
                         </div>
                         <div className="min-w-0">
-                            <div className="text-[11px] font-bold uppercase tracking-widest text-[#a1a1aa] mb-0.5">
-                                Database Statistics
+                            <div className="text-[12px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ghana-gold)', opacity: 0.8 }}>
+                                Live Database
                             </div>
-                            <div className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
+                            <div className="text-[15px]" style={{ color: 'var(--muted-foreground)' }}>
                                 Judgments indexed across Ghanaian courts
                             </div>
                         </div>
                     </div>
                     <div className="text-right shrink-0">
-                        <div className="text-3xl sm:text-4xl font-extrabold tabular-nums bg-clip-text text-transparent leading-none"
+                        <div className="text-4xl sm:text-5xl font-extrabold tabular-nums bg-clip-text text-transparent leading-none"
                              style={{ backgroundImage: 'linear-gradient(135deg, var(--ghana-gold), #fff)' }}>
                             {stats.total_cases.toLocaleString()}
                         </div>
-                        <div className="text-[11px] font-semibold uppercase tracking-wider mt-1"
+                        <div className="text-[12px] font-semibold uppercase tracking-wider mt-1.5"
                              style={{ color: 'var(--muted-foreground)' }}>
                             Total Cases
                         </div>
@@ -119,33 +119,34 @@ function DatabaseStats() {
                 </div>
 
                 {/* Court breakdown — bar chart */}
-                <div className="space-y-3.5">
+                <div className="space-y-4">
                     {filteredCourts.map(({ id, label, value }) => {
                         const pct = total > 0 ? (value / total) * 100 : 0;
                         const barWidth = (value / max) * 100;
                         return (
                             <div key={id} className="min-w-0">
-                                <div className="flex items-baseline justify-between gap-3 mb-1.5 min-w-0">
-                                    <span className="text-sm font-medium truncate text-white" title={label}>
+                                <div className="flex items-baseline justify-between gap-3 mb-2 min-w-0">
+                                    <span className="text-[15px] font-medium truncate text-white" title={label}>
                                         {label}
                                     </span>
-                                    <div className="flex items-baseline gap-2 shrink-0">
-                                        <span className="text-[11px] font-mono tabular-nums"
+                                    <div className="flex items-baseline gap-2.5 shrink-0">
+                                        <span className="text-[12px] font-mono tabular-nums"
                                               style={{ color: 'var(--muted-foreground)' }}>
                                             {pct.toFixed(1)}%
                                         </span>
-                                        <span className="text-sm font-mono font-semibold tabular-nums"
+                                        <span className="text-[15px] font-mono font-bold tabular-nums"
                                               style={{ color: 'var(--ghana-gold)' }}>
                                             {value.toLocaleString()}
                                         </span>
                                     </div>
                                 </div>
-                                <div className="h-2 rounded-full overflow-hidden"
+                                <div className="h-2.5 rounded-full overflow-hidden"
                                      style={{ background: 'rgba(255,255,255,0.06)' }}>
                                     <div className="h-full rounded-full transition-all duration-700"
                                          style={{
                                              width: `${barWidth}%`,
-                                             background: 'linear-gradient(90deg, var(--ghana-gold), #e6a817)',
+                                             background: 'linear-gradient(90deg, var(--ghana-gold), #d4a017)',
+                                             boxShadow: '0 0 12px rgba(240,192,64,0.3)',
                                          }} />
                                 </div>
                             </div>
@@ -217,39 +218,45 @@ function Testimonials({ isSignedIn, getToken }: { isSignedIn: boolean; getToken:
     };
 
     return (
-        <section className="py-20 px-6" style={{ borderTop: '1px solid var(--border)' }}>
-            <div className="max-w-6xl mx-auto">
-                <div className="text-center mb-14">
-                    <h2 className="text-3xl font-bold mb-4">What Our Users Say</h2>
-                    <p className="text-base max-w-xl mx-auto" style={{ color: 'var(--muted-foreground)' }}>
+        <section className="py-28 px-6">
+            <div className="max-w-7xl mx-auto">
+                <div className="text-center mb-16">
+                    <span className="text-[12px] font-bold uppercase tracking-[0.2em] mb-4 block" style={{ color: 'var(--ghana-green)' }}>Testimonials</span>
+                    <h2 className="text-3xl sm:text-4xl font-bold mb-5 tracking-tight">What Our Users Say</h2>
+                    <p className="text-[17px] max-w-xl mx-auto leading-relaxed" style={{ color: 'var(--muted-foreground)' }}>
                         Feedback from legal professionals using LexGH.
                     </p>
                 </div>
 
                 {feedbacks.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
                         {feedbacks.map(f => (
-                            <div key={f.id} className="p-6 rounded-2xl flex flex-col" style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
-                                <div className="flex items-center gap-3 mb-4">
-                                    <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold"
-                                         style={{ background: 'var(--primary-muted)', color: 'var(--primary)' }}>
+                            <div key={f.id} className="p-7 rounded-2xl flex flex-col relative overflow-hidden"
+                                 style={{ background: 'var(--surface-1)', border: '1px solid var(--border)', transition: 'transform 0.2s, border-color 0.2s' }}
+                                 onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.borderColor = 'rgba(240,192,64,0.2)'; }}
+                                 onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.borderColor = 'var(--border)'; }}>
+                                {/* Quote mark */}
+                                <div className="absolute top-4 right-6 text-[48px] font-serif leading-none pointer-events-none" style={{ color: 'var(--ghana-gold)', opacity: 0.1 }}>”</div>
+                                <div className="flex items-center gap-3.5 mb-5">
+                                    <div className="w-11 h-11 rounded-full flex items-center justify-center font-bold text-[15px]"
+                                         style={{ background: 'rgba(240,192,64,0.1)', color: 'var(--ghana-gold)', border: '1px solid rgba(240,192,64,0.15)' }}>
                                         {f.name.charAt(0).toUpperCase()}
                                     </div>
                                     <div>
-                                        <div className="font-semibold text-sm">{f.name}</div>
-                                        <div className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
+                                        <div className="font-semibold text-[15px]">{f.name}</div>
+                                        <div className="text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
                                             {new Date(f.created_at).toLocaleDateString()}
                                         </div>
                                     </div>
                                 </div>
-                                <p className="text-sm italic leading-relaxed flex-1" style={{ color: 'var(--muted-foreground)' }}>
-                                    "{f.content}"
+                                <p className="text-[15px] italic leading-relaxed flex-1" style={{ color: 'var(--muted-foreground)' }}>
+                                    &ldquo;{f.content}&rdquo;
                                 </p>
                             </div>
                         ))}
                     </div>
                 ) : (
-                    <div className="text-center mb-10 text-sm" style={{ color: 'var(--muted-foreground)' }}>
+                    <div className="text-center mb-12 text-[15px]" style={{ color: 'var(--muted-foreground)' }}>
                         No feedback yet. Be the first!
                     </div>
                 )}
@@ -369,44 +376,47 @@ export default function LandingPage() {
             {/* ===== Navigation ===== */}
             <nav className="fixed top-0 w-full z-50"
                  style={{
-                     background: 'rgba(12,14,20,0.85)',
-                     backdropFilter: 'blur(16px)',
-                     borderBottom: '1px solid var(--border)',
+                     background: 'rgba(10,13,19,0.8)',
+                     backdropFilter: 'blur(24px)',
+                     borderBottom: '1px solid rgba(255,255,255,0.06)',
                  }}>
-                <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+                <div className="max-w-7xl mx-auto px-6 h-[72px] flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-                             style={{ background: 'linear-gradient(135deg, var(--ghana-gold), #e6a817)' }}>
-                            <Scale size={16} className="text-black" />
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+                             style={{ background: 'linear-gradient(135deg, var(--ghana-gold), #d4a017)', boxShadow: '0 4px 12px rgba(240,192,64,0.3)' }}>
+                            <Scale size={18} className="text-black" />
                         </div>
-                        <span className="font-bold text-[15px]">LexGH Legal Research Assistant</span>
+                        <div>
+                            <span className="font-bold text-[17px] block leading-tight">LexGH</span>
+                            <span className="text-[11px] font-medium" style={{ color: 'var(--ghana-gold)', opacity: 0.7 }}>Legal Research</span>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-4">
                         {isSignedIn ? (
                             <Link href="/chat"
-                                  className="px-5 py-2.5 text-sm font-semibold rounded-xl"
+                                  className="px-6 py-2.5 text-[14px] font-semibold rounded-xl"
                                   style={{
-                                      background: 'var(--primary)',
+                                      background: 'linear-gradient(135deg, var(--primary), #8b5cf6)',
                                       color: '#fff',
-                                      transition: 'opacity 0.2s',
+                                      boxShadow: '0 4px 16px rgba(98,114,240,0.35)',
                                   }}>
                                 Go to Dashboard
                             </Link>
                         ) : (
                             <>
                                 <Link href="/sign-in"
-                                      className="px-4 py-2 text-sm font-medium rounded-lg"
-                                      style={{ color: 'var(--muted-foreground)', transition: 'color 0.2s' }}>
+                                      className="px-5 py-2.5 text-[14px] font-medium rounded-xl hidden sm:block"
+                                      style={{ color: 'var(--muted-foreground)' }}>
                                     Sign In
                                 </Link>
                                 <Link href="/sign-up"
-                                      className="px-5 py-2.5 text-sm font-semibold rounded-xl"
+                                      className="px-6 py-2.5 text-[14px] font-semibold rounded-xl"
                                       style={{
-                                          background: 'var(--primary)',
+                                          background: 'linear-gradient(135deg, var(--primary), #8b5cf6)',
                                           color: '#fff',
-                                          transition: 'opacity 0.2s',
+                                          boxShadow: '0 4px 16px rgba(98,114,240,0.35)',
                                       }}>
-                                    Get Started
+                                    Get Started Free
                                 </Link>
                             </>
                         )}
@@ -415,55 +425,72 @@ export default function LandingPage() {
             </nav>
 
             {/* ===== Hero Section ===== */}
-            <section className="pt-32 pb-20 px-6 text-center">
-                <div className="max-w-4xl mx-auto animate-float-in">
+            <section className="relative pt-36 pb-24 px-6 text-center overflow-hidden">
+                {/* Animated background gradient */}
+                <div className="absolute inset-0 pointer-events-none" aria-hidden>
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[600px] rounded-full opacity-20"
+                         style={{ background: 'radial-gradient(ellipse, rgba(98,114,240,0.4) 0%, rgba(240,192,64,0.15) 40%, transparent 70%)', filter: 'blur(80px)' }} />
+                    <div className="absolute top-20 right-[10%] w-[300px] h-[300px] rounded-full opacity-15"
+                         style={{ background: 'radial-gradient(circle, var(--ghana-gold), transparent 70%)', filter: 'blur(60px)', animation: 'subtle-glow 4s ease-in-out infinite' }} />
+                    <div className="absolute top-40 left-[5%] w-[200px] h-[200px] rounded-full opacity-10"
+                         style={{ background: 'radial-gradient(circle, var(--ghana-green), transparent 70%)', filter: 'blur(50px)', animation: 'subtle-glow 6s ease-in-out infinite 1s' }} />
+                </div>
+
+                <div className="max-w-5xl mx-auto animate-float-in relative z-10">
                     {/* Badge */}
-                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[12px] font-semibold mb-8"
+                    <div className="inline-flex items-center gap-2.5 px-5 py-2 rounded-full text-[13px] font-semibold mb-10"
                          style={{
-                             background: 'var(--primary-muted)',
-                             color: 'var(--primary)',
-                             border: '1px solid rgba(91,106,240,0.2)',
+                             background: 'rgba(240,192,64,0.08)',
+                             color: 'var(--ghana-gold)',
+                             border: '1px solid rgba(240,192,64,0.15)',
+                             boxShadow: '0 0 20px rgba(240,192,64,0.08)',
                          }}>
-                        <Star size={12} />
-                        <span>Powered by Advanced AI</span>
+                        <Scale size={14} />
+                        <span>Ghana&apos;s Premier AI Legal Research Platform</span>
                     </div>
 
-                    <h1 className="text-5xl sm:text-6xl font-extrabold leading-tight mb-6 tracking-tight">
-                        <span style={{ color: 'var(--ghana-gold)' }}>LexGH</span>{' '}
-                        Legal Research Assistant
+                    <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold leading-[1.1] mb-8 tracking-tight">
+                        Legal Research,{' '}
+                        <br className="hidden sm:block" />
+                        <span style={{ background: 'linear-gradient(135deg, var(--ghana-gold), #e6a817, #f0c040)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Reimagined</span>
                     </h1>
 
-                    <p className="text-lg sm:text-xl max-w-2xl mx-auto mb-10 leading-relaxed"
+                    <p className="text-lg sm:text-xl lg:text-[22px] max-w-2xl mx-auto mb-12 leading-relaxed"
                        style={{ color: 'var(--muted-foreground)' }}>
-                        AI-powered research for Ghanaian case law and legal precedents.
+                        AI-powered research across thousands of Ghanaian judgments, constitutional provisions, and legal precedents — in seconds, not hours.
                     </p>
 
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                         <Link href={isSignedIn ? '/chat' : '/sign-up'}
-                              className="px-8 py-4 text-base font-semibold rounded-xl flex items-center gap-2"
+                              className="group px-10 py-4.5 text-[16px] font-semibold rounded-2xl flex items-center gap-2.5"
                               style={{
-                                  background: 'var(--primary)',
-                                  color: '#fff',
-                                  boxShadow: '0 4px 24px rgba(91,106,240,0.3)',
+                                  background: 'linear-gradient(135deg, var(--ghana-gold), #d4a017)',
+                                  color: '#000',
+                                  boxShadow: '0 6px 30px rgba(240,192,64,0.3), 0 2px 8px rgba(240,192,64,0.2)',
                                   transition: 'transform 0.2s, box-shadow 0.2s',
                               }}>
-                            {isSignedIn ? 'Go to Dashboard' : 'Start Free'} <ArrowRight size={18} />
+                            {isSignedIn ? 'Open Dashboard' : 'Start Researching — Free'} <ArrowRight size={20} />
                         </Link>
                         <Link href="#pricing"
-                              className="px-8 py-4 text-base font-medium rounded-xl flex items-center gap-2"
+                              className="px-10 py-4.5 text-[16px] font-medium rounded-2xl flex items-center gap-2.5"
                               style={{
-                                  border: '1px solid var(--border)',
+                                  border: '1px solid rgba(255,255,255,0.12)',
                                   color: 'var(--foreground)',
-                                  transition: 'border-color 0.2s',
+                                  background: 'rgba(255,255,255,0.03)',
                               }}>
-                            View Pricing <ChevronRight size={18} />
+                            View Pricing <ChevronRight size={20} />
                         </Link>
                     </div>
 
-                    {/* Trust badge */}
-                    <p className="mt-10 text-[13px]" style={{ color: 'var(--muted-foreground)', opacity: 0.6 }}>
-                        Trusted by legal professionals across Ghana
-                    </p>
+                    {/* Trust badges */}
+                    <div className="mt-14 flex items-center justify-center gap-6 flex-wrap">
+                        {['Supreme Court Cases', 'Court of Appeal', 'High Court Rulings', 'Constitution Analysis'].map(t => (
+                            <span key={t} className="text-[12px] font-medium px-3 py-1.5 rounded-full"
+                                  style={{ color: 'var(--muted-foreground)', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                                {t}
+                            </span>
+                        ))}
+                    </div>
                 </div>
             </section>
 
@@ -471,64 +498,72 @@ export default function LandingPage() {
             <DatabaseStats />
 
             {/* ===== Features Grid ===== */}
-            <section className="py-20 px-6"
-                     style={{ borderTop: '1px solid var(--border)' }}>
-                <div className="max-w-6xl mx-auto">
-                    <div className="text-center mb-14">
-                        <h2 className="text-3xl font-bold mb-4">
+            <section className="py-28 px-6 relative">
+                <div className="max-w-7xl mx-auto">
+                    <div className="text-center mb-16">
+                        <span className="text-[12px] font-bold uppercase tracking-[0.2em] mb-4 block" style={{ color: 'var(--ghana-gold)' }}>Capabilities</span>
+                        <h2 className="text-3xl sm:text-4xl font-bold mb-5 tracking-tight">
                             Everything You Need for Legal Research
                         </h2>
-                        <p className="text-base max-w-xl mx-auto"
+                        <p className="text-[17px] max-w-xl mx-auto leading-relaxed"
                            style={{ color: 'var(--muted-foreground)' }}>
                             Three specialized AI experts trained on the full corpus of Ghanaian law.
                         </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                        {FEATURES.map((feature) => (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {FEATURES.map((feature, idx) => {
+                            const colors = ['#6272f0', '#f0c040', '#22a05b', '#f06292', '#5b9cf0', '#e54848'];
+                            const c = colors[idx % colors.length];
+                            return (
                             <div key={feature.title}
-                                 className="p-6 rounded-2xl"
+                                 className="group p-7 rounded-2xl relative overflow-hidden"
                                  style={{
                                      background: 'var(--surface-1)',
                                      border: '1px solid var(--border)',
-                                     transition: 'border-color 0.2s, transform 0.2s',
+                                     transition: 'border-color 0.3s, transform 0.3s, box-shadow 0.3s',
                                  }}
                                  onMouseEnter={(e) => {
-                                     e.currentTarget.style.borderColor = 'var(--border-hover)';
-                                     e.currentTarget.style.transform = 'translateY(-2px)';
+                                     e.currentTarget.style.borderColor = `${c}44`;
+                                     e.currentTarget.style.transform = 'translateY(-4px)';
+                                     e.currentTarget.style.boxShadow = `0 12px 40px ${c}15`;
                                  }}
                                  onMouseLeave={(e) => {
                                      e.currentTarget.style.borderColor = 'var(--border)';
                                      e.currentTarget.style.transform = 'translateY(0)';
+                                     e.currentTarget.style.boxShadow = 'none';
                                  }}
                             >
-                                <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
+                                <div className="absolute top-0 right-0 w-32 h-32 rounded-full opacity-[0.04] pointer-events-none"
+                                     style={{ background: `radial-gradient(circle, ${c}, transparent 70%)`, transform: 'translate(30%, -30%)' }} />
+                                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-5"
                                      style={{
-                                         background: 'var(--primary-muted)',
-                                         color: 'var(--primary)',
+                                         background: `${c}15`,
+                                         color: c,
                                      }}>
                                     {feature.icon}
                                 </div>
-                                <h3 className="font-semibold text-base mb-2">{feature.title}</h3>
-                                <p className="text-sm leading-relaxed"
+                                <h3 className="font-bold text-[17px] mb-2.5">{feature.title}</h3>
+                                <p className="text-[15px] leading-relaxed"
                                    style={{ color: 'var(--muted-foreground)' }}>
                                     {feature.description}
                                 </p>
                             </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             </section>
 
             {/* ===== Pricing Section ===== */}
-            <section id="pricing" className="py-20 px-6"
-                     style={{ borderTop: '1px solid var(--border)' }}>
+            <section id="pricing" className="py-28 px-6 relative">
                 <div className="max-w-6xl mx-auto">
-                    <div className="text-center mb-14">
-                        <h2 className="text-3xl font-bold mb-4">
+                    <div className="text-center mb-16">
+                        <span className="text-[12px] font-bold uppercase tracking-[0.2em] mb-4 block" style={{ color: 'var(--primary)' }}>Pricing</span>
+                        <h2 className="text-3xl sm:text-4xl font-bold mb-5 tracking-tight">
                             Simple, Transparent Pricing
                         </h2>
-                        <p className="text-base max-w-xl mx-auto"
+                        <p className="text-[17px] max-w-xl mx-auto leading-relaxed"
                            style={{ color: 'var(--muted-foreground)' }}>
                             Start free, upgrade when you need more. No hidden fees.
                         </p>
@@ -612,19 +647,29 @@ export default function LandingPage() {
             <Testimonials isSignedIn={!!isSignedIn} getToken={getToken} />
 
             {/* ===== Footer ===== */}
-            <footer className="py-10 px-6"
-                    style={{ borderTop: '1px solid var(--border)' }}>
-                <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-                             style={{ background: 'linear-gradient(135deg, var(--ghana-gold), #e6a817)' }}>
-                            <Scale size={12} className="text-black" />
+            <footer className="py-14 px-6 relative"
+                    style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                <div className="max-w-7xl mx-auto">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+                                 style={{ background: 'linear-gradient(135deg, var(--ghana-gold), #d4a017)', boxShadow: '0 3px 10px rgba(240,192,64,0.2)' }}>
+                                <Scale size={14} className="text-black" />
+                            </div>
+                            <div>
+                                <span className="text-[15px] font-bold block">LexGH</span>
+                                <span className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>AI Legal Research</span>
+                            </div>
                         </div>
-                        <span className="text-sm font-semibold">LexGH Legal Research Assistant</span>
+                        <div className="flex items-center gap-6">
+                            <Link href="/chat" className="text-[13px] font-medium" style={{ color: 'var(--muted-foreground)' }}>Research</Link>
+                            <Link href="#pricing" className="text-[13px] font-medium" style={{ color: 'var(--muted-foreground)' }}>Pricing</Link>
+                            <Link href="/sign-in" className="text-[13px] font-medium" style={{ color: 'var(--muted-foreground)' }}>Sign In</Link>
+                        </div>
+                        <span className="text-[13px]" style={{ color: 'var(--muted-foreground)', opacity: 0.6 }}>
+                            © 2026 EED Soft Consult. All rights reserved.
+                        </span>
                     </div>
-                    <span className="text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
-                        © 2026 EED Soft Consult. All rights reserved.
-                    </span>
                 </div>
             </footer>
         </div>
