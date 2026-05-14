@@ -37,31 +37,39 @@ export function Sidebar({
         <div
             className="flex flex-col h-screen transition-all duration-300 ease-out"
             style={{
-                width: collapsed ? '60px' : '260px',
+                width: collapsed ? '64px' : '280px',
                 background: 'var(--surface-1)',
                 borderRight: '1px solid var(--border)',
             }}
         >
             {/* Brand Header */}
-            <div className="p-3 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+            <div className="p-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                 <div className={cn(
-                    'flex items-center mb-3',
-                    collapsed ? 'justify-center' : 'gap-2.5'
+                    'flex items-center mb-4',
+                    collapsed ? 'justify-center' : 'gap-3'
                 )}>
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                         style={{ background: 'linear-gradient(135deg, var(--ghana-gold), #e6a817)' }}>
-                        <Scale size={14} className="text-black" />
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                         style={{
+                             background: 'linear-gradient(135deg, var(--ghana-gold), #d4a017)',
+                             boxShadow: '0 4px 12px rgba(240,192,64,0.25)',
+                         }}>
+                        <Scale size={16} className="text-black" />
                     </div>
                     {!collapsed && (
-                        <span className="font-bold text-[14px]" style={{ color: 'var(--foreground)' }}>
-                            LexGH Legal Research Assistant
-                        </span>
+                        <div>
+                            <span className="font-bold text-[16px] block leading-tight" style={{ color: 'var(--foreground)' }}>
+                                LexGH
+                            </span>
+                            <span className="text-[11px] font-medium" style={{ color: 'var(--ghana-gold)', opacity: 0.8 }}>
+                                Legal Research
+                            </span>
+                        </div>
                     )}
                 </div>
                 {!collapsed ? (
                     <button
                         onClick={onReset}
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] text-left"
+                        className="w-full flex items-center gap-2.5 px-3.5 py-3 rounded-xl text-[14px] text-left font-medium"
                         style={{
                             border: '1px solid var(--border)',
                             color: 'var(--foreground)',
@@ -76,13 +84,13 @@ export function Sidebar({
                             e.currentTarget.style.background = 'transparent';
                         }}
                     >
-                        <Plus size={14} style={{ color: 'var(--primary)' }} />
+                        <Plus size={16} style={{ color: 'var(--primary)' }} />
                         <span>New Consultation</span>
                     </button>
                 ) : (
                     <button
                         onClick={onReset}
-                        className="w-full flex items-center justify-center p-2 rounded-lg"
+                        className="w-full flex items-center justify-center p-2.5 rounded-xl"
                         style={{
                             border: '1px solid var(--border)',
                             color: 'var(--primary)',
@@ -98,15 +106,15 @@ export function Sidebar({
                         }}
                         title="New Consultation"
                     >
-                        <Plus size={16} />
+                        <Plus size={18} />
                     </button>
                 )}
             </div>
 
             {/* Connection Status — always visible */}
             {!collapsed ? (
-                <div className="px-4 py-2" style={{ borderBottom: '1px solid var(--border)' }}>
-                    <div className="flex items-center gap-2 text-xs">
+                <div className="px-4 py-2.5" style={{ borderBottom: '1px solid var(--border)' }}>
+                    <div className="flex items-center gap-2 text-[13px]">
                         {connectionStatus === 'connected' && (
                             <>
                                 <div className="w-2 h-2 rounded-full" style={{ background: 'var(--success)' }} />
@@ -115,16 +123,16 @@ export function Sidebar({
                         )}
                         {connectionStatus === 'connecting' && (
                             <>
-                                <Loader2 size={11} className="animate-spin" style={{ color: 'var(--warning)' }} />
+                                <Loader2 size={12} className="animate-spin" style={{ color: 'var(--warning)' }} />
                                 <span style={{ color: 'var(--warning)' }}>Connecting...</span>
                             </>
                         )}
                         {(connectionStatus === 'disconnected' || connectionStatus === 'error') && (
                             <>
-                                <WifiOff size={11} style={{ color: 'var(--error)' }} />
+                                <WifiOff size={12} style={{ color: 'var(--error)' }} />
                                 <span style={{ color: 'var(--error)' }}>Offline</span>
                                 <button onClick={onReconnect}
-                                        className="ml-auto text-[11px] font-medium px-2 py-0.5 rounded"
+                                        className="ml-auto text-[12px] font-semibold px-2.5 py-1 rounded-lg"
                                         style={{ color: 'var(--primary)', background: 'var(--primary-muted)' }}>
                                     Retry
                                 </button>
@@ -133,28 +141,28 @@ export function Sidebar({
                     </div>
                 </div>
             ) : (
-                <div className="flex justify-center py-2" style={{ borderBottom: '1px solid var(--border)' }}>
+                <div className="flex justify-center py-2.5" style={{ borderBottom: '1px solid var(--border)' }}>
                     {connectionStatus === 'connected' ? (
                         <div className="w-2.5 h-2.5 rounded-full" style={{ background: 'var(--success)' }} title="Connected" />
                     ) : connectionStatus === 'connecting' ? (
-                        <Loader2 size={12} className="animate-spin" style={{ color: 'var(--warning)' }} />
+                        <Loader2 size={13} className="animate-spin" style={{ color: 'var(--warning)' }} />
                     ) : (
                         <button onClick={onReconnect} title="Offline — click to retry">
-                            <WifiOff size={12} style={{ color: 'var(--error)' }} />
+                            <WifiOff size={13} style={{ color: 'var(--error)' }} />
                         </button>
                     )}
                 </div>
             )}
 
             {/* Experts List */}
-            <div className="flex-1 overflow-y-auto px-2 py-3">
+            <div className="flex-1 overflow-y-auto px-2.5 py-4">
                 {!collapsed && (
-                    <div className="text-[10px] font-semibold uppercase tracking-widest mb-2 px-2.5"
+                    <div className="text-[11px] font-semibold uppercase tracking-widest mb-3 px-3"
                          style={{ color: 'var(--muted-foreground)' }}>
                         Legal Experts
                     </div>
                 )}
-                <div className="space-y-0.5">
+                <div className="space-y-1">
                     {experts.map((expert) => {
                         const isSelected = selectedExpertId === expert.id;
                         return (
@@ -162,14 +170,14 @@ export function Sidebar({
                                 key={expert.id}
                                 onClick={() => onSelectExpert(expert.id)}
                                 className={cn(
-                                    'w-full flex items-center rounded-lg text-sm text-left',
+                                    'w-full flex items-center rounded-xl text-left',
                                     'transition-all duration-150',
-                                    collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2.5',
+                                    collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-3',
                                 )}
                                 style={{
                                     background: isSelected ? 'var(--primary-muted)' : 'transparent',
                                     color: isSelected ? 'var(--foreground)' : 'var(--muted-foreground)',
-                                    border: isSelected ? '1px solid rgba(91,106,240,0.15)' : '1px solid transparent',
+                                    border: isSelected ? '1px solid rgba(98,114,240,0.15)' : '1px solid transparent',
                                 }}
                                 onMouseEnter={(e) => {
                                     if (!isSelected) {
@@ -187,7 +195,7 @@ export function Sidebar({
                             >
                                 <div className={cn(
                                     'rounded-full flex items-center justify-center text-base flex-shrink-0',
-                                    collapsed ? 'w-9 h-9' : 'w-8 h-8',
+                                    collapsed ? 'w-10 h-10' : 'w-9 h-9',
                                 )}
                                      style={{
                                          background: `linear-gradient(135deg, ${expert.accentColor}22, ${expert.accentColor}44)`,
@@ -199,8 +207,8 @@ export function Sidebar({
                                 </div>
                                 {!collapsed && (
                                     <div className="flex-1 min-w-0">
-                                        <div className="font-semibold text-[12px] truncate">{expert.name}</div>
-                                        <div className="text-[10px] truncate" style={{ color: 'var(--muted-foreground)' }}>
+                                        <div className="font-semibold text-[14px] truncate">{expert.name}</div>
+                                        <div className="text-[12px] truncate" style={{ color: 'var(--muted-foreground)' }}>
                                             {expert.field}
                                         </div>
                                     </div>
@@ -212,12 +220,12 @@ export function Sidebar({
             </div>
 
             {/* Footer */}
-            <div className="p-2 space-y-0.5 flex-shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
+            <div className="p-2.5 space-y-1 flex-shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
                 {!collapsed ? (
                     <>
                         {isAdmin && (
                             <Link href="/admin"
-                                  className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px]"
+                                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium"
                                   style={{ color: 'var(--muted-foreground)', transition: 'all 0.15s ease' }}
                                   onMouseEnter={(e) => {
                                       e.currentTarget.style.color = 'var(--primary)';
@@ -227,12 +235,12 @@ export function Sidebar({
                                       e.currentTarget.style.color = 'var(--muted-foreground)';
                                       e.currentTarget.style.background = 'transparent';
                                   }}>
-                                <Settings size={13} />
+                                <Settings size={15} />
                                 <span>Admin</span>
                             </Link>
                         )}
                         <button onClick={onReset}
-                                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px]"
+                                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium"
                                 style={{ color: 'var(--muted-foreground)', transition: 'all 0.15s ease' }}
                                 onMouseEnter={(e) => {
                                     e.currentTarget.style.color = 'var(--error)';
@@ -242,7 +250,7 @@ export function Sidebar({
                                     e.currentTarget.style.color = 'var(--muted-foreground)';
                                     e.currentTarget.style.background = 'transparent';
                                 }}>
-                            <Trash2 size={13} />
+                            <Trash2 size={15} />
                             <span>Clear History</span>
                         </button>
                     </>
@@ -250,7 +258,7 @@ export function Sidebar({
                     <>
                         {isAdmin && (
                             <Link href="/admin"
-                                  className="w-full flex items-center justify-center p-2 rounded-lg"
+                                  className="w-full flex items-center justify-center p-2.5 rounded-xl"
                                   style={{ color: 'var(--muted-foreground)', transition: 'all 0.15s ease' }}
                                   onMouseEnter={(e) => {
                                       e.currentTarget.style.color = 'var(--primary)';
@@ -261,11 +269,11 @@ export function Sidebar({
                                       e.currentTarget.style.background = 'transparent';
                                   }}
                                   title="Admin">
-                                <Settings size={15} />
+                                <Settings size={16} />
                             </Link>
                         )}
                         <button onClick={onReset}
-                                className="w-full flex items-center justify-center p-2 rounded-lg"
+                                className="w-full flex items-center justify-center p-2.5 rounded-xl"
                                 style={{ color: 'var(--muted-foreground)', transition: 'all 0.15s ease' }}
                                 onMouseEnter={(e) => {
                                     e.currentTarget.style.color = 'var(--error)';
@@ -276,14 +284,14 @@ export function Sidebar({
                                     e.currentTarget.style.background = 'transparent';
                                 }}
                                 title="Clear History">
-                            <Trash2 size={15} />
+                            <Trash2 size={16} />
                         </button>
                     </>
                 )}
                 {/* Collapse toggle */}
                 <button
                     onClick={onToggleCollapse}
-                    className="w-full flex items-center justify-center p-2 rounded-lg mt-1"
+                    className="w-full flex items-center justify-center p-2.5 rounded-xl mt-1"
                     style={{ color: 'var(--muted-foreground)', transition: 'all 0.15s ease' }}
                     onMouseEnter={(e) => {
                         e.currentTarget.style.color = 'var(--foreground)';
@@ -295,7 +303,7 @@ export function Sidebar({
                     }}
                     title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                 >
-                    {collapsed ? <PanelLeft size={15} /> : <PanelLeftClose size={15} />}
+                    {collapsed ? <PanelLeft size={16} /> : <PanelLeftClose size={16} />}
                 </button>
             </div>
         </div>

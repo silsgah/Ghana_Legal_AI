@@ -23,7 +23,7 @@ function formatMarkdown(text: string): React.ReactNode[] {
 
     const flushList = () => {
         if (listItems.length > 0) {
-            elements.push(<ul key={`ul-${key++}`} className="space-y-1.5 my-3 ml-1">{listItems}</ul>);
+            elements.push(<ul key={`ul-${key++}`} className="space-y-2 my-3 ml-1">{listItems}</ul>);
             listItems = [];
             inList = false;
         }
@@ -65,7 +65,7 @@ function formatMarkdown(text: string): React.ReactNode[] {
         if (trimmed.startsWith('### ')) {
             flushList();
             elements.push(
-                <h4 key={key++} className="text-sm font-bold mt-4 mb-1.5 tracking-tight"
+                <h4 key={key++} className="text-[15px] font-bold mt-5 mb-2 tracking-tight"
                     style={{ color: 'var(--foreground)' }}>
                     {trimmed.slice(4)}
                 </h4>
@@ -73,7 +73,7 @@ function formatMarkdown(text: string): React.ReactNode[] {
         } else if (trimmed.startsWith('## ')) {
             flushList();
             elements.push(
-                <h3 key={key++} className="text-[15px] font-bold mt-5 mb-2 tracking-tight"
+                <h3 key={key++} className="text-[16px] font-bold mt-6 mb-2.5 tracking-tight"
                     style={{ color: 'var(--foreground)' }}>
                     {trimmed.slice(3)}
                 </h3>
@@ -83,8 +83,8 @@ function formatMarkdown(text: string): React.ReactNode[] {
         else if (/^[-*]\s/.test(trimmed)) {
             inList = true;
             listItems.push(
-                <li key={`li-${key++}`} className="flex gap-2 text-sm leading-relaxed">
-                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0"
+                <li key={`li-${key++}`} className="flex gap-2.5 text-[15px] leading-relaxed">
+                    <span className="mt-2 w-1.5 h-1.5 rounded-full flex-shrink-0"
                           style={{ background: 'var(--primary)', opacity: 0.6 }} />
                     <span style={{ color: 'var(--foreground)', opacity: 0.92 }}>
                         {formatInline(trimmed.replace(/^[-*]\s/, ''))}
@@ -97,8 +97,8 @@ function formatMarkdown(text: string): React.ReactNode[] {
             inList = true;
             const num = trimmed.match(/^(\d+)\./)?.[1];
             listItems.push(
-                <li key={`li-${key++}`} className="flex gap-2.5 text-sm leading-relaxed">
-                    <span className="text-xs font-bold mt-0.5 w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0"
+                <li key={`li-${key++}`} className="flex gap-3 text-[15px] leading-relaxed">
+                    <span className="text-[12px] font-bold mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
                           style={{ background: 'var(--primary-muted)', color: 'var(--primary)' }}>
                         {num}
                     </span>
@@ -111,13 +111,13 @@ function formatMarkdown(text: string): React.ReactNode[] {
         // Empty line
         else if (trimmed === '') {
             flushList();
-            elements.push(<div key={key++} className="h-2" />);
+            elements.push(<div key={key++} className="h-3" />);
         }
         // Regular paragraph
         else {
             flushList();
             elements.push(
-                <p key={key++} className="text-sm leading-[1.75] mb-1"
+                <p key={key++} className="text-[15px] leading-[1.8] mb-1.5"
                    style={{ color: 'var(--foreground)', opacity: 0.92 }}>
                     {formatInline(trimmed)}
                 </p>
@@ -157,11 +157,11 @@ function ConfidenceBadge({ tier }: { tier: ConfidenceTier }) {
     const Icon = tier === 'high' ? CheckCircle2 : tier === 'low' ? AlertTriangle : tier === 'insufficient' ? Ban : BookOpen;
     return (
         <span
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider"
             style={{ background: s.bg, color: s.fg }}
             title={`Validator confidence: ${tier}`}
         >
-            <Icon size={11} />
+            <Icon size={12} />
             {s.label}
         </span>
     );
@@ -176,7 +176,7 @@ function CitationChip({ index, citation }: { index: number | string; citation: C
     ].filter(Boolean).join(' · ');
     return (
         <span
-            className="inline-flex items-center justify-center w-5 h-5 rounded-md text-[10px] font-bold cursor-help"
+            className="inline-flex items-center justify-center w-6 h-6 rounded-lg text-[11px] font-bold cursor-help"
             style={{ background: 'var(--primary-muted)', color: 'var(--primary)' }}
             title={tooltip}
         >
@@ -204,24 +204,24 @@ function ClaimsVerification({ envelope, sources }: { envelope: LegalAnswer; sour
     const bound = envelope.claims.filter(c => c.citations.length > 0).length;
 
     return (
-        <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-            <div className="flex items-center gap-1.5 mb-2">
-                <CheckCircle2 size={11} style={{ color: 'var(--muted-foreground)' }} />
-                <span className="text-[10px] font-semibold uppercase tracking-wider"
+        <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
+            <div className="flex items-center gap-2 mb-3">
+                <CheckCircle2 size={13} style={{ color: 'var(--muted-foreground)' }} />
+                <span className="text-[11px] font-semibold uppercase tracking-wider"
                       style={{ color: 'var(--muted-foreground)' }}>
                     Verified claims ({bound} / {total} bound)
                 </span>
             </div>
-            <ul className="space-y-1.5">
+            <ul className="space-y-2">
                 {envelope.claims.map((claim, i) => (
-                    <li key={i} className="flex items-start gap-2 text-[12px] leading-relaxed">
-                        <CheckCircle2 size={12} className="mt-1 flex-shrink-0"
+                    <li key={i} className="flex items-start gap-2.5 text-[13px] leading-relaxed">
+                        <CheckCircle2 size={14} className="mt-1 flex-shrink-0"
                                       style={{ color: claim.citations.length > 0 ? '#16a34a' : 'var(--muted-foreground)' }} />
                         <div className="flex-1 min-w-0">
                             <span style={{ color: 'var(--foreground)', opacity: 0.85 }}>
                                 {claim.text}
                             </span>
-                            <span className="ml-1.5 inline-flex items-center gap-1 align-middle">
+                            <span className="ml-2 inline-flex items-center gap-1.5 align-middle">
                                 {claim.citations.map((c, j) => (
                                     <CitationChip
                                         key={j}
@@ -229,7 +229,7 @@ function ClaimsVerification({ envelope, sources }: { envelope: LegalAnswer; sour
                                         citation={c}
                                     />
                                 ))}
-                                <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded"
+                                <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md"
                                       style={{ background: 'var(--surface-3)', color: 'var(--muted-foreground)' }}>
                                     {KIND_LABEL[claim.kind]}
                                 </span>
@@ -244,9 +244,9 @@ function ClaimsVerification({ envelope, sources }: { envelope: LegalAnswer; sour
 
 function LowConfidenceBanner() {
     return (
-        <div className="mb-3 px-3 py-2 rounded-lg flex items-start gap-2 text-[11px]"
-             style={{ background: '#f59e0b15', border: '1px solid #f59e0b40', color: '#92400e' }}>
-            <AlertTriangle size={13} className="mt-0.5 flex-shrink-0" />
+        <div className="mb-4 px-4 py-3 rounded-xl flex items-start gap-2.5 text-[13px]"
+             style={{ background: '#f59e0b12', border: '1px solid #f59e0b30', color: '#92400e' }}>
+            <AlertTriangle size={15} className="mt-0.5 flex-shrink-0" />
             <span>
                 Some claims couldn&apos;t be fully bound to the retrieved sources.
                 Verify before relying on this answer.
@@ -263,33 +263,33 @@ function RefusalCard({ envelope, expert, timestamp }: {
     const formatTime = (d?: Date) => d?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '';
     return (
         <div className="animate-fade-in group">
-            <div className="max-w-3xl mx-auto px-5 py-5">
-                <div className="flex gap-3">
+            <div className="max-w-4xl mx-auto px-5 py-6">
+                <div className="flex gap-4">
                     <div className="flex-shrink-0 mt-0.5">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm"
-                             style={{ background: '#dc262622', border: '1.5px solid #dc262644' }}>
-                            <Ban size={14} style={{ color: '#dc2626' }} />
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center"
+                             style={{ background: '#dc262618', border: '1.5px solid #dc262644' }}>
+                            <Ban size={16} style={{ color: '#dc2626' }} />
                         </div>
                     </div>
                     <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                            <span className="text-xs font-semibold" style={{ color: '#dc2626' }}>
+                        <div className="flex items-center gap-2.5 mb-3">
+                            <span className="text-[14px] font-semibold" style={{ color: '#dc2626' }}>
                                 {expert?.name || 'Legal Expert'}
                             </span>
                             <ConfidenceBadge tier="insufficient" />
                             {timestamp && (
-                                <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
+                                <span className="text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
                                     {formatTime(timestamp)}
                                 </span>
                             )}
                         </div>
-                        <div className="rounded-2xl rounded-tl-md px-4 py-3.5"
-                             style={{ background: '#dc26260a', border: '1px solid #dc262640' }}>
-                            <div className="text-[11px] font-semibold uppercase tracking-wider mb-2"
+                        <div className="rounded-2xl rounded-tl-lg px-5 py-4"
+                             style={{ background: '#dc26260a', border: '1px solid #dc262635' }}>
+                            <div className="text-[12px] font-semibold uppercase tracking-wider mb-2.5"
                                  style={{ color: '#dc2626' }}>
                                 No grounded answer available
                             </div>
-                            <p className="text-sm leading-relaxed" style={{ color: 'var(--foreground)', opacity: 0.92 }}>
+                            <p className="text-[15px] leading-relaxed" style={{ color: 'var(--foreground)', opacity: 0.92 }}>
                                 {envelope.human_text}
                             </p>
                         </div>
@@ -313,36 +313,36 @@ function SourcesBadge({ sources }: { sources: Source[] }) {
     if (unique.length === 0) return null;
 
     return (
-        <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-            <div className="flex items-center gap-1.5 mb-2">
-                <FileText size={11} style={{ color: 'var(--muted-foreground)' }} />
-                <span className="text-[10px] font-semibold uppercase tracking-wider"
+        <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
+            <div className="flex items-center gap-2 mb-3">
+                <FileText size={13} style={{ color: 'var(--muted-foreground)' }} />
+                <span className="text-[11px] font-semibold uppercase tracking-wider"
                       style={{ color: 'var(--muted-foreground)' }}>
                     Sources
                 </span>
             </div>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-2">
                 {unique.map((src, i) => {
                     const label = src.title || 'Legal Document';
                     const details = [src.court, src.year].filter(Boolean).join(', ');
                     return (
                         <div key={i}
-                             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px]"
+                             className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-[12px]"
                              style={{
                                  background: 'var(--surface-2)',
                                  border: '1px solid var(--border)',
                              }}>
-                            <span className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0"
+                            <span className="w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0"
                                   style={{ background: 'var(--primary-muted)', color: 'var(--primary)' }}>
                                 {i + 1}
                             </span>
                             <div className="min-w-0">
-                                <div className="font-medium truncate max-w-[200px]"
+                                <div className="font-medium truncate max-w-[220px]"
                                      style={{ color: 'var(--foreground)' }}>
                                     {label}
                                 </div>
                                 {details && (
-                                    <div className="text-[10px] truncate"
+                                    <div className="text-[11px] truncate"
                                          style={{ color: 'var(--muted-foreground)' }}>
                                         {details}
                                     </div>
@@ -375,21 +375,22 @@ export function MessageBubble({ role, content, expert, timestamp, sources, envel
 
     return (
         <div className="animate-fade-in group" style={{ background: 'transparent' }}>
-            <div className="max-w-3xl mx-auto px-5 py-5">
+            <div className="max-w-4xl mx-auto px-5 py-5">
                 {isUser ? (
                     /* User message — right-aligned bubble */
                     <div className="flex justify-end">
                         <div className="max-w-[85%]">
-                            <div className="px-4 py-3 rounded-2xl rounded-br-md"
+                            <div className="px-5 py-3.5 rounded-2xl rounded-br-lg"
                                  style={{
-                                     background: 'var(--primary)',
+                                     background: 'linear-gradient(135deg, var(--primary), #7c5cf6)',
                                      color: '#fff',
+                                     boxShadow: '0 4px 16px rgba(98,114,240,0.25)',
                                  }}>
-                                <p className="text-sm leading-relaxed whitespace-pre-wrap">{content}</p>
+                                <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{content}</p>
                             </div>
                             {timestamp && (
-                                <div className="flex justify-end mt-1.5 pr-1">
-                                    <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
+                                <div className="flex justify-end mt-2 pr-1">
+                                    <span className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
                                         {formatTime(timestamp)}
                                     </span>
                                 </div>
@@ -398,32 +399,33 @@ export function MessageBubble({ role, content, expert, timestamp, sources, envel
                     </div>
                 ) : (
                     /* Assistant message — left-aligned with avatar */
-                    <div className="flex gap-3">
+                    <div className="flex gap-4">
                         <div className="flex-shrink-0 mt-0.5">
-                            <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm"
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm"
                                  style={{
                                      background: expert
-                                         ? `linear-gradient(135deg, ${expert.accentColor}33, ${expert.accentColor}88)`
+                                         ? `linear-gradient(135deg, ${expert.accentColor}30, ${expert.accentColor}70)`
                                          : 'var(--primary-muted)',
                                      border: `1.5px solid ${expert?.accentColor || 'var(--primary)'}44`,
+                                     boxShadow: `0 2px 8px ${expert?.accentColor || 'var(--primary)'}20`,
                                  }}>
-                                {expert?.icon || <Scale size={14} />}
+                                {expert?.icon || <Scale size={16} />}
                             </div>
                         </div>
                         <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                <span className="text-xs font-semibold"
+                            <div className="flex items-center gap-2.5 mb-2.5 flex-wrap">
+                                <span className="text-[14px] font-semibold"
                                       style={{ color: expert?.accentColor || 'var(--primary)' }}>
                                     {expert?.name || 'Legal Expert'}
                                 </span>
                                 {timestamp && (
-                                    <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
+                                    <span className="text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
                                         {formatTime(timestamp)}
                                     </span>
                                 )}
                                 {tier && tier !== 'insufficient' && <ConfidenceBadge tier={tier} />}
                             </div>
-                            <div className="rounded-2xl rounded-tl-md px-4 py-3.5"
+                            <div className="rounded-2xl rounded-tl-lg px-5 py-4"
                                  style={{
                                      background: 'var(--surface-1)',
                                      border: '1px solid var(--border)',

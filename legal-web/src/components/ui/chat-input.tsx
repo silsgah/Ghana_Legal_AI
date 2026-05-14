@@ -49,16 +49,16 @@ export function ChatInput({ onSend, disabled, expertName }: ChatInputProps) {
         background: 'var(--surface-1)',
         border: '1px solid var(--border)',
         boxShadow: isFocused
-            ? '0 -2px 24px rgba(0,0,0,0.18), 0 0 0 2px rgba(91,106,240,0.35)'
-            : '0 -2px 20px rgba(0,0,0,0.15)',
+            ? '0 -2px 28px rgba(0,0,0,0.2), 0 0 0 2px rgba(98,114,240,0.3)'
+            : '0 -2px 24px rgba(0,0,0,0.18)',
         borderColor: isFocused ? 'var(--primary)' : 'var(--border)',
-        transition: 'border-color 0.18s ease, box-shadow 0.18s ease',
+        transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
     };
 
     return (
-        <div className="px-4 pt-3 pb-4"
+        <div className="px-4 pt-3 pb-5"
              style={{ background: 'linear-gradient(to top, var(--background) 60%, transparent)' }}>
-            <div className="max-w-3xl mx-auto">
+            <div className="max-w-4xl mx-auto">
                 <div className="rounded-2xl overflow-hidden" style={containerStyle}>
                     <textarea
                         ref={textareaRef}
@@ -76,8 +76,8 @@ export function ChatInput({ onSend, disabled, expertName }: ChatInputProps) {
                         rows={1}
                         aria-label="Message input"
                         className={cn(
-                            'w-full px-4 pt-4 pb-1.5 resize-none',
-                            'text-[15px] leading-relaxed',
+                            'w-full px-5 pt-4 pb-2 resize-none',
+                            'text-[16px] leading-relaxed',
                             'focus:outline-none',
                             'disabled:opacity-40 disabled:cursor-not-allowed',
                             'placeholder:text-[var(--muted-foreground)]',
@@ -90,7 +90,7 @@ export function ChatInput({ onSend, disabled, expertName }: ChatInputProps) {
                         }}
                     />
                     {/* Bottom toolbar */}
-                    <div className="flex items-center justify-between gap-3 px-3 pb-2.5 pt-1">
+                    <div className="flex items-center justify-between gap-3 px-4 pb-3 pt-1">
                         <div className="flex items-center gap-2 min-w-0">
                             <KeyHint label="Enter" description="to send" />
                             <span className="hidden sm:inline-block" style={{ color: 'var(--muted-foreground)', opacity: 0.4 }}>·</span>
@@ -98,7 +98,7 @@ export function ChatInput({ onSend, disabled, expertName }: ChatInputProps) {
                         </div>
                         <div className="flex items-center gap-2">
                             {showCharHint && (
-                                <span className="text-[11px] tabular-nums font-mono"
+                                <span className="text-[12px] tabular-nums font-mono"
                                       style={{ color: charCount > 2000 ? 'var(--warning)' : 'var(--muted-foreground)' }}>
                                     {charCount.toLocaleString()}
                                 </span>
@@ -108,7 +108,7 @@ export function ChatInput({ onSend, disabled, expertName }: ChatInputProps) {
                                 disabled={!canSend}
                                 type="button"
                                 aria-label="Send message"
-                                className="group flex items-center justify-center w-9 h-9 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-1)]"
+                                className="group flex items-center justify-center w-10 h-10 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-1)]"
                                 style={{
                                     background: canSend
                                         ? 'linear-gradient(135deg, var(--primary), #8b5cf6)'
@@ -116,7 +116,7 @@ export function ChatInput({ onSend, disabled, expertName }: ChatInputProps) {
                                     color: canSend ? '#fff' : 'var(--muted-foreground)',
                                     cursor: canSend ? 'pointer' : 'not-allowed',
                                     opacity: canSend ? 1 : 0.45,
-                                    boxShadow: canSend ? '0 4px 14px rgba(91,106,240,0.4)' : 'none',
+                                    boxShadow: canSend ? '0 4px 16px rgba(98,114,240,0.4)' : 'none',
                                     transform: canSend ? 'scale(1)' : 'scale(0.92)',
                                     transition: 'transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, background 0.2s ease',
                                 }}
@@ -124,22 +124,22 @@ export function ChatInput({ onSend, disabled, expertName }: ChatInputProps) {
                                     if (!canSend) return;
                                     e.currentTarget.style.transform = 'scale(1.06)';
                                     e.currentTarget.style.filter = 'brightness(1.08)';
-                                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(91,106,240,0.55)';
+                                    e.currentTarget.style.boxShadow = '0 6px 22px rgba(98,114,240,0.55)';
                                 }}
                                 onMouseLeave={(e) => {
                                     if (!canSend) return;
                                     e.currentTarget.style.transform = 'scale(1)';
                                     e.currentTarget.style.filter = 'brightness(1)';
-                                    e.currentTarget.style.boxShadow = '0 4px 14px rgba(91,106,240,0.4)';
+                                    e.currentTarget.style.boxShadow = '0 4px 16px rgba(98,114,240,0.4)';
                                 }}
                             >
-                                <ArrowUp size={16} strokeWidth={2.5} />
+                                <ArrowUp size={18} strokeWidth={2.5} />
                             </button>
                         </div>
                     </div>
                 </div>
-                <p className="text-center mt-3 text-[11px] leading-relaxed px-4"
-                   style={{ color: 'var(--muted-foreground)', opacity: 0.7 }}>
+                <p className="text-center mt-3 text-[12px] leading-relaxed px-4"
+                   style={{ color: 'var(--muted-foreground)', opacity: 0.65 }}>
                     LexGH may produce inaccurate information.{' '}
                     <span className="hidden sm:inline">Always verify with official statutes and case law before relying on it in practice.</span>
                     <span className="sm:hidden">Verify with official sources.</span>
@@ -160,9 +160,9 @@ function KeyHint({
 }) {
     const isEnter = label === 'Enter';
     return (
-        <span className={cn('inline-flex items-center gap-1.5 text-[11px] whitespace-nowrap', className)}
+        <span className={cn('inline-flex items-center gap-1.5 text-[12px] whitespace-nowrap', className)}
               style={{ color: 'var(--muted-foreground)' }}>
-            <kbd className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md font-mono text-[10px] font-semibold"
+            <kbd className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md font-mono text-[11px] font-semibold"
                  style={{
                      background: 'var(--surface-2)',
                      border: '1px solid var(--border)',
@@ -170,7 +170,7 @@ function KeyHint({
                  }}>
                 {isEnter ? (
                     <>
-                        <CornerDownLeft size={9} strokeWidth={2.5} />
+                        <CornerDownLeft size={10} strokeWidth={2.5} />
                         <span>Enter</span>
                     </>
                 ) : (
