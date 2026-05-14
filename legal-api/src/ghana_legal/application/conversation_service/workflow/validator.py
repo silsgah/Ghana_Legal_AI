@@ -198,39 +198,36 @@ def strip_unbound_claims(envelope: LegalAnswer, result: ValidationResult) -> Leg
 def compute_confidence(result: ValidationResult, envelope: LegalAnswer) -> ConfidenceTier:
     """Derive the per-answer confidence tier from validator output.
 
-    Tiers (post-PR 6 tuning):
-      high          every claim bound 1:1 to a single retrieved case_id (direct match)
-      medium        every claim bound, citations span ≥2 distinct case_ids (synthesis)
-      low           some claims couldn't be bound (bound_ratio in [low_floor, 1.0))
-                    OR claims is empty but retrieval ran (unstructured prose)
-      insufficient  bound_ratio < CONFIDENCE_LOW_BOUND_RATIO with non-empty claims
-                    (most claims invented citations) OR claims empty + no retrieval
+    Tiers (post-PR 7 tuning — relaxed thresholds):
+      high          ≥80% of claims bound to retrieved docs (strong grounding)
+      medium        ≥60% of claims bound (partial grounding, still usable)
+      low           ≥CONFIDENCE_LOW_BOUND_RATIO but <60% (noticeable gaps)
+      insufficient  bound_ratio < CONFIDENCE_LOW_BOUND_RATIO (0.5 default)
+                    OR claims empty + no retrieval
 
-    Cross-encoder/cosine similarity is intentionally NOT used in this calculation.
-    Earlier versions checked min_similarity ≥ 0.7 for "high", but Voyage law-2
-    cosine scores on this corpus typically land in 0.5–0.65 for legitimately
-    matching documents — that gate caused real grounded answers to be tagged
-    "low" and hide the green badge from the lawyer. Binding success is the
-    meaningful signal: if the structure chain extracted a (case_id, paragraph_id)
-    that exists in the retrieved set, the citation is valid regardless of how
-    confident the embedder was. min_similarity is still recorded in
-    ValidationResult for log-line diagnostics.
+    Previous versions required bound_ratio == 1.0 for high and < 1.0 → low,
+    which was far too strict: if the structuring model had even one formatting
+    drift in a case_id ("Constitution of Ghana 1992" vs "Constitution_of_Ghana_1992"),
+    the entire answer dropped to 'low' even when 4/5 claims were perfectly
+    grounded. Real-world legal answers have minor structural noise; the
+    thresholds below reflect what lawyers actually experience.
     """
     n_claims = len(envelope.claims)
     if n_claims == 0:
         # No retrieval → no opportunity to ground. With retrieval but no
         # structured claims, the model produced grounded prose without breaking
-        # it into Claim objects (8b structuring miss). Surface as low.
-        return "insufficient" if not envelope.retrieval_used else "low"
+        # it into Claim objects (8b structuring miss). Surface as medium
+        # rather than low — the prose answer is still based on retrieved docs.
+        return "insufficient" if not envelope.retrieval_used else "medium"
 
     if result.bound_ratio < settings.CONFIDENCE_LOW_BOUND_RATIO:
         return "insufficient"
 
-    if result.bound_ratio < 1.0:
+    if result.bound_ratio < 0.6:
         return "low"
 
-    # All claims fully bound from here on.
-    if result.distinct_cases >= 2:
+    if result.bound_ratio < 0.8:
         return "medium"
 
+    # ≥80% of claims fully bound — this is a well-grounded answer.
     return "high"

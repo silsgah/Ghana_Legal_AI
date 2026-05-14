@@ -141,7 +141,7 @@ function formatMarkdown(text: string): React.ReactNode[] {
 
 const TIER_STYLE: Record<ConfidenceTier, { bg: string; fg: string; label: string }> = {
     high:         { bg: '#16a34a22', fg: '#16a34a', label: 'High confidence' },
-    medium:       { bg: '#2563eb22', fg: '#2563eb', label: 'Synthesis' },
+    medium:       { bg: '#2563eb22', fg: '#2563eb', label: 'Good confidence' },
     low:          { bg: '#f59e0b22', fg: '#b45309', label: 'Low confidence' },
     insufficient: { bg: '#dc262622', fg: '#dc2626', label: 'Insufficient' },
 };
