@@ -189,15 +189,18 @@ def run_ingestion(run_id: int, max_cases: int = 10):
         stats = ingest_to_qdrant(chunked_docs)
         logger.info(f"✓ Step 2c: Qdrant ingestion complete — {stats['successful']} successful")
 
-        # Update PostgreSQL
+        # Update PostgreSQL — mark ingested cases as 'indexed'
         updated_count = 0
         if stats["successful"] > 0:
+            # Use case_id (set from pdf_path.stem in ingest_to_qdrant.py),
+            # which matches pipeline_cases.case_id in the DB.
             case_law_ids = {
-                doc.metadata.get("filename", "").replace(".pdf", "")
+                doc.metadata["case_id"]
                 for doc in documents
-                if doc.metadata.get("source_type") == "case_law" and doc.metadata.get("filename")
+                if doc.metadata.get("source_type") == "case_law" and doc.metadata.get("case_id")
             }
             case_law_ids.discard("")
+            logger.info(f"Case IDs to mark as indexed: {case_law_ids}")
             if case_law_ids:
                 updated_count = update_db_statuses(case_law_ids)
                 logger.info(f"✓ Step 2d: Marked {updated_count} cases as 'indexed'")
