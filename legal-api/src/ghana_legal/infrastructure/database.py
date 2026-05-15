@@ -43,8 +43,8 @@ def get_engine() -> AsyncEngine:
 
         _engine = create_async_engine(
             db_url,
-            pool_size=5,
-            max_overflow=5,
+            pool_size=10,
+            max_overflow=10,
             pool_pre_ping=True,
             pool_recycle=300,
             echo=False,

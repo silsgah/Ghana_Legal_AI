@@ -42,6 +42,8 @@ PDF_VOLUME_MOUNT = "/uploads"
     secrets=[modal.Secret.from_name("ghana-legal-secrets")],
     timeout=900,  # 15 min for web requests
     memory=2048,
+    allow_concurrent_inputs=10,  # Handle 10 simultaneous requests per container
+    keep_warm=1,  # Always keep 1 container warm — eliminates cold starts
     volumes={PDF_VOLUME_MOUNT: pdf_volume},
 )
 @modal.asgi_app()
