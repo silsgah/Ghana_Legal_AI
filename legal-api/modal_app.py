@@ -42,10 +42,10 @@ PDF_VOLUME_MOUNT = "/uploads"
     secrets=[modal.Secret.from_name("ghana-legal-secrets")],
     timeout=900,  # 15 min for web requests
     memory=2048,
-    allow_concurrent_inputs=10,  # Handle 10 simultaneous requests per container
-    keep_warm=1,  # Always keep 1 container warm — eliminates cold starts
+    min_containers=1,  # Always keep 1 container warm — eliminates cold starts
     volumes={PDF_VOLUME_MOUNT: pdf_volume},
 )
+@modal.concurrent(max_inputs=10)  # Handle 10 simultaneous requests per container
 @modal.asgi_app()
 def api():
     """Serve the FastAPI application."""
