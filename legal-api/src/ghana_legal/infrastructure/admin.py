@@ -192,12 +192,27 @@ async def pipeline_reports(user: dict = Depends(require_admin)):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class PlanUpdateRequest(BaseModel):
-    plan: str  # "free" | "professional" | "enterprise"
+    plan: str  # "free" | "student" | "professional" | "firm" | "institution" | "enterprise" (deprecated)
 
 
 class PlatformConfigUpdateRequest(BaseModel):
+    # Daily limits. -1 = unlimited.
     free_tier_daily_limit: Optional[int] = None
+    student_daily_limit: Optional[int] = None
+    professional_daily_limit: Optional[int] = None
+    firm_daily_limit: Optional[int] = None
+    institution_daily_limit: Optional[int] = None
+    # Monthly prices (GHS)
+    student_monthly_price_ghs: Optional[float] = None
     pro_monthly_price_ghs: Optional[float] = None
+    firm_monthly_price_ghs: Optional[float] = None
+    institution_monthly_price_ghs: Optional[float] = None
+    # Yearly prices (GHS)
+    student_yearly_price_ghs: Optional[float] = None
+    pro_yearly_price_ghs: Optional[float] = None
+    firm_yearly_price_ghs: Optional[float] = None
+    institution_yearly_price_ghs: Optional[float] = None
+    # Legacy
     enterprise_monthly_price_ghs: Optional[float] = None
 
 
@@ -312,9 +327,10 @@ async def update_user_plan_admin(
     try:
         new_plan = PlanType(body.plan.lower())
     except ValueError:
+        valid = ", ".join(p.value for p in PlanType)
         raise HTTPException(
             status_code=422,
-            detail=f"Invalid plan '{body.plan}'. Must be one of: free, professional, enterprise",
+            detail=f"Invalid plan '{body.plan}'. Must be one of: {valid}",
         )
 
     try:
@@ -376,19 +392,41 @@ async def update_config(
     """
     from ghana_legal.infrastructure.usage import set_platform_config
 
-    updates = {}
-    if body.free_tier_daily_limit is not None:
-        if body.free_tier_daily_limit < 1:
-            raise HTTPException(status_code=422, detail="free_tier_daily_limit must be ≥ 1")
-        updates["free_tier_daily_limit"] = body.free_tier_daily_limit
-    if body.pro_monthly_price_ghs is not None:
-        if body.pro_monthly_price_ghs < 0:
-            raise HTTPException(status_code=422, detail="Price cannot be negative")
-        updates["pro_monthly_price_ghs"] = body.pro_monthly_price_ghs
-    if body.enterprise_monthly_price_ghs is not None:
-        if body.enterprise_monthly_price_ghs < 0:
-            raise HTTPException(status_code=422, detail="Price cannot be negative")
-        updates["enterprise_monthly_price_ghs"] = body.enterprise_monthly_price_ghs
+    updates: dict = {}
+
+    # Daily-limit fields. -1 means unlimited; otherwise must be ≥ 1.
+    limit_fields = {
+        "free_tier_daily_limit": body.free_tier_daily_limit,
+        "student_daily_limit": body.student_daily_limit,
+        "professional_daily_limit": body.professional_daily_limit,
+        "firm_daily_limit": body.firm_daily_limit,
+        "institution_daily_limit": body.institution_daily_limit,
+    }
+    for key, value in limit_fields.items():
+        if value is None:
+            continue
+        if value != -1 and value < 1:
+            raise HTTPException(status_code=422, detail=f"{key} must be ≥ 1, or -1 for unlimited")
+        updates[key] = value
+
+    # Price fields. Must be non-negative.
+    price_fields = {
+        "student_monthly_price_ghs": body.student_monthly_price_ghs,
+        "pro_monthly_price_ghs": body.pro_monthly_price_ghs,
+        "firm_monthly_price_ghs": body.firm_monthly_price_ghs,
+        "institution_monthly_price_ghs": body.institution_monthly_price_ghs,
+        "student_yearly_price_ghs": body.student_yearly_price_ghs,
+        "pro_yearly_price_ghs": body.pro_yearly_price_ghs,
+        "firm_yearly_price_ghs": body.firm_yearly_price_ghs,
+        "institution_yearly_price_ghs": body.institution_yearly_price_ghs,
+        "enterprise_monthly_price_ghs": body.enterprise_monthly_price_ghs,
+    }
+    for key, value in price_fields.items():
+        if value is None:
+            continue
+        if value < 0:
+            raise HTTPException(status_code=422, detail=f"{key} cannot be negative")
+        updates[key] = value
 
     if not updates:
         raise HTTPException(status_code=422, detail="No fields provided to update")

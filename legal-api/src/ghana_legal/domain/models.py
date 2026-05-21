@@ -29,10 +29,17 @@ class Base(DeclarativeBase):
 
 
 class PlanType(str, PyEnum):
-    """Subscription plan tiers."""
+    """Subscription plan tiers.
+
+    ENTERPRISE is retained for back-compat with previously-issued accounts but
+    is no longer surfaced in new-signup UI. New customers go to INSTITUTION.
+    """
     FREE = "free"
+    STUDENT = "student"
     PROFESSIONAL = "professional"
-    ENTERPRISE = "enterprise"
+    FIRM = "firm"
+    INSTITUTION = "institution"
+    ENTERPRISE = "enterprise"  # deprecated — use INSTITUTION for new accounts
 
 
 class SubscriptionStatus(str, PyEnum):

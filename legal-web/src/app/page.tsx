@@ -306,6 +306,10 @@ function Testimonials({ isSignedIn, getToken }: { isSignedIn: boolean; getToken:
 export default function LandingPage() {
     const { isSignedIn, getToken } = useAuth();
     const { pricing, loading: pricingLoading } = usePricing();
+    const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+
+    const isYearly = billingCycle === 'yearly';
+    const period = isYearly ? '/year' : '/month';
 
     const PRICING_TIERS = [
         {
@@ -316,11 +320,11 @@ export default function LandingPage() {
             description: 'Try it out with limited access',
             features: [
                 `${pricing.free_tier_daily_limit} queries per day`,
-                'Constitutional Expert',
                 'Basic case law search',
-                'Community support',
+                'Web access',
+                'No credit card required',
             ],
-            cta: 'Get Started',
+            cta: 'Get Started Free',
             href: '/sign-up',
             highlighted: false,
             accentColor: 'var(--muted-foreground)',
@@ -328,43 +332,82 @@ export default function LandingPage() {
             priceLoading: false,
         },
         {
-            name: 'Professional',
-            price: pricing.pro_monthly_price_ghs.toFixed(0),
+            name: 'Student',
+            price: (isYearly ? pricing.student_yearly_price_ghs : pricing.student_monthly_price_ghs).toFixed(0),
             currency: 'GHS',
-            period: '/month',
-            description: 'For lawyers and paralegals',
+            period,
+            description: 'For law students and academics',
+            features: [
+                `${pricing.student_daily_limit} queries per day`,
+                'All three expert modes',
+                'Citation export',
+                'Chat history',
+                'Web and mobile access',
+            ],
+            cta: 'Start Student Plan',
+            href: '/sign-up',
+            highlighted: false,
+            accentColor: 'var(--info)',
+            priceLoading: pricingLoading,
+        },
+        {
+            name: 'Professional',
+            price: (isYearly ? pricing.pro_yearly_price_ghs : pricing.pro_monthly_price_ghs).toFixed(0),
+            currency: 'GHS',
+            period,
+            description: 'For practising lawyers',
             features: [
                 'Unlimited queries',
-                'All 3 expert modes',
-                'Case law deep analysis',
+                'All three expert modes',
+                'Full citation export',
+                'Chat history saved',
                 'Priority response speed',
-                'Chat history & export',
-                'Email support',
+                '1 user seat',
             ],
-            cta: 'Start Free Trial',
+            cta: 'Start Professional Plan',
             href: '/sign-up',
             highlighted: true,
             accentColor: 'var(--ghana-gold)',
             priceLoading: pricingLoading,
         },
         {
-            name: 'Enterprise',
-            price: pricing.enterprise_monthly_price_ghs.toFixed(0),
+            name: 'Firm',
+            price: (isYearly ? pricing.firm_yearly_price_ghs : pricing.firm_monthly_price_ghs).toFixed(0),
             currency: 'GHS',
-            period: '/month',
-            description: 'For law firms and institutions',
+            period,
+            description: 'For law firms up to 5 lawyers',
             features: [
                 'Everything in Professional',
-                'Up to 10 user seats',
-                'API access',
-                'Custom integrations',
-                'Dedicated account manager',
-                'SLA guarantee',
+                'Up to 5 user seats',
+                'Firm admin dashboard',
+                'Usage analytics per user',
+                'Team management',
             ],
-            cta: 'Contact Sales',
+            cta: 'Start Firm Plan',
             href: '/sign-up',
             highlighted: false,
             accentColor: 'var(--ghana-green)',
+            priceLoading: pricingLoading,
+        },
+        {
+            name: 'Institution',
+            price: (isYearly ? pricing.institution_yearly_price_ghs : pricing.institution_monthly_price_ghs).toFixed(0),
+            currency: 'GHS',
+            period,
+            description: 'For universities and large organisations',
+            features: [
+                'Everything in Firm',
+                'Unlimited user seats',
+                'Custom branding option',
+                'API access included',
+                'Student management dashboard',
+                'Bulk user management',
+                'Dedicated account manager',
+            ],
+            cta: 'Contact Us',
+            href: '/sign-up',
+            highlighted: false,
+            accentColor: 'var(--primary)',
             priceLoading: pricingLoading,
         },
     ];
@@ -567,9 +610,39 @@ export default function LandingPage() {
                            style={{ color: 'var(--muted-foreground)' }}>
                             Start free, upgrade when you need more. No hidden fees.
                         </p>
+
+                        {/* Billing-cycle toggle */}
+                        <div className="inline-flex items-center gap-1 p-1 rounded-full mt-8"
+                             style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
+                            <button
+                                onClick={() => setBillingCycle('monthly')}
+                                className="px-5 py-2 text-[13px] font-semibold rounded-full transition-colors"
+                                style={{
+                                    background: billingCycle === 'monthly' ? 'var(--ghana-gold)' : 'transparent',
+                                    color: billingCycle === 'monthly' ? '#000' : 'var(--muted-foreground)',
+                                }}>
+                                Monthly
+                            </button>
+                            <button
+                                onClick={() => setBillingCycle('yearly')}
+                                className="px-5 py-2 text-[13px] font-semibold rounded-full flex items-center gap-2 transition-colors"
+                                style={{
+                                    background: billingCycle === 'yearly' ? 'var(--ghana-gold)' : 'transparent',
+                                    color: billingCycle === 'yearly' ? '#000' : 'var(--muted-foreground)',
+                                }}>
+                                Yearly
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                                      style={{
+                                          background: billingCycle === 'yearly' ? 'rgba(0,0,0,0.15)' : 'var(--ghana-green)',
+                                          color: billingCycle === 'yearly' ? '#000' : '#fff',
+                                      }}>
+                                    Save up to 20%
+                                </span>
+                            </button>
+                        </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 max-w-7xl mx-auto">
                         {PRICING_TIERS.map((tier) => (
                             <div key={tier.name}
                                  className="relative p-7 rounded-2xl flex flex-col"

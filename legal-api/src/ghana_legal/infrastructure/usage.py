@@ -23,9 +23,26 @@ from ghana_legal.domain.models import (
 # ---------------------------------------------------------------------------
 # Default config values (used as fallback if DB row not set)
 # ---------------------------------------------------------------------------
+# Per-tier daily query limits. -1 means unlimited.
+# Monthly + yearly prices in GHS. Yearly prices reflect a discount.
 _CONFIG_DEFAULTS = {
+    # Daily limits
     "free_tier_daily_limit": lambda: str(settings.FREE_TIER_DAILY_LIMIT),
-    "pro_monthly_price_ghs": "99.00",
+    "student_daily_limit": "50",
+    "professional_daily_limit": "-1",
+    "firm_daily_limit": "-1",
+    "institution_daily_limit": "-1",
+    # Monthly prices
+    "student_monthly_price_ghs": "50.00",
+    "pro_monthly_price_ghs": "350.00",
+    "firm_monthly_price_ghs": "800.00",
+    "institution_monthly_price_ghs": "3500.00",
+    # Yearly prices
+    "student_yearly_price_ghs": "500.00",
+    "pro_yearly_price_ghs": "3500.00",
+    "firm_yearly_price_ghs": "8000.00",
+    "institution_yearly_price_ghs": "35000.00",
+    # Legacy — kept so existing rows on the deprecated ENTERPRISE tier still work
     "enterprise_monthly_price_ghs": "299.00",
 }
 from ghana_legal.infrastructure.database import get_session
@@ -149,31 +166,32 @@ async def get_user(clerk_id: str) -> User | None:
 # Platform Configuration
 # ---------------------------------------------------------------------------
 
+_INT_CONFIG_KEYS = {
+    "free_tier_daily_limit",
+    "student_daily_limit",
+    "professional_daily_limit",
+    "firm_daily_limit",
+    "institution_daily_limit",
+}
+
+
 async def get_platform_config() -> dict:
     """Fetch all platform config rows from DB, falling back to defaults.
 
-    Returns a typed dict with:
-        free_tier_daily_limit (int)
-        pro_monthly_price_ghs (float)
-        enterprise_monthly_price_ghs (float)
+    Returns daily limits as int (-1 = unlimited) and prices as float (GHS).
     """
     async with get_session() as session:
         result = await session.execute(select(PlatformConfig))
         rows = {row.key: row.value for row in result.scalars().all()}
 
-    # Merge with defaults for any missing keys
-    merged = {}
+    merged: dict = {}
     for key, default_fn in _CONFIG_DEFAULTS.items():
         raw = rows.get(key)
         if raw is None:
             raw = default_fn() if callable(default_fn) else default_fn
-        merged[key] = raw
+        merged[key] = int(raw) if key in _INT_CONFIG_KEYS else float(raw)
 
-    return {
-        "free_tier_daily_limit": int(merged["free_tier_daily_limit"]),
-        "pro_monthly_price_ghs": float(merged["pro_monthly_price_ghs"]),
-        "enterprise_monthly_price_ghs": float(merged["enterprise_monthly_price_ghs"]),
-    }
+    return merged
 
 
 async def set_platform_config(updates: dict) -> dict:
@@ -204,14 +222,29 @@ async def set_platform_config(updates: dict) -> dict:
 # Quota Enforcement
 # ---------------------------------------------------------------------------
 
+# Plan → config-key mapping for daily limits. ENTERPRISE is deprecated but
+# kept here so existing accounts continue to be treated as unlimited.
+_PLAN_DAILY_LIMIT_KEY = {
+    PlanType.FREE: "free_tier_daily_limit",
+    PlanType.STUDENT: "student_daily_limit",
+    PlanType.PROFESSIONAL: "professional_daily_limit",
+    PlanType.FIRM: "firm_daily_limit",
+    PlanType.INSTITUTION: "institution_daily_limit",
+    PlanType.ENTERPRISE: "institution_daily_limit",
+}
+
+
+def _daily_limit_for(plan: PlanType, cfg: dict) -> int:
+    """Resolve a plan's daily query limit from platform config. -1 = unlimited."""
+    key = _PLAN_DAILY_LIMIT_KEY.get(plan, "free_tier_daily_limit")
+    return int(cfg.get(key, 0))
+
+
 async def check_quota(clerk_id: str) -> dict:
     """Check if a user can make another query.
 
-    Free users are limited to FREE_TIER_DAILY_LIMIT queries per UTC day.
-    Professional and Enterprise users have unlimited access.
-
-    Args:
-        clerk_id: Clerk user ID.
+    Each tier has its own daily limit configured in PlatformConfig.
+    A limit of -1 means unlimited.
 
     Returns:
         dict with keys:
@@ -221,21 +254,19 @@ async def check_quota(clerk_id: str) -> dict:
             - daily_limit (int): The daily limit for the user's plan (-1 for unlimited)
             - used_today (int): Queries used today
     """
+    await get_or_create_user(clerk_id)
+
     async with get_session() as session:
-        # Get user
         result = await session.execute(
             select(User).where(User.clerk_id == clerk_id)
         )
         user = result.scalar_one_or_none()
 
-        if user is None:
-            # Auto-provision as free user
-            user = User(clerk_id=clerk_id, email=f"{clerk_id}@placeholder.local")
-            session.add(user)
-            await session.flush()
+        cfg = await get_platform_config()
+        daily_limit = _daily_limit_for(user.plan, cfg)
 
-        # Unlimited for paid plans
-        if user.plan in (PlanType.PROFESSIONAL, PlanType.ENTERPRISE):
+        # Unlimited tier — no need to count.
+        if daily_limit < 0:
             return {
                 "allowed": True,
                 "remaining": -1,
@@ -244,7 +275,6 @@ async def check_quota(clerk_id: str) -> dict:
                 "used_today": 0,
             }
 
-        # Count today's queries for free users
         today_start = datetime.now(timezone.utc).replace(
             hour=0, minute=0, second=0, microsecond=0
         )
@@ -255,9 +285,6 @@ async def check_quota(clerk_id: str) -> dict:
             )
         )
         used_today = count_result.scalar() or 0
-        # Read limit from DB config (falls back to settings default)
-        cfg = await get_platform_config()
-        daily_limit = cfg["free_tier_daily_limit"]
         remaining = max(0, daily_limit - used_today)
 
         return {
@@ -582,17 +609,29 @@ async def list_users_with_usage(search: str = "", page: int = 1, per_page: int =
     )
 
     async with get_session() as session:
-        # Subquery: today's usage count per user
-        usage_sub = (
+        # Today's usage count per user.
+        usage_today_sub = (
             select(UsageLog.clerk_id, sql_func.count(UsageLog.id).label("used_today"))
             .where(UsageLog.created_at >= today_start)
             .group_by(UsageLog.clerk_id)
             .subquery()
         )
 
+        # Lifetime usage count per user (no date filter).
+        usage_total_sub = (
+            select(UsageLog.clerk_id, sql_func.count(UsageLog.id).label("total_queries"))
+            .group_by(UsageLog.clerk_id)
+            .subquery()
+        )
+
         query = (
-            select(User, sql_func.coalesce(usage_sub.c.used_today, 0).label("used_today"))
-            .outerjoin(usage_sub, User.clerk_id == usage_sub.c.clerk_id)
+            select(
+                User,
+                sql_func.coalesce(usage_today_sub.c.used_today, 0).label("used_today"),
+                sql_func.coalesce(usage_total_sub.c.total_queries, 0).label("total_queries"),
+            )
+            .outerjoin(usage_today_sub, User.clerk_id == usage_today_sub.c.clerk_id)
+            .outerjoin(usage_total_sub, User.clerk_id == usage_total_sub.c.clerk_id)
         )
 
         if search:
@@ -603,11 +642,9 @@ async def list_users_with_usage(search: str = "", page: int = 1, per_page: int =
                 )
             )
 
-        # Total count
         count_q = select(sql_func.count()).select_from(query.subquery())
         total = (await session.execute(count_q)).scalar() or 0
 
-        # Paginate
         query = query.order_by(User.created_at.desc())
         query = query.offset((page - 1) * per_page).limit(per_page)
 
@@ -619,6 +656,7 @@ async def list_users_with_usage(search: str = "", page: int = 1, per_page: int =
             "email": row.User.email,
             "plan": row.User.plan.value,
             "used_today": row.used_today,
+            "total_queries": row.total_queries,
             "created_at": row.User.created_at.isoformat() if row.User.created_at else None,
             "updated_at": row.User.updated_at.isoformat() if row.User.updated_at else None,
         }

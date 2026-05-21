@@ -108,6 +108,16 @@ async def get_usage_quota(user: dict = Depends(get_current_user)):
     return quota
 
 
+@app.post("/api/cache/clear", tags=["admin"])
+async def clear_response_cache(user: dict = Depends(get_current_user)):
+    """Clear the in-memory response cache. Call this after prompt/RAG changes
+    to force fresh LLM responses instead of serving stale cached answers."""
+    cache = get_cache()
+    cache.clear()
+    return {"status": "ok", "message": "In-memory response cache cleared."}
+
+
+
 @app.get("/api/pricing", tags=["billing"])
 async def get_pricing():
     """Public endpoint: returns live plan pricing and free-tier quota.
@@ -116,11 +126,9 @@ async def get_pricing():
     """
     from ghana_legal.infrastructure.usage import get_platform_config
     cfg = await get_platform_config()
-    return {
-        "free_tier_daily_limit": cfg["free_tier_daily_limit"],
-        "pro_monthly_price_ghs": cfg["pro_monthly_price_ghs"],
-        "enterprise_monthly_price_ghs": cfg["enterprise_monthly_price_ghs"],
-    }
+    # Return the full tier matrix (limits + monthly/yearly prices) so the
+    # landing page and admin can render every plan from one fetch.
+    return cfg
 
 
 @app.get("/api/public/stats", tags=["public"])
@@ -371,7 +379,11 @@ class StreamChatMessage(BaseModel):
 
 
 @app.post("/chat/stream", tags=["chat"])
-async def stream_chat(body: StreamChatMessage, user: dict = Depends(get_current_user)):
+async def stream_chat(
+    body: StreamChatMessage,
+    user: dict = Depends(get_current_user),
+    no_cache: bool = False,
+):
     """SSE streaming chat endpoint — replaces WebSocket for LLM token streaming.
 
     Accepts a chat message and returns a Server-Sent Events stream.
@@ -398,14 +410,15 @@ async def stream_chat(body: StreamChatMessage, user: dict = Depends(get_current_
             yield f"data: {json.dumps({'error': msg, 'quota_exceeded': True})}\n\n"
         return StreamingResponse(quota_error(), media_type="text/event-stream")
 
-    # 2. Cache check
+    # 2. Cache check (skip when no_cache=true, e.g. after a prompt or RAG update)
     cache = get_cache()
-    cached_response = cache.get(body.message, body.expert_id)
+    cached_response = None if no_cache else cache.get(body.message, body.expert_id)
     if cached_response:
         async def cached_stream():
             yield f"data: {json.dumps({'chunk': cached_response})}\n\n"
             yield f"data: {json.dumps({'done': True})}\n\n"
         return StreamingResponse(cached_stream(), media_type="text/event-stream")
+
 
     # 3. Stream LLM response
     async def event_stream():
@@ -496,40 +509,30 @@ async def reset_conversation(
 async def get_chat_history(expert_id: str, user: dict = Depends(get_current_user)):
     """Fetch conversation history for a user + expert from MongoDB checkpoints."""
     from langchain_core.messages import HumanMessage, AIMessage
-    from langgraph.checkpoint.postgres import PostgresSaver
-    from ghana_legal.config import settings
 
     clerk_id = user["sub"]
     thread_id = f"{clerk_id}_{expert_id}"
 
     try:
-        db_uri = settings.DATABASE_URL.replace("postgresql+asyncpg", "postgresql")
-        if "pooler.supabase.com" in db_uri and ":5432" in db_uri:
-            db_uri = db_uri.replace(":5432", ":6543")
+        from ghana_legal.infrastructure.database import get_checkpointer
+        checkpointer = await get_checkpointer()
+        config = {"configurable": {"thread_id": thread_id}}
+        checkpoint = await checkpointer.aget(config)
 
-        from psycopg_pool import AsyncConnectionPool
-        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-        
-        async with AsyncConnectionPool(conninfo=db_uri, kwargs={"prepare_threshold": None}) as pool:
-            checkpointer = AsyncPostgresSaver(pool)
-            await checkpointer.setup()
-            config = {"configurable": {"thread_id": thread_id}}
-            checkpoint = await checkpointer.aget(config)
+        if not checkpoint or "channel_values" not in checkpoint:
+            return {"messages": []}
 
-            if not checkpoint or "channel_values" not in checkpoint:
-                return {"messages": []}
+        messages = checkpoint["channel_values"].get("messages", [])
 
-            messages = checkpoint["channel_values"].get("messages", [])
+        history = []
+        for msg in messages:
+            if isinstance(msg, HumanMessage):
+                history.append({"role": "user", "content": msg.content})
+            elif isinstance(msg, AIMessage) and msg.content:
+                # Skip tool_call messages (empty content)
+                history.append({"role": "assistant", "content": msg.content})
 
-            history = []
-            for msg in messages:
-                if isinstance(msg, HumanMessage):
-                    history.append({"role": "user", "content": msg.content})
-                elif isinstance(msg, AIMessage) and msg.content:
-                    # Skip tool_call messages (empty content)
-                    history.append({"role": "assistant", "content": msg.content})
-
-            return {"messages": history}
+        return {"messages": history}
 
     except Exception as e:
         from loguru import logger

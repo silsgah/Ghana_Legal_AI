@@ -9,7 +9,7 @@ import {
     ChevronLeft, ChevronRight, Filter, ShieldX,
     Users, Settings, Crown, Trash2, Pencil, Save, X,
     BadgeCheck, UserCheck, UserX, RotateCcw, Upload, FilePlus2, MessageSquare,
-    CreditCard
+    CreditCard, GraduationCap, Briefcase, Building2
 } from 'lucide-react';
 import { config } from '@/lib/config';
 
@@ -51,13 +51,29 @@ interface AdminUser {
     display_name: string;
     plan: string;
     used_today: number;
+    total_queries: number;
     created_at: string | null;
     updated_at: string | null;
 }
 
 interface PlatformConfig {
+    // Daily limits (-1 = unlimited)
     free_tier_daily_limit: number;
+    student_daily_limit: number;
+    professional_daily_limit: number;
+    firm_daily_limit: number;
+    institution_daily_limit: number;
+    // Monthly prices (GHS)
+    student_monthly_price_ghs: number;
     pro_monthly_price_ghs: number;
+    firm_monthly_price_ghs: number;
+    institution_monthly_price_ghs: number;
+    // Yearly prices (GHS)
+    student_yearly_price_ghs: number;
+    pro_yearly_price_ghs: number;
+    firm_yearly_price_ghs: number;
+    institution_yearly_price_ghs: number;
+    // Legacy
     enterprise_monthly_price_ghs: number;
 }
 
@@ -98,7 +114,10 @@ const COURT_NAMES: Record<string, string> = {
 
 const PLAN_CONFIG: Record<string, { color: string; label: string; icon: React.ReactNode }> = {
     free: { color: 'var(--muted-foreground)', label: 'Free', icon: <UserCheck size={12} /> },
+    student: { color: 'var(--info)', label: 'Student', icon: <GraduationCap size={12} /> },
     professional: { color: 'var(--ghana-gold)', label: 'Pro', icon: <Crown size={12} /> },
+    firm: { color: 'var(--ghana-green)', label: 'Firm', icon: <Briefcase size={12} /> },
+    institution: { color: 'var(--primary)', label: 'Institution', icon: <Building2 size={12} /> },
     enterprise: { color: 'var(--primary)', label: 'Enterprise', icon: <BadgeCheck size={12} /> },
 };
 
@@ -1156,7 +1175,7 @@ export default function AdminPage() {
                                 <table className="w-full text-sm">
                                     <thead>
                                         <tr style={{ background: 'var(--surface-1)' }}>
-                                            {['User', 'Plan', 'Queries Today', 'Joined', 'Actions'].map(h => (
+                                            {['User', 'Plan', 'Queries Today', 'Total Queries', 'Joined', 'Actions'].map(h => (
                                                 <th key={h} className="text-left px-4 py-3 font-semibold"
                                                     style={{ color: 'var(--muted-foreground)' }}>{h}</th>
                                             ))}
@@ -1210,6 +1229,14 @@ export default function AdminPage() {
                                                         </span>
                                                     </td>
 
+                                                    {/* Total queries (lifetime) — `?? 0` guards against pre-rollout backends that don't return this field yet. */}
+                                                    <td className="px-4 py-3">
+                                                        <span className="font-mono"
+                                                              style={{ color: 'var(--foreground)', opacity: (u.total_queries ?? 0) > 0 ? 1 : 0.4 }}>
+                                                            {(u.total_queries ?? 0).toLocaleString()}
+                                                        </span>
+                                                    </td>
+
                                                     {/* Joined */}
                                                     <td className="px-4 py-3 text-xs" style={{ color: 'var(--muted-foreground)' }}>
                                                         {u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}
@@ -1231,8 +1258,13 @@ export default function AdminPage() {
                                                                     opacity: switching ? 0.5 : 1,
                                                                 }}>
                                                                 <option value="free">Free</option>
+                                                                <option value="student">Student</option>
                                                                 <option value="professional">Professional</option>
-                                                                <option value="enterprise">Enterprise</option>
+                                                                <option value="firm">Firm</option>
+                                                                <option value="institution">Institution</option>
+                                                                {u.plan === 'enterprise' && (
+                                                                    <option value="enterprise">Enterprise (legacy)</option>
+                                                                )}
                                                             </select>
 
                                                             {/* Wipe usage */}
@@ -1263,7 +1295,7 @@ export default function AdminPage() {
                                         })}
                                         {!usersLoading && users.length === 0 && (
                                             <tr>
-                                                <td colSpan={5} className="px-4 py-8 text-center"
+                                                <td colSpan={6} className="px-4 py-8 text-center"
                                                     style={{ color: 'var(--muted-foreground)' }}>
                                                     {userSearch ? 'No users match your search.' : 'No users found.'}
                                                 </td>
@@ -1271,7 +1303,7 @@ export default function AdminPage() {
                                         )}
                                         {usersLoading && (
                                             <tr>
-                                                <td colSpan={5} className="px-4 py-8 text-center">
+                                                <td colSpan={6} className="px-4 py-8 text-center">
                                                     <RefreshCw size={20} className="animate-spin mx-auto" style={{ color: 'var(--primary)' }} />
                                                 </td>
                                             </tr>
@@ -1313,43 +1345,140 @@ export default function AdminPage() {
 
                             {configDraft ? (
                                 <div className="space-y-5">
-                                    {/* Free tier limit */}
+                                    {/* ── Daily query limits ─────────────────────── */}
+                                    <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>
+                                        Daily Query Limits
+                                    </h3>
+                                    <p className="text-xs -mt-3" style={{ color: 'var(--muted-foreground)' }}>
+                                        Use <code>-1</code> for unlimited.
+                                    </p>
+
                                     <ConfigField
-                                        label="Free Tier Daily Query Limit"
-                                        description="Number of queries a free-tier user can make per UTC day."
+                                        label="Free Tier"
+                                        description="Daily queries for free-tier users."
                                         type="number"
                                         min={1}
                                         value={configDraft.free_tier_daily_limit}
                                         onChange={v => setConfigDraft(d => d ? { ...d, free_tier_daily_limit: Number(v) } : d)}
                                         unit="queries / day"
                                     />
+                                    <ConfigField
+                                        label="Student"
+                                        description="Daily queries for the Student tier."
+                                        type="number"
+                                        min={-1}
+                                        value={configDraft.student_daily_limit}
+                                        onChange={v => setConfigDraft(d => d ? { ...d, student_daily_limit: Number(v) } : d)}
+                                        unit="queries / day"
+                                        color="var(--info)"
+                                    />
+                                    <ConfigField
+                                        label="Professional"
+                                        description="Daily queries for the Professional tier."
+                                        type="number"
+                                        min={-1}
+                                        value={configDraft.professional_daily_limit}
+                                        onChange={v => setConfigDraft(d => d ? { ...d, professional_daily_limit: Number(v) } : d)}
+                                        unit="queries / day"
+                                        color="var(--ghana-gold)"
+                                    />
+                                    <ConfigField
+                                        label="Firm"
+                                        description="Daily queries for the Firm tier."
+                                        type="number"
+                                        min={-1}
+                                        value={configDraft.firm_daily_limit}
+                                        onChange={v => setConfigDraft(d => d ? { ...d, firm_daily_limit: Number(v) } : d)}
+                                        unit="queries / day"
+                                        color="var(--ghana-green)"
+                                    />
+                                    <ConfigField
+                                        label="Institution"
+                                        description="Daily queries for the Institution tier."
+                                        type="number"
+                                        min={-1}
+                                        value={configDraft.institution_daily_limit}
+                                        onChange={v => setConfigDraft(d => d ? { ...d, institution_daily_limit: Number(v) } : d)}
+                                        unit="queries / day"
+                                        color="var(--primary)"
+                                    />
 
                                     <div style={{ height: 1, background: 'var(--border)' }} />
 
-                                    {/* Pro price */}
+                                    {/* ── Monthly prices ────────────────────────── */}
+                                    <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>
+                                        Monthly Prices (GHS)
+                                    </h3>
                                     <ConfigField
-                                        label="Pro Plan Monthly Price"
-                                        description="Shown on the pricing/upgrade page."
-                                        type="number"
-                                        min={0}
-                                        step={0.01}
+                                        label="Student"
+                                        description="Monthly price for the Student tier."
+                                        type="number" min={0} step={0.01}
+                                        value={configDraft.student_monthly_price_ghs}
+                                        onChange={v => setConfigDraft(d => d ? { ...d, student_monthly_price_ghs: Number(v) } : d)}
+                                        unit="GHS / month" color="var(--info)"
+                                    />
+                                    <ConfigField
+                                        label="Professional"
+                                        description="Monthly price for the Professional tier."
+                                        type="number" min={0} step={0.01}
                                         value={configDraft.pro_monthly_price_ghs}
                                         onChange={v => setConfigDraft(d => d ? { ...d, pro_monthly_price_ghs: Number(v) } : d)}
-                                        unit="GHS / month"
-                                        color="var(--ghana-gold)"
+                                        unit="GHS / month" color="var(--ghana-gold)"
+                                    />
+                                    <ConfigField
+                                        label="Firm"
+                                        description="Monthly price for the Firm tier."
+                                        type="number" min={0} step={0.01}
+                                        value={configDraft.firm_monthly_price_ghs}
+                                        onChange={v => setConfigDraft(d => d ? { ...d, firm_monthly_price_ghs: Number(v) } : d)}
+                                        unit="GHS / month" color="var(--ghana-green)"
+                                    />
+                                    <ConfigField
+                                        label="Institution"
+                                        description="Monthly price for the Institution tier."
+                                        type="number" min={0} step={0.01}
+                                        value={configDraft.institution_monthly_price_ghs}
+                                        onChange={v => setConfigDraft(d => d ? { ...d, institution_monthly_price_ghs: Number(v) } : d)}
+                                        unit="GHS / month" color="var(--primary)"
                                     />
 
-                                    {/* Enterprise price */}
+                                    <div style={{ height: 1, background: 'var(--border)' }} />
+
+                                    {/* ── Yearly prices ─────────────────────────── */}
+                                    <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>
+                                        Yearly Prices (GHS)
+                                    </h3>
                                     <ConfigField
-                                        label="Enterprise Plan Monthly Price"
-                                        description="Shown on the pricing/upgrade page."
-                                        type="number"
-                                        min={0}
-                                        step={0.01}
-                                        value={configDraft.enterprise_monthly_price_ghs}
-                                        onChange={v => setConfigDraft(d => d ? { ...d, enterprise_monthly_price_ghs: Number(v) } : d)}
-                                        unit="GHS / month"
-                                        color="var(--primary)"
+                                        label="Student"
+                                        description="Yearly price for the Student tier."
+                                        type="number" min={0} step={0.01}
+                                        value={configDraft.student_yearly_price_ghs}
+                                        onChange={v => setConfigDraft(d => d ? { ...d, student_yearly_price_ghs: Number(v) } : d)}
+                                        unit="GHS / year" color="var(--info)"
+                                    />
+                                    <ConfigField
+                                        label="Professional"
+                                        description="Yearly price for the Professional tier."
+                                        type="number" min={0} step={0.01}
+                                        value={configDraft.pro_yearly_price_ghs}
+                                        onChange={v => setConfigDraft(d => d ? { ...d, pro_yearly_price_ghs: Number(v) } : d)}
+                                        unit="GHS / year" color="var(--ghana-gold)"
+                                    />
+                                    <ConfigField
+                                        label="Firm"
+                                        description="Yearly price for the Firm tier."
+                                        type="number" min={0} step={0.01}
+                                        value={configDraft.firm_yearly_price_ghs}
+                                        onChange={v => setConfigDraft(d => d ? { ...d, firm_yearly_price_ghs: Number(v) } : d)}
+                                        unit="GHS / year" color="var(--ghana-green)"
+                                    />
+                                    <ConfigField
+                                        label="Institution"
+                                        description="Yearly price for the Institution tier."
+                                        type="number" min={0} step={0.01}
+                                        value={configDraft.institution_yearly_price_ghs}
+                                        onChange={v => setConfigDraft(d => d ? { ...d, institution_yearly_price_ghs: Number(v) } : d)}
+                                        unit="GHS / year" color="var(--primary)"
                                     />
 
                                     {/* Actions */}
