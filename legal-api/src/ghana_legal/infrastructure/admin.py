@@ -214,6 +214,15 @@ class PlatformConfigUpdateRequest(BaseModel):
     institution_yearly_price_ghs: Optional[float] = None
     # Legacy
     enterprise_monthly_price_ghs: Optional[float] = None
+    # Paystack plan codes (Stage 1.5) — empty string clears the slot.
+    paystack_plan_student_monthly: Optional[str] = None
+    paystack_plan_student_yearly: Optional[str] = None
+    paystack_plan_pro_monthly: Optional[str] = None
+    paystack_plan_pro_yearly: Optional[str] = None
+    paystack_plan_firm_monthly: Optional[str] = None
+    paystack_plan_firm_yearly: Optional[str] = None
+    paystack_plan_institution_monthly: Optional[str] = None
+    paystack_plan_institution_yearly: Optional[str] = None
 
 
 @router.get("/users")
@@ -427,6 +436,22 @@ async def update_config(
         if value < 0:
             raise HTTPException(status_code=422, detail=f"{key} cannot be negative")
         updates[key] = value
+
+    # Paystack plan-code fields. Empty string is allowed (clears the slot).
+    plan_code_fields = {
+        "paystack_plan_student_monthly": body.paystack_plan_student_monthly,
+        "paystack_plan_student_yearly": body.paystack_plan_student_yearly,
+        "paystack_plan_pro_monthly": body.paystack_plan_pro_monthly,
+        "paystack_plan_pro_yearly": body.paystack_plan_pro_yearly,
+        "paystack_plan_firm_monthly": body.paystack_plan_firm_monthly,
+        "paystack_plan_firm_yearly": body.paystack_plan_firm_yearly,
+        "paystack_plan_institution_monthly": body.paystack_plan_institution_monthly,
+        "paystack_plan_institution_yearly": body.paystack_plan_institution_yearly,
+    }
+    for key, value in plan_code_fields.items():
+        if value is None:
+            continue
+        updates[key] = value.strip()
 
     if not updates:
         raise HTTPException(status_code=422, detail="No fields provided to update")

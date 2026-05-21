@@ -76,11 +76,27 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
                 channels: ['card', 'mobile_money', 'bank', 'ussd'],
                 metadata: {
                     clerk_id: user?.id,
+                    // Stage 1.5: tell the backend explicitly which tier × cycle
+                    // the customer chose. The verify endpoint and webhook use
+                    // this to upgrade the user to the right plan instead of
+                    // blindly assigning PROFESSIONAL to every paid event.
+                    plan: 'professional',
+                    cycle: 'monthly',
                     custom_fields: [
                         {
                             display_name: 'Clerk User ID',
                             variable_name: 'clerk_id',
                             value: user?.id || '',
+                        },
+                        {
+                            display_name: 'Plan',
+                            variable_name: 'plan',
+                            value: 'professional',
+                        },
+                        {
+                            display_name: 'Billing Cycle',
+                            variable_name: 'cycle',
+                            value: 'monthly',
                         },
                     ],
                 },

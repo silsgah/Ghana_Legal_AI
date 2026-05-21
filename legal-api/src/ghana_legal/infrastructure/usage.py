@@ -25,6 +25,9 @@ from ghana_legal.domain.models import (
 # ---------------------------------------------------------------------------
 # Per-tier daily query limits. -1 means unlimited.
 # Monthly + yearly prices in GHS. Yearly prices reflect a discount.
+# Paystack plan codes are populated by the admin after creating Plans in the
+# Paystack dashboard (looks like PLN_xxxxxxxx). Empty default = "not yet
+# configured" — payments matching this tier will fall back to amount-matching.
 _CONFIG_DEFAULTS = {
     # Daily limits
     "free_tier_daily_limit": lambda: str(settings.FREE_TIER_DAILY_LIMIT),
@@ -44,6 +47,16 @@ _CONFIG_DEFAULTS = {
     "institution_yearly_price_ghs": "35000.00",
     # Legacy — kept so existing rows on the deprecated ENTERPRISE tier still work
     "enterprise_monthly_price_ghs": "299.00",
+    # Paystack plan codes (Stage 1.5). Admin pastes these in after creating
+    # the matching Plan in the Paystack dashboard. Stored as strings.
+    "paystack_plan_student_monthly": "",
+    "paystack_plan_student_yearly": "",
+    "paystack_plan_pro_monthly": "",
+    "paystack_plan_pro_yearly": "",
+    "paystack_plan_firm_monthly": "",
+    "paystack_plan_firm_yearly": "",
+    "paystack_plan_institution_monthly": "",
+    "paystack_plan_institution_yearly": "",
 }
 from ghana_legal.infrastructure.database import get_session
 
@@ -174,11 +187,24 @@ _INT_CONFIG_KEYS = {
     "institution_daily_limit",
 }
 
+_STR_CONFIG_KEYS = {
+    "paystack_plan_student_monthly",
+    "paystack_plan_student_yearly",
+    "paystack_plan_pro_monthly",
+    "paystack_plan_pro_yearly",
+    "paystack_plan_firm_monthly",
+    "paystack_plan_firm_yearly",
+    "paystack_plan_institution_monthly",
+    "paystack_plan_institution_yearly",
+}
+
 
 async def get_platform_config() -> dict:
     """Fetch all platform config rows from DB, falling back to defaults.
 
-    Returns daily limits as int (-1 = unlimited) and prices as float (GHS).
+    Daily limits → int (-1 = unlimited).
+    Paystack plan codes → str (empty string when unconfigured).
+    Everything else → float (prices in GHS).
     """
     async with get_session() as session:
         result = await session.execute(select(PlatformConfig))
@@ -189,7 +215,12 @@ async def get_platform_config() -> dict:
         raw = rows.get(key)
         if raw is None:
             raw = default_fn() if callable(default_fn) else default_fn
-        merged[key] = int(raw) if key in _INT_CONFIG_KEYS else float(raw)
+        if key in _INT_CONFIG_KEYS:
+            merged[key] = int(raw)
+        elif key in _STR_CONFIG_KEYS:
+            merged[key] = str(raw)
+        else:
+            merged[key] = float(raw)
 
     return merged
 
@@ -232,6 +263,136 @@ _PLAN_DAILY_LIMIT_KEY = {
     PlanType.INSTITUTION: "institution_daily_limit",
     PlanType.ENTERPRISE: "institution_daily_limit",
 }
+
+# Tolerance for legitimate price drift between the moment the customer pays
+# and the moment we verify. 1 GHS is well below the smallest meaningful
+# pricing change.
+_AMOUNT_TOLERANCE_GHS = 1.0
+
+
+def _plan_from_metadata(metadata: dict | None) -> PlanType | None:
+    """Map frontend-attached metadata {plan: 'firm', cycle: 'monthly'} → PlanType.
+
+    This is the *most reliable* signal because the frontend explicitly tells us
+    which tier the customer chose. Paystack returns the metadata blob in both
+    the verify-payment response and the webhook events.
+    """
+    if not isinstance(metadata, dict):
+        return None
+    plan_str = (metadata.get("plan") or "").strip().lower()
+    if not plan_str:
+        return None
+    try:
+        return PlanType(plan_str)
+    except ValueError:
+        return None
+
+
+def _plan_from_paystack_code(plan_code: str, cfg: dict) -> PlanType | None:
+    """Map a Paystack plan_code (from subscription events) → PlanType.
+
+    Matches the code against the 8 admin-configured paystack_plan_* slots in
+    PlatformConfig. Empty/unconfigured slots are skipped.
+    """
+    if not plan_code:
+        return None
+    code_to_plan = {
+        cfg.get("paystack_plan_student_monthly"): PlanType.STUDENT,
+        cfg.get("paystack_plan_student_yearly"): PlanType.STUDENT,
+        cfg.get("paystack_plan_pro_monthly"): PlanType.PROFESSIONAL,
+        cfg.get("paystack_plan_pro_yearly"): PlanType.PROFESSIONAL,
+        cfg.get("paystack_plan_firm_monthly"): PlanType.FIRM,
+        cfg.get("paystack_plan_firm_yearly"): PlanType.FIRM,
+        cfg.get("paystack_plan_institution_monthly"): PlanType.INSTITUTION,
+        cfg.get("paystack_plan_institution_yearly"): PlanType.INSTITUTION,
+    }
+    # Drop empty/missing codes so the dict can't collide on empty-string keys.
+    code_to_plan = {k: v for k, v in code_to_plan.items() if k}
+    return code_to_plan.get(plan_code)
+
+
+def _plan_from_amount(amount_ghs: float, cfg: dict) -> PlanType | None:
+    """Defensive fallback: match the paid amount against configured tier prices.
+
+    Useful when neither metadata nor plan_code is present (e.g. legacy webhook
+    payloads, manual transfers). Amount collisions exist (pro_yearly and
+    institution_monthly are both GHS 3,500 by default), so this is LAST resort.
+    """
+    candidates = [
+        (cfg.get("student_monthly_price_ghs"), PlanType.STUDENT),
+        (cfg.get("student_yearly_price_ghs"), PlanType.STUDENT),
+        (cfg.get("pro_monthly_price_ghs"), PlanType.PROFESSIONAL),
+        (cfg.get("pro_yearly_price_ghs"), PlanType.PROFESSIONAL),
+        (cfg.get("firm_monthly_price_ghs"), PlanType.FIRM),
+        (cfg.get("firm_yearly_price_ghs"), PlanType.FIRM),
+        (cfg.get("institution_monthly_price_ghs"), PlanType.INSTITUTION),
+        (cfg.get("institution_yearly_price_ghs"), PlanType.INSTITUTION),
+    ]
+    for price, plan in candidates:
+        if price is None:
+            continue
+        if abs(amount_ghs - float(price)) <= _AMOUNT_TOLERANCE_GHS:
+            return plan
+    return None
+
+
+async def resolve_plan_from_payment(
+    *,
+    metadata: dict | None = None,
+    plan_code: str | None = None,
+    amount_ghs: float | None = None,
+) -> tuple[PlanType | None, str]:
+    """Identify which PlanType a Paystack payment corresponds to.
+
+    Priority order:
+      1. `metadata.plan` — frontend told us explicitly. Most trustworthy.
+      2. `plan_code` — Paystack subscription event names the plan directly.
+      3. `amount_ghs` — last-resort price matching with tolerance.
+
+    Returns (plan, source). `source` ∈ {"metadata", "plan_code", "amount",
+    "unresolved"}. When unresolved, the caller MUST refuse to silently
+    upgrade — log loudly and require admin intervention instead.
+    """
+    if metadata:
+        plan = _plan_from_metadata(metadata)
+        if plan is not None:
+            return plan, "metadata"
+
+    cfg = await get_platform_config()
+
+    if plan_code:
+        plan = _plan_from_paystack_code(plan_code, cfg)
+        if plan is not None:
+            return plan, "plan_code"
+
+    if amount_ghs is not None:
+        plan = _plan_from_amount(float(amount_ghs), cfg)
+        if plan is not None:
+            return plan, "amount"
+
+    return None, "unresolved"
+
+
+async def price_for_plan(plan: PlanType, cycle: str | None = None) -> float:
+    """Return the configured GHS price for a tier × billing-cycle.
+
+    `cycle` ∈ {"monthly", "yearly"}. Defaults to "monthly" when omitted.
+    FREE returns 0. Deprecated ENTERPRISE returns its legacy monthly price.
+    """
+    if plan == PlanType.FREE:
+        return 0.0
+    cfg = await get_platform_config()
+    cycle_norm = (cycle or "monthly").strip().lower()
+    is_yearly = cycle_norm in ("yearly", "annual", "annually", "year")
+    key_map = {
+        PlanType.STUDENT: ("student_yearly_price_ghs" if is_yearly else "student_monthly_price_ghs"),
+        PlanType.PROFESSIONAL: ("pro_yearly_price_ghs" if is_yearly else "pro_monthly_price_ghs"),
+        PlanType.FIRM: ("firm_yearly_price_ghs" if is_yearly else "firm_monthly_price_ghs"),
+        PlanType.INSTITUTION: ("institution_yearly_price_ghs" if is_yearly else "institution_monthly_price_ghs"),
+        PlanType.ENTERPRISE: "enterprise_monthly_price_ghs",
+    }
+    key = key_map.get(plan, "pro_monthly_price_ghs")
+    return float(cfg.get(key, 0.0))
 
 
 def _daily_limit_for(plan: PlanType, cfg: dict) -> int:

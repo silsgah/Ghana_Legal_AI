@@ -21,7 +21,9 @@ from ghana_legal.infrastructure.usage import (
     check_quota,
     get_or_create_user,
     get_platform_config,
+    price_for_plan,
     record_payment,
+    resolve_plan_from_payment,
     update_user_plan_by_clerk_id,
 )
 
@@ -112,19 +114,50 @@ async def verify_payment(
             detail=f"Payment not successful (status: {tx_status}).",
         )
 
-    # 2. Validate amount against current pro price
+    # 2. Identify which tier the customer actually paid for.
     amount_ghs = (tx.get("amount") or 0) / 100
     currency = tx.get("currency", "GHS")
-    cfg = await get_platform_config()
-    expected_ghs = float(cfg["pro_monthly_price_ghs"])
-    if amount_ghs + AMOUNT_TOLERANCE_GHS < expected_ghs:
+
+    # Metadata is the highest-fidelity signal — set by the frontend at
+    # checkout-init time. Paystack returns it untouched in the verify response.
+    metadata = tx.get("metadata") if isinstance(tx.get("metadata"), dict) else None
+    plan_code = (tx.get("plan") or {}).get("plan_code") if isinstance(tx.get("plan"), dict) else None
+
+    resolved_plan, source = await resolve_plan_from_payment(
+        metadata=metadata, plan_code=plan_code, amount_ghs=amount_ghs,
+    )
+
+    if resolved_plan is None:
         logger.warning(
-            f"Verify: ref={reference} amount GHS {amount_ghs} below expected {expected_ghs}"
+            f"Verify: ref={reference} amount=GHS {amount_ghs} could not be resolved "
+            f"to any tier (metadata={bool(metadata)} plan_code={plan_code!r}). "
+            f"Refusing to upgrade until admin investigates."
         )
         raise HTTPException(
             status_code=400,
-            detail=f"Amount paid (GHS {amount_ghs}) is less than the Pro plan price (GHS {expected_ghs}).",
+            detail="We could not match this payment to a plan tier. Contact support with your payment reference.",
         )
+
+    # Cross-check the amount: confirm what was paid matches the resolved
+    # plan's configured price. Prevents a metadata-forged "I paid for
+    # Institution" attack when the actual amount is GHS 50.
+    cycle_hint = (metadata or {}).get("cycle") if metadata else None
+    expected_ghs = await price_for_plan(resolved_plan, cycle_hint)
+    if amount_ghs + AMOUNT_TOLERANCE_GHS < expected_ghs:
+        logger.warning(
+            f"Verify: ref={reference} amount=GHS {amount_ghs} below expected "
+            f"GHS {expected_ghs} for plan={resolved_plan.value} cycle={cycle_hint!r} "
+            f"(resolver source={source})"
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=f"Amount paid (GHS {amount_ghs}) is less than the {resolved_plan.value.title()} plan price (GHS {expected_ghs}).",
+        )
+
+    logger.info(
+        f"Verify: ref={reference} resolved_plan={resolved_plan.value} source={source} "
+        f"amount=GHS {amount_ghs} expected=GHS {expected_ghs}"
+    )
 
     # 3. Ensure the user exists in our DB with their real Clerk email,
     # then upgrade. Lookup is by clerk_id so a stale or placeholder email
@@ -135,7 +168,7 @@ async def verify_payment(
     customer_code = (tx.get("customer") or {}).get("customer_code")
     upgraded_user = await update_user_plan_by_clerk_id(
         clerk_id=clerk_id,
-        plan=PlanType.PROFESSIONAL,
+        plan=resolved_plan,
         paystack_customer_code=customer_code,
     )
     if upgraded_user is None:
@@ -150,7 +183,7 @@ async def verify_payment(
         amount_ghs=amount_ghs,
         currency=currency,
         status=tx_status,
-        plan=PlanType.PROFESSIONAL,
+        plan=resolved_plan,
         paystack_customer_code=customer_code,
         channel=tx.get("channel"),
         source="verify_endpoint",

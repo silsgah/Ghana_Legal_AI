@@ -75,6 +75,15 @@ interface PlatformConfig {
     institution_yearly_price_ghs: number;
     // Legacy
     enterprise_monthly_price_ghs: number;
+    // Paystack plan codes (Stage 1.5) — empty string = "not configured yet"
+    paystack_plan_student_monthly: string;
+    paystack_plan_student_yearly: string;
+    paystack_plan_pro_monthly: string;
+    paystack_plan_pro_yearly: string;
+    paystack_plan_firm_monthly: string;
+    paystack_plan_firm_yearly: string;
+    paystack_plan_institution_monthly: string;
+    paystack_plan_institution_yearly: string;
 }
 
 interface PaymentRecord {
@@ -1481,6 +1490,80 @@ export default function AdminPage() {
                                         unit="GHS / year" color="var(--primary)"
                                     />
 
+                                    <div style={{ height: 1, background: 'var(--border)' }} />
+
+                                    {/* ── Paystack plan codes ───────────────────── */}
+                                    <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>
+                                        Paystack Plan Codes
+                                    </h3>
+                                    <p className="text-xs -mt-3" style={{ color: 'var(--muted-foreground)' }}>
+                                        Paste the <code>PLN_xxxx</code> code from each Paystack plan. Empty slots fall back to amount-matching (collision risk on shared prices) or refuse the upgrade — see <strong>Stage 1.5 notes</strong>.
+                                    </p>
+                                    <TextConfigField
+                                        label="Student — Monthly"
+                                        description="Paystack plan code for the Student tier, monthly billing."
+                                        placeholder="PLN_xxxxxxxxxx"
+                                        value={configDraft.paystack_plan_student_monthly || ''}
+                                        onChange={v => setConfigDraft(d => d ? { ...d, paystack_plan_student_monthly: v } : d)}
+                                        color="var(--info)"
+                                    />
+                                    <TextConfigField
+                                        label="Student — Yearly"
+                                        description="Paystack plan code for the Student tier, yearly billing."
+                                        placeholder="PLN_xxxxxxxxxx"
+                                        value={configDraft.paystack_plan_student_yearly || ''}
+                                        onChange={v => setConfigDraft(d => d ? { ...d, paystack_plan_student_yearly: v } : d)}
+                                        color="var(--info)"
+                                    />
+                                    <TextConfigField
+                                        label="Professional — Monthly"
+                                        description="Paystack plan code for the Professional tier, monthly billing."
+                                        placeholder="PLN_xxxxxxxxxx"
+                                        value={configDraft.paystack_plan_pro_monthly || ''}
+                                        onChange={v => setConfigDraft(d => d ? { ...d, paystack_plan_pro_monthly: v } : d)}
+                                        color="var(--ghana-gold)"
+                                    />
+                                    <TextConfigField
+                                        label="Professional — Yearly"
+                                        description="Paystack plan code for the Professional tier, yearly billing."
+                                        placeholder="PLN_xxxxxxxxxx"
+                                        value={configDraft.paystack_plan_pro_yearly || ''}
+                                        onChange={v => setConfigDraft(d => d ? { ...d, paystack_plan_pro_yearly: v } : d)}
+                                        color="var(--ghana-gold)"
+                                    />
+                                    <TextConfigField
+                                        label="Firm — Monthly"
+                                        description="Paystack plan code for the Firm tier, monthly billing."
+                                        placeholder="PLN_xxxxxxxxxx"
+                                        value={configDraft.paystack_plan_firm_monthly || ''}
+                                        onChange={v => setConfigDraft(d => d ? { ...d, paystack_plan_firm_monthly: v } : d)}
+                                        color="var(--ghana-green)"
+                                    />
+                                    <TextConfigField
+                                        label="Firm — Yearly"
+                                        description="Paystack plan code for the Firm tier, yearly billing."
+                                        placeholder="PLN_xxxxxxxxxx"
+                                        value={configDraft.paystack_plan_firm_yearly || ''}
+                                        onChange={v => setConfigDraft(d => d ? { ...d, paystack_plan_firm_yearly: v } : d)}
+                                        color="var(--ghana-green)"
+                                    />
+                                    <TextConfigField
+                                        label="Institution — Monthly"
+                                        description="Paystack plan code for the Institution tier, monthly billing."
+                                        placeholder="PLN_xxxxxxxxxx"
+                                        value={configDraft.paystack_plan_institution_monthly || ''}
+                                        onChange={v => setConfigDraft(d => d ? { ...d, paystack_plan_institution_monthly: v } : d)}
+                                        color="var(--primary)"
+                                    />
+                                    <TextConfigField
+                                        label="Institution — Yearly"
+                                        description="Paystack plan code for the Institution tier, yearly billing."
+                                        placeholder="PLN_xxxxxxxxxx"
+                                        value={configDraft.paystack_plan_institution_yearly || ''}
+                                        onChange={v => setConfigDraft(d => d ? { ...d, paystack_plan_institution_yearly: v } : d)}
+                                        color="var(--primary)"
+                                    />
+
                                     {/* Actions */}
                                     <div className="flex items-center gap-3 pt-1">
                                         <button
@@ -1867,6 +1950,36 @@ function ConfigField({
                 />
                 <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{unit}</span>
             </div>
+        </div>
+    );
+}
+
+function TextConfigField({
+    label, description, placeholder, value, onChange, color,
+}: {
+    label: string;
+    description: string;
+    placeholder?: string;
+    value: string;
+    onChange: (v: string) => void;
+    color?: string;
+}) {
+    return (
+        <div className="space-y-1.5">
+            <label className="text-sm font-semibold" style={{ color: color || 'var(--foreground)' }}>{label}</label>
+            <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{description}</p>
+            <input
+                type="text"
+                value={value}
+                placeholder={placeholder}
+                onChange={e => onChange(e.target.value)}
+                className="w-full max-w-md px-3 py-2 rounded-lg text-sm font-mono"
+                style={{
+                    background: 'var(--surface-2)',
+                    border: `1px solid ${color || 'var(--border)'}`,
+                    color: color || 'var(--foreground)',
+                }}
+            />
         </div>
     );
 }

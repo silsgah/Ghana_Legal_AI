@@ -17,6 +17,7 @@ from ghana_legal.domain.models import PlanType
 from ghana_legal.infrastructure.usage import (
     cancel_user_subscription,
     record_payment,
+    resolve_plan_from_payment,
     update_user_plan,
     update_user_plan_by_clerk_id,
 )
@@ -35,12 +36,11 @@ def verify_paystack_signature(payload: bytes, signature: str) -> bool:
     return hmac.compare_digest(computed, signature)
 
 
-def _extract_clerk_id(data: dict) -> str | None:
-    """Pull clerk_id out of Paystack's metadata blob.
+def _parse_metadata(data: dict) -> dict | None:
+    """Normalise Paystack's metadata blob (sometimes a JSON string) to a dict.
 
-    Paystack delivers metadata either as a JSON-encoded string (legacy) or
-    as an object (current). Handle both. Returns None when absent so the
-    caller can fall back to email lookup.
+    Returns None when absent or unparseable so callers can fall back to
+    other signals (plan_code, amount).
     """
     metadata = data.get("metadata")
     if isinstance(metadata, str):
@@ -48,9 +48,15 @@ def _extract_clerk_id(data: dict) -> str | None:
             metadata = json.loads(metadata)
         except json.JSONDecodeError:
             return None
-    if isinstance(metadata, dict):
-        return metadata.get("clerk_id") or None
-    return None
+    return metadata if isinstance(metadata, dict) else None
+
+
+def _extract_clerk_id(data: dict) -> str | None:
+    """Pull clerk_id out of Paystack's metadata blob."""
+    metadata = _parse_metadata(data)
+    if metadata is None:
+        return None
+    return metadata.get("clerk_id") or None
 
 
 def _parse_paid_at(value: str | None) -> datetime | None:
@@ -99,33 +105,51 @@ async def paystack_webhook(request: Request):
         reference = data.get("reference", "")
         customer_code = data.get("customer", {}).get("customer_code")
         clerk_id = _extract_clerk_id(data)
+        metadata = _parse_metadata(data)
+        # charge.success on a subscription renewal includes the plan code too.
+        plan_code = (data.get("plan") or {}).get("plan_code") if isinstance(data.get("plan"), dict) else None
+
+        resolved_plan, source = await resolve_plan_from_payment(
+            metadata=metadata, plan_code=plan_code, amount_ghs=amount_ghs,
+        )
 
         logger.info(
             f"Payment success: clerk_id={clerk_id} email={customer_email} "
-            f"amount=GHS {amount_ghs} ref={reference}"
+            f"amount=GHS {amount_ghs} ref={reference} "
+            f"resolved_plan={resolved_plan.value if resolved_plan else 'UNRESOLVED'} "
+            f"source={source}"
         )
 
-        # Prefer clerk_id; fall back to email. Email lookup fails for users
-        # who were auto-provisioned with a placeholder address.
-        upgraded = False
-        if clerk_id:
-            user = await update_user_plan_by_clerk_id(
-                clerk_id=clerk_id,
-                plan=PlanType.PROFESSIONAL,
-                paystack_customer_code=customer_code,
-            )
-            upgraded = user is not None
+        # Upgrade the user only when we're confident which tier they paid for.
+        # Unresolved → record the payment but DO NOT touch the plan column;
+        # admin will need to investigate and use the manual switcher.
+        if resolved_plan is not None:
+            upgraded = False
+            if clerk_id:
+                user = await update_user_plan_by_clerk_id(
+                    clerk_id=clerk_id,
+                    plan=resolved_plan,
+                    paystack_customer_code=customer_code,
+                )
+                upgraded = user is not None
 
-        if not upgraded and customer_email:
-            await update_user_plan(
-                email=customer_email,
-                plan=PlanType.PROFESSIONAL,
-                paystack_customer_code=customer_code,
+            if not upgraded and customer_email:
+                await update_user_plan(
+                    email=customer_email,
+                    plan=resolved_plan,
+                    paystack_customer_code=customer_code,
+                )
+        else:
+            logger.warning(
+                f"Could not resolve plan for charge.success ref={reference} "
+                f"amount=GHS {amount_ghs}. Payment recorded but user plan NOT changed. "
+                f"Admin must manually upgrade via /admin Users tab."
             )
 
         # Record the payment for the admin audit trail. Idempotent on reference,
         # so re-firing the webhook (or the verify endpoint having already
-        # written the row) is safe.
+        # written the row) is safe. Use resolved plan when known; otherwise
+        # leave as FREE so the audit row signals an unmatched payment.
         if reference:
             await record_payment(
                 reference=reference,
@@ -134,7 +158,7 @@ async def paystack_webhook(request: Request):
                 amount_ghs=amount_ghs,
                 currency=data.get("currency", "GHS"),
                 status=data.get("status", "success"),
-                plan=PlanType.PROFESSIONAL,
+                plan=resolved_plan or PlanType.FREE,
                 paystack_customer_code=customer_code,
                 channel=data.get("channel"),
                 source="webhook",
@@ -148,28 +172,45 @@ async def paystack_webhook(request: Request):
         subscription_code = data.get("subscription_code", "")
         customer_code = data.get("customer", {}).get("customer_code")
         clerk_id = _extract_clerk_id(data)
+        metadata = _parse_metadata(data)
+        # Subscription amount lives under plan.amount (pesewas)
+        plan_amount = (data.get("plan") or {}).get("amount")
+        amount_ghs = (plan_amount / 100) if plan_amount else None
 
-        logger.info(
-            f"Subscription created: clerk_id={clerk_id} email={customer_email} -> {plan_code}"
+        resolved_plan, source = await resolve_plan_from_payment(
+            metadata=metadata, plan_code=plan_code, amount_ghs=amount_ghs,
         )
 
-        upgraded = False
-        if clerk_id:
-            user = await update_user_plan_by_clerk_id(
-                clerk_id=clerk_id,
-                plan=PlanType.PROFESSIONAL,
-                paystack_subscription_code=subscription_code,
-                paystack_customer_code=customer_code,
-            )
-            upgraded = user is not None
+        logger.info(
+            f"Subscription created: clerk_id={clerk_id} email={customer_email} "
+            f"plan_code={plan_code} resolved={resolved_plan.value if resolved_plan else 'UNRESOLVED'} "
+            f"source={source}"
+        )
 
-        if not upgraded and customer_email:
-            await update_user_plan(
-                email=customer_email,
-                plan=PlanType.PROFESSIONAL,
-                paystack_subscription_code=subscription_code,
-                paystack_customer_code=customer_code,
+        if resolved_plan is None:
+            logger.warning(
+                f"Could not resolve plan for subscription.create plan_code={plan_code!r}. "
+                f"Subscription event ignored — admin must manually upgrade. "
+                f"Add the plan_code to PlatformConfig (paystack_plan_* fields)."
             )
+        else:
+            upgraded = False
+            if clerk_id:
+                user = await update_user_plan_by_clerk_id(
+                    clerk_id=clerk_id,
+                    plan=resolved_plan,
+                    paystack_subscription_code=subscription_code,
+                    paystack_customer_code=customer_code,
+                )
+                upgraded = user is not None
+
+            if not upgraded and customer_email:
+                await update_user_plan(
+                    email=customer_email,
+                    plan=resolved_plan,
+                    paystack_subscription_code=subscription_code,
+                    paystack_customer_code=customer_code,
+                )
 
     elif event_type == "subscription.disable":
         customer_email = data.get("customer", {}).get("email", "")
