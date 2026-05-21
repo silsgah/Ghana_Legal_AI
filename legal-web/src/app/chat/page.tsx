@@ -192,7 +192,12 @@ export default function ChatPage() {
                                          style={{ background: 'rgba(98,114,240,0.10)', border: '1px solid rgba(98,114,240,0.20)' }}>
                                         <Crown size={13} style={{ color: 'var(--primary)' }} />
                                         <span className="text-[13px] font-semibold" style={{ color: 'var(--primary)' }}>
-                                            {usage.plan === 'professional' ? 'Pro' : 'Enterprise'}
+                                            {({
+                                                student: 'Student',
+                                                professional: 'Pro',
+                                                firm: 'Firm',
+                                                institution: 'Institution',
+                                            } as Record<string, string>)[usage.plan] || usage.plan}
                                         </span>
                                     </div>
                                 )}

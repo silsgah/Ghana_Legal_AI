@@ -45,8 +45,6 @@ _CONFIG_DEFAULTS = {
     "pro_yearly_price_ghs": "3500.00",
     "firm_yearly_price_ghs": "8000.00",
     "institution_yearly_price_ghs": "35000.00",
-    # Legacy — kept so existing rows on the deprecated ENTERPRISE tier still work
-    "enterprise_monthly_price_ghs": "299.00",
     # Paystack plan codes (Stage 1.5). Admin pastes these in after creating
     # the matching Plan in the Paystack dashboard. Stored as strings.
     "paystack_plan_student_monthly": "",
@@ -389,9 +387,9 @@ async def price_for_plan(plan: PlanType, cycle: str | None = None) -> float:
         PlanType.PROFESSIONAL: ("pro_yearly_price_ghs" if is_yearly else "pro_monthly_price_ghs"),
         PlanType.FIRM: ("firm_yearly_price_ghs" if is_yearly else "firm_monthly_price_ghs"),
         PlanType.INSTITUTION: ("institution_yearly_price_ghs" if is_yearly else "institution_monthly_price_ghs"),
-        PlanType.ENTERPRISE: "enterprise_monthly_price_ghs",
+        # ENTERPRISE is dormant — historic rows fall through to the default below.
     }
-    key = key_map.get(plan, "pro_monthly_price_ghs")
+    key = key_map.get(plan, "institution_monthly_price_ghs")
     return float(cfg.get(key, 0.0))
 
 

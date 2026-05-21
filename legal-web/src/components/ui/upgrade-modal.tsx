@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import {
-    X, Check, Zap, Shield, ArrowRight, Loader2,
+    X, Check, Zap, ArrowRight, Loader2,
     UserCheck, GraduationCap, Crown, Briefcase, Building2,
 } from 'lucide-react';
 import { useUser, useAuth } from '@clerk/nextjs';
@@ -153,8 +153,7 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
 
     if (!isMounted || !isOpen) return null;
 
-    const currentPlan = (usage?.plan || 'free') as TierId | 'enterprise';
-    const isLegacyEnterprise = currentPlan === 'enterprise';
+    const currentPlan = (usage?.plan || 'free') as TierId;
 
     const verifyPayment = async (reference: string) => {
         setVerifying(true);
@@ -339,22 +338,6 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
                         </button>
                     </div>
                 </div>
-
-                {/* Legacy Enterprise banner */}
-                {isLegacyEnterprise && (
-                    <div className="px-6 py-3 flex items-center justify-between gap-3 flex-wrap"
-                         style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
-                        <div className="text-sm flex items-center gap-2" style={{ color: 'var(--foreground)' }}>
-                            <Shield size={14} style={{ color: 'var(--primary)' }} />
-                            You&apos;re on the legacy <strong>Enterprise</strong> plan. Contact support to move to Institution.
-                        </div>
-                        <button type="button" onClick={openManageSubscription}
-                                className="text-xs font-semibold px-3 py-1.5 rounded-lg"
-                                style={{ background: 'var(--primary)', color: '#fff' }}>
-                            Manage Subscription
-                        </button>
-                    </div>
-                )}
 
                 {/* Pricing Grid — 5 tiers */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-0 divide-y sm:divide-y-0 sm:divide-x divide-white/5"

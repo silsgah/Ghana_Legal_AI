@@ -212,8 +212,6 @@ class PlatformConfigUpdateRequest(BaseModel):
     pro_yearly_price_ghs: Optional[float] = None
     firm_yearly_price_ghs: Optional[float] = None
     institution_yearly_price_ghs: Optional[float] = None
-    # Legacy
-    enterprise_monthly_price_ghs: Optional[float] = None
     # Paystack plan codes (Stage 1.5) — empty string clears the slot.
     paystack_plan_student_monthly: Optional[str] = None
     paystack_plan_student_yearly: Optional[str] = None
@@ -428,7 +426,6 @@ async def update_config(
         "pro_yearly_price_ghs": body.pro_yearly_price_ghs,
         "firm_yearly_price_ghs": body.firm_yearly_price_ghs,
         "institution_yearly_price_ghs": body.institution_yearly_price_ghs,
-        "enterprise_monthly_price_ghs": body.enterprise_monthly_price_ghs,
     }
     for key, value in price_fields.items():
         if value is None:

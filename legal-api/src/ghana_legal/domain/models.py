@@ -31,15 +31,18 @@ class Base(DeclarativeBase):
 class PlanType(str, PyEnum):
     """Subscription plan tiers.
 
-    ENTERPRISE is retained for back-compat with previously-issued accounts but
-    is no longer surfaced in new-signup UI. New customers go to INSTITUTION.
+    ENTERPRISE is a dormant safety value retained only so SQLAlchemy doesn't
+    crash if any historic DB row still carries plan='enterprise'. No UI
+    references it; no checkout path produces it. If you confirm zero rows
+    exist (SELECT count(*) FROM users WHERE plan='enterprise' returns 0)
+    it can be removed in a follow-up.
     """
     FREE = "free"
     STUDENT = "student"
     PROFESSIONAL = "professional"
     FIRM = "firm"
     INSTITUTION = "institution"
-    ENTERPRISE = "enterprise"  # deprecated — use INSTITUTION for new accounts
+    ENTERPRISE = "enterprise"  # dormant; do not surface
 
 
 class SubscriptionStatus(str, PyEnum):

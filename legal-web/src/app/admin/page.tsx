@@ -8,7 +8,7 @@ import {
     Download, Clock, ArrowLeft, RefreshCw, Search, Globe,
     ChevronLeft, ChevronRight, Filter, ShieldX,
     Users, Settings, Crown, Trash2, Pencil, Save, X,
-    BadgeCheck, UserCheck, UserX, RotateCcw, Upload, FilePlus2, MessageSquare,
+    UserCheck, UserX, RotateCcw, Upload, FilePlus2, MessageSquare,
     CreditCard, GraduationCap, Briefcase, Building2
 } from 'lucide-react';
 import { config } from '@/lib/config';
@@ -73,8 +73,6 @@ interface PlatformConfig {
     pro_yearly_price_ghs: number;
     firm_yearly_price_ghs: number;
     institution_yearly_price_ghs: number;
-    // Legacy
-    enterprise_monthly_price_ghs: number;
     // Paystack plan codes (Stage 1.5) — empty string = "not configured yet"
     paystack_plan_student_monthly: string;
     paystack_plan_student_yearly: string;
@@ -127,7 +125,6 @@ const PLAN_CONFIG: Record<string, { color: string; label: string; icon: React.Re
     professional: { color: 'var(--ghana-gold)', label: 'Pro', icon: <Crown size={12} /> },
     firm: { color: 'var(--ghana-green)', label: 'Firm', icon: <Briefcase size={12} /> },
     institution: { color: 'var(--primary)', label: 'Institution', icon: <Building2 size={12} /> },
-    enterprise: { color: 'var(--primary)', label: 'Enterprise', icon: <BadgeCheck size={12} /> },
 };
 
 // ─── Main Component ──────────────────────────────────────────────────────────
@@ -1271,9 +1268,6 @@ export default function AdminPage() {
                                                                 <option value="professional">Professional</option>
                                                                 <option value="firm">Firm</option>
                                                                 <option value="institution">Institution</option>
-                                                                {u.plan === 'enterprise' && (
-                                                                    <option value="enterprise">Enterprise (legacy)</option>
-                                                                )}
                                                             </select>
 
                                                             {/* Wipe usage */}
