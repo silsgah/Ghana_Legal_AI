@@ -22,6 +22,18 @@ export interface PricingConfig {
     institution_yearly_price_ghs: number;
     // Legacy — kept for back-compat with accounts on the deprecated tier
     enterprise_monthly_price_ghs: number;
+    // Paystack plan codes (Stage 1.5) — empty string = not yet configured.
+    // Empty plan code on the frontend forces fallback to amount-based one-off
+    // checkout (no auto-renewal). Configured plan code switches to true
+    // subscription mode with card auto-debit.
+    paystack_plan_student_monthly: string;
+    paystack_plan_student_yearly: string;
+    paystack_plan_pro_monthly: string;
+    paystack_plan_pro_yearly: string;
+    paystack_plan_firm_monthly: string;
+    paystack_plan_firm_yearly: string;
+    paystack_plan_institution_monthly: string;
+    paystack_plan_institution_yearly: string;
 }
 
 const DEFAULT_PRICING: PricingConfig = {
@@ -39,6 +51,14 @@ const DEFAULT_PRICING: PricingConfig = {
     firm_yearly_price_ghs: 8000,
     institution_yearly_price_ghs: 35000,
     enterprise_monthly_price_ghs: 299,
+    paystack_plan_student_monthly: '',
+    paystack_plan_student_yearly: '',
+    paystack_plan_pro_monthly: '',
+    paystack_plan_pro_yearly: '',
+    paystack_plan_firm_monthly: '',
+    paystack_plan_firm_yearly: '',
+    paystack_plan_institution_monthly: '',
+    paystack_plan_institution_yearly: '',
 };
 
 /**

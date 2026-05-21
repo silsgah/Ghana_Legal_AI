@@ -58,61 +58,88 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
         }
     };
 
+    const openManageSubscription = async () => {
+        // Existing paid user — fetch the Paystack-hosted management URL and
+        // redirect them. Paystack's page handles cancel + card-update; we
+        // react to the resulting subscription.disable webhook.
+        setVerifyError(null);
+        try {
+            const token = await getToken();
+            const res = await fetch(`${config.apiUrl}/api/billing/manage-subscription`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const data = await res.json();
+            if (!res.ok || !data.link) {
+                setVerifyError(data.detail || 'Could not load subscription management. Please email support.');
+                return;
+            }
+            window.open(data.link, '_blank', 'noopener,noreferrer');
+        } catch {
+            setVerifyError('Network error loading subscription management.');
+        }
+    };
+
     const handleUpgradeClick = (e: React.MouseEvent) => {
         e.preventDefault();
         setVerifyError(null);
 
-        // Amount in pesewas (GHS × 100)
+        // Paid users open Paystack's hosted manage page instead of starting
+        // another checkout. Keeps card-update + cancel-subscription out of
+        // our codebase (PCI compliance handled by Paystack).
+        if (currentPlan === 'professional') {
+            openManageSubscription();
+            return;
+        }
+
+        // Stage 1.6: subscription mode. When the plan code is configured we
+        // pass it to Paystack; Paystack creates a subscription and the saved
+        // card auto-renews on each cycle. Without a plan code we fall back
+        // to one-off amount-based checkout (warns the admin in console).
+        const planCode = pricing.paystack_plan_pro_monthly;
         const amountPesewas = Math.round(pricing.pro_monthly_price_ghs * 100);
 
         // @ts-ignore
-        if (typeof window.PaystackPop !== 'undefined') {
-            // @ts-ignore
-            const handler = window.PaystackPop.setup({
-                key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
-                email: user?.primaryEmailAddress?.emailAddress || 'user@ghanalegal.ai',
-                amount: amountPesewas,
-                currency: 'GHS',
-                channels: ['card', 'mobile_money', 'bank', 'ussd'],
-                metadata: {
-                    clerk_id: user?.id,
-                    // Stage 1.5: tell the backend explicitly which tier × cycle
-                    // the customer chose. The verify endpoint and webhook use
-                    // this to upgrade the user to the right plan instead of
-                    // blindly assigning PROFESSIONAL to every paid event.
-                    plan: 'professional',
-                    cycle: 'monthly',
-                    custom_fields: [
-                        {
-                            display_name: 'Clerk User ID',
-                            variable_name: 'clerk_id',
-                            value: user?.id || '',
-                        },
-                        {
-                            display_name: 'Plan',
-                            variable_name: 'plan',
-                            value: 'professional',
-                        },
-                        {
-                            display_name: 'Billing Cycle',
-                            variable_name: 'cycle',
-                            value: 'monthly',
-                        },
-                    ],
-                },
-                callback: function(response: any) {
-                    // Defer to the next tick so React state updates fire after
-                    // Paystack's success animation finishes.
-                    setTimeout(() => { verifyPayment(response.reference); }, 0);
-                },
-                onClose: function() {
-                    console.log('Payment modal closed');
-                }
-            });
-            handler.openIframe();
-        } else {
+        if (typeof window.PaystackPop === 'undefined') {
             window.open('https://paystack.com/pay/ghana-legal-pro', '_blank');
+            return;
         }
+
+        const baseConfig: Record<string, unknown> = {
+            key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+            email: user?.primaryEmailAddress?.emailAddress || 'user@ghanalegal.ai',
+            currency: 'GHS',
+            channels: ['card', 'mobile_money', 'bank', 'ussd'],
+            metadata: {
+                clerk_id: user?.id,
+                // Stage 1.5: tell the backend which tier × cycle the customer
+                // chose so the resolver upgrades to the correct plan.
+                plan: 'professional',
+                cycle: 'monthly',
+                custom_fields: [
+                    { display_name: 'Clerk User ID', variable_name: 'clerk_id', value: user?.id || '' },
+                    { display_name: 'Plan', variable_name: 'plan', value: 'professional' },
+                    { display_name: 'Billing Cycle', variable_name: 'cycle', value: 'monthly' },
+                ],
+            },
+            callback: function(response: any) {
+                setTimeout(() => { verifyPayment(response.reference); }, 0);
+            },
+            onClose: function() {},
+        };
+
+        if (planCode) {
+            baseConfig.plan = planCode;
+            // Paystack derives the amount from the plan when `plan` is set;
+            // passing amount alongside is allowed but the plan's amount wins.
+        } else {
+            console.warn('Paystack plan code not configured for pro_monthly. Falling back to one-off charge (no auto-renewal).');
+            baseConfig.amount = amountPesewas;
+        }
+
+        // @ts-ignore
+        const handler = window.PaystackPop.setup(baseConfig);
+        handler.openIframe();
     };
 
     return (
@@ -248,7 +275,7 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
                             className="w-full py-3.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-transform hover:scale-[1.02] active:scale-[0.98]"
                             style={{ background: 'var(--primary)', color: 'white', boxShadow: '0 8px 24px rgba(91,106,240,0.3)' }}
                         >
-                            {currentPlan === 'professional' ? 'Manage Subscription' : 'Upgrade to Pro'}
+                            {currentPlan === 'professional' ? 'Manage / Cancel Subscription' : 'Upgrade to Pro'}
                             <ArrowRight size={16} />
                         </button>
                     </div>

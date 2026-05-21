@@ -30,6 +30,7 @@ from ghana_legal.infrastructure.usage import (
 router = APIRouter(prefix="/api/billing", tags=["billing"])
 
 PAYSTACK_VERIFY_URL = "https://api.paystack.co/transaction/verify/{reference}"
+PAYSTACK_MANAGE_LINK_URL = "https://api.paystack.co/subscription/{code}/manage/link"
 # Tolerance for legitimate price drift / config updates between checkout and
 # verification. 1 GHS is well below the smallest meaningful pricing change.
 AMOUNT_TOLERANCE_GHS = 1.0
@@ -200,3 +201,72 @@ async def verify_payment(
         "amount_ghs": amount_ghs,
         "quota": quota,
     }
+
+
+@router.post("/manage-subscription")
+async def manage_subscription(user: dict = Depends(get_current_user)):
+    """Return a Paystack-hosted URL where the customer can manage their subscription.
+
+    On Paystack's hosted page the customer can:
+      - cancel the subscription (which fires the subscription.disable webhook,
+        and our handler downgrades them to FREE)
+      - update the saved card used for renewals
+
+    We deliberately avoid implementing our own cancel/update UI: Paystack's
+    page is PCI-compliant for card updates, and using their flow means we
+    only have to react to the resulting webhook instead of tracking the
+    email_token they require for direct subscription/disable API calls.
+    """
+    from sqlalchemy import select
+    from ghana_legal.domain.models import Subscription, SubscriptionStatus
+    from ghana_legal.infrastructure.database import get_session
+
+    secret_key = os.getenv("PAYSTACK_SECRET_KEY", "")
+    if not secret_key:
+        raise HTTPException(status_code=500, detail="Payment management is not configured on the server.")
+
+    clerk_id = user.get("sub")
+    if not clerk_id:
+        raise HTTPException(status_code=401, detail="Missing user identity")
+
+    # Find the most-recently-created active subscription for this user.
+    async with get_session() as session:
+        result = await session.execute(
+            select(Subscription)
+            .where(
+                Subscription.clerk_id == clerk_id,
+                Subscription.status == SubscriptionStatus.ACTIVE,
+                Subscription.paystack_subscription_code.is_not(None),
+            )
+            .order_by(Subscription.created_at.desc())
+            .limit(1)
+        )
+        subscription = result.scalar_one_or_none()
+
+    if subscription is None or not subscription.paystack_subscription_code:
+        raise HTTPException(
+            status_code=404,
+            detail="No active subscription found. If you paid recently, please wait a moment for Paystack to send the confirmation.",
+        )
+
+    # Ask Paystack to mint a management URL for this subscription.
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(
+                PAYSTACK_MANAGE_LINK_URL.format(code=subscription.paystack_subscription_code),
+                headers={"Authorization": f"Bearer {secret_key}"},
+            )
+    except httpx.RequestError as e:
+        logger.error(f"Paystack manage-link request failed: {e}")
+        raise HTTPException(status_code=502, detail="Could not reach Paystack to fetch the management link.")
+
+    if resp.status_code != 200:
+        logger.warning(f"Paystack manage-link {resp.status_code} for sub={subscription.paystack_subscription_code}: {resp.text[:200]}")
+        raise HTTPException(status_code=502, detail="Paystack rejected the management-link request.")
+
+    payload = resp.json()
+    link = (payload.get("data") or {}).get("link")
+    if not link:
+        raise HTTPException(status_code=502, detail="Paystack did not return a management link.")
+
+    return {"link": link, "subscription_code": subscription.paystack_subscription_code}

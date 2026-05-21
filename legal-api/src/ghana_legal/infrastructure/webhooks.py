@@ -212,6 +212,45 @@ async def paystack_webhook(request: Request):
                     paystack_customer_code=customer_code,
                 )
 
+    elif event_type == "invoice.payment_failed":
+        # A recurring renewal charge failed (expired card, insufficient funds).
+        # We deliberately do NOT downgrade immediately — Paystack will retry a
+        # few times over several days, and only fire subscription.disable if
+        # all retries fail. Log + record so admin can see failed renewals in
+        # the payments tab, but the user keeps access during the retry window.
+        customer_email = data.get("customer", {}).get("email", "")
+        plan_code = (data.get("subscription") or {}).get("plan", {}).get("plan_code") if isinstance(data.get("subscription"), dict) else None
+        subscription_code = (data.get("subscription") or {}).get("subscription_code") if isinstance(data.get("subscription"), dict) else None
+        amount_ghs = (data.get("amount", 0) or 0) / 100
+        reference = data.get("invoice_code") or data.get("offline_reference") or ""
+        clerk_id = _extract_clerk_id(data)
+
+        logger.warning(
+            f"Renewal payment failed: clerk_id={clerk_id} email={customer_email} "
+            f"plan_code={plan_code} subscription={subscription_code} "
+            f"amount=GHS {amount_ghs} ref={reference}"
+        )
+
+        # Record for the admin audit trail. Plan column is purely informational
+        # here — the user's actual plan stays unchanged. We use FREE as a
+        # neutral placeholder since we don't always know the original tier on
+        # a failed invoice payload.
+        if reference:
+            await record_payment(
+                reference=reference,
+                clerk_id=clerk_id,
+                email=customer_email or None,
+                amount_ghs=amount_ghs,
+                currency=data.get("currency", "GHS"),
+                status="failed",
+                plan=PlanType.FREE,
+                paystack_customer_code=data.get("customer", {}).get("customer_code"),
+                channel=data.get("channel"),
+                source="webhook",
+                paid_at=_parse_paid_at(data.get("paid_at")) or datetime.now(timezone.utc),
+                raw_response=data,
+            )
+
     elif event_type == "subscription.disable":
         customer_email = data.get("customer", {}).get("email", "")
         clerk_id = _extract_clerk_id(data)
