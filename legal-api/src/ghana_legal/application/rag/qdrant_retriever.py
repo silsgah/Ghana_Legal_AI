@@ -66,12 +66,16 @@ _VERB_PROPERNOUN_RE = re.compile(
     r"[Bb]rief\s+(?:on|me\s+on))\s+(?:the\s+)?[A-Z][A-Za-z'\-\.]{2,}"
 )
 
+# Case-name pattern "Party A v Party B". Party halves stay case-sensitive
+# (must START with an uppercase letter — the proper-noun anchor). The
+# separator "v / vs / versus" uses an inline (?i:...) case-insensitive
+# group so all-caps Ghanaian formal style ("X VS Y" or "X VERSUS Y") fires.
 _CASE_NAME_RE = re.compile(
     r"\b[A-Z][A-Za-z'\-\.&]{1,40}"
-    r"(?:\s+[A-Z][A-Za-z'\-\.&]{1,40}){0,4}"
-    r"\s+v(?:s|\.|ersus|s\.)?\s+"
+    r"(?:\s+[A-Za-z'\-\.&]{1,40}){0,4}"
+    r"\s+(?i:v|vs|versus|v\.|vs\.)\s+"
     r"[A-Z][A-Za-z'\-\.&]{1,40}"
-    r"(?:\s+[A-Z][A-Za-z'\-\.&]{1,40}){0,4}\b"
+    r"(?:\s+[A-Za-z'\-\.&]{1,40}){0,4}\b"
 )
 
 # Definitional / principle-only queries — even if the embeddings cluster on a
