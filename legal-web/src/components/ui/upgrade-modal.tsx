@@ -1,15 +1,23 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import Script from 'next/script';
 import {
-    X, Check, Zap, ArrowRight, Loader2,
+    Check, Zap, ArrowRight, Loader2,
     UserCheck, GraduationCap, Crown, Briefcase, Building2,
 } from 'lucide-react';
 import { useUser, useAuth } from '@clerk/nextjs';
 import { useUsage } from '@/hooks/use-usage';
 import { usePricing, type PricingConfig } from '@/hooks/use-pricing';
 import { config } from '@/lib/config';
-import Script from 'next/script';
+import { cn } from '@/lib/utils';
+import {
+    Dialog,
+    DialogContent,
+    DialogTitle,
+    DialogDescription,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 
 interface UpgradeModalProps {
     isOpen: boolean;
@@ -25,8 +33,8 @@ interface TierDef {
     description: string;
     icon: React.ReactNode;
     features: (pricing: PricingConfig) => string[];
-    accent: string;        // CSS color var
-    highlighted: boolean;  // "Most Popular" treatment
+    accent: string;
+    highlighted: boolean;
 }
 
 const TIERS: TierDef[] = [
@@ -108,9 +116,6 @@ const TIERS: TierDef[] = [
     },
 ];
 
-// Map a tier × cycle to the PricingConfig price field and plan-code field.
-// Keeping these as direct lookups (not computed names) so TypeScript catches
-// any rename in the PricingConfig interface.
 function priceForTier(tier: TierId, cycle: Cycle, p: PricingConfig): number {
     if (tier === 'free') return 0;
     if (cycle === 'monthly') {
@@ -144,14 +149,9 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
     const { user } = useUser();
     const { getToken } = useAuth();
     const { pricing, loading: pricingLoading } = usePricing();
-    const [isMounted, setIsMounted] = useState(false);
     const [verifying, setVerifying] = useState(false);
     const [verifyError, setVerifyError] = useState<string | null>(null);
     const [cycle, setCycle] = useState<Cycle>('monthly');
-
-    useEffect(() => { setIsMounted(true); }, []);
-
-    if (!isMounted || !isOpen) return null;
 
     const currentPlan = (usage?.plan || 'free') as TierId;
 
@@ -203,10 +203,8 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
 
     const startCheckoutForTier = (tier: TierId) => {
         setVerifyError(null);
-
         if (tier === 'free') return;
 
-        // Already on this tier → open Paystack-hosted manage page.
         if (currentPlan === tier) {
             openManageSubscription();
             return;
@@ -215,7 +213,7 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
         const planCode = planCodeForTier(tier, cycle, pricing);
         const amountPesewas = Math.round(priceForTier(tier, cycle, pricing) * 100);
 
-        // @ts-ignore — PaystackPop is injected by the inline.js script
+        // @ts-expect-error — PaystackPop is injected by the inline.js script
         if (typeof window.PaystackPop === 'undefined') {
             window.open('https://paystack.com/pay/ghana-legal-pro', '_blank');
             return;
@@ -228,7 +226,6 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
             channels: ['card', 'mobile_money', 'bank', 'ussd'],
             metadata: {
                 clerk_id: user?.id,
-                // Resolver uses these to upgrade the correct tier × cycle.
                 plan: tier,
                 cycle,
                 custom_fields: [
@@ -246,16 +243,15 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
         if (planCode) {
             baseConfig.plan = planCode;
         } else {
-            console.warn(`Paystack plan code not configured for ${tier}_${cycle}. Falling back to one-off charge (no auto-renewal).`);
+            console.warn(`Paystack plan code not configured for ${tier}_${cycle}. Falling back to one-off charge.`);
             baseConfig.amount = amountPesewas;
         }
 
-        // @ts-ignore
+        // @ts-expect-error — PaystackPop is injected by the inline.js script
         const handler = window.PaystackPop.setup(baseConfig);
         handler.openIframe();
     };
 
-    // Per-tier button content and behaviour.
     function ctaFor(tier: TierDef): { label: string; disabled: boolean; onClick: () => void } {
         if (tier.id === 'free') {
             return {
@@ -279,156 +275,163 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
     }
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
-             style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }}>
-
+        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <Script src="https://js.paystack.co/v1/inline.js" strategy="lazyOnload" />
 
-            {/* Modal Container */}
-            <form
-                onSubmit={(e) => e.preventDefault()}
-                className="relative w-full max-w-7xl my-8 rounded-3xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200"
-                style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}>
-
-                <button
-                    onClick={onClose}
-                    type="button"
-                    className="absolute top-4 right-4 z-10 p-2 rounded-full hover:bg-white/10 transition-colors"
-                    style={{ color: 'var(--muted-foreground)' }}>
-                    <X size={20} />
-                </button>
-
+            <DialogContent
+                className="max-w-7xl w-[95vw] max-h-[92vh] overflow-y-auto p-0 gap-0 sm:rounded-2xl"
+            >
                 {/* Header */}
-                <div className="p-8 md:p-10 text-center border-b border-white/5 relative overflow-hidden">
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full max-w-3xl opacity-30 pointer-events-none"
-                         style={{ background: 'radial-gradient(circle, var(--primary-muted) 0%, transparent 70%)' }} />
+                <div className="relative p-8 md:p-10 text-center border-b border-border overflow-hidden">
+                    <div
+                        aria-hidden
+                        className="absolute inset-0 pointer-events-none opacity-40"
+                        style={{
+                            background:
+                                'radial-gradient(60% 80% at 50% 0%, color-mix(in oklch, var(--primary) 18%, transparent) 0%, transparent 60%)',
+                        }}
+                    />
 
-                    <h2 className="text-3xl md:text-4xl font-bold mb-3 tracking-tight" style={{ color: 'var(--foreground)' }}>
-                        Choose your <span style={{ color: 'var(--ghana-gold)' }}>LexGH</span> plan
-                    </h2>
-                    <p className="text-base max-w-2xl mx-auto mb-6" style={{ color: 'var(--muted-foreground)' }}>
+                    <DialogTitle className="relative text-3xl md:text-4xl font-bold mb-2 tracking-tight">
+                        Choose your{' '}
+                        <span className="text-gradient-gold">LexGH</span>{' '}
+                        plan
+                    </DialogTitle>
+                    <DialogDescription className="relative text-base max-w-2xl mx-auto mb-6">
                         Pay monthly or save with yearly billing. Cancel anytime.
-                    </p>
+                    </DialogDescription>
 
                     {/* Billing-cycle toggle */}
-                    <div className="inline-flex items-center gap-1 p-1 rounded-full relative z-10"
-                         style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
-                        <button type="button" onClick={() => setCycle('monthly')}
-                                className="px-5 py-2 text-[13px] font-semibold rounded-full transition-colors"
-                                style={{
-                                    background: cycle === 'monthly' ? 'var(--ghana-gold)' : 'transparent',
-                                    color: cycle === 'monthly' ? '#000' : 'var(--muted-foreground)',
-                                }}>
+                    <div className="relative inline-flex items-center gap-1 p-1 rounded-full bg-muted border border-border">
+                        <button
+                            type="button"
+                            onClick={() => setCycle('monthly')}
+                            className={cn(
+                                'px-5 py-2 text-[13px] font-semibold rounded-full transition-colors',
+                                cycle === 'monthly'
+                                    ? 'bg-[var(--ghana-gold)] text-black'
+                                    : 'text-muted-foreground hover:text-foreground'
+                            )}
+                        >
                             Monthly
                         </button>
-                        <button type="button" onClick={() => setCycle('yearly')}
-                                className="px-5 py-2 text-[13px] font-semibold rounded-full flex items-center gap-2 transition-colors"
-                                style={{
-                                    background: cycle === 'yearly' ? 'var(--ghana-gold)' : 'transparent',
-                                    color: cycle === 'yearly' ? '#000' : 'var(--muted-foreground)',
-                                }}>
+                        <button
+                            type="button"
+                            onClick={() => setCycle('yearly')}
+                            className={cn(
+                                'px-5 py-2 text-[13px] font-semibold rounded-full flex items-center gap-2 transition-colors',
+                                cycle === 'yearly'
+                                    ? 'bg-[var(--ghana-gold)] text-black'
+                                    : 'text-muted-foreground hover:text-foreground'
+                            )}
+                        >
                             Yearly
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                                  style={{
-                                      background: cycle === 'yearly' ? 'rgba(0,0,0,0.15)' : 'var(--ghana-green)',
-                                      color: cycle === 'yearly' ? '#000' : '#fff',
-                                  }}>
+                            <span
+                                className={cn(
+                                    'text-[10px] font-bold px-1.5 py-0.5 rounded',
+                                    cycle === 'yearly'
+                                        ? 'bg-black/15 text-black'
+                                        : 'bg-[var(--ghana-green)] text-white'
+                                )}
+                            >
                                 Save up to 20%
                             </span>
                         </button>
                     </div>
                 </div>
 
-                {/* Pricing Grid — 5 tiers */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-0 divide-y sm:divide-y-0 sm:divide-x divide-white/5"
-                     style={{ background: 'var(--surface-2)' }}>
-
-                    {TIERS.map(tier => {
+                {/* Pricing grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-border bg-muted/40">
+                    {TIERS.map((tier) => {
                         const price = priceForTier(tier.id, cycle, pricing);
                         const isCurrent = currentPlan === tier.id;
                         const cta = ctaFor(tier);
-                        const cardStyle: React.CSSProperties = tier.highlighted
-                            ? {
-                                background: 'linear-gradient(to bottom, var(--primary-muted), transparent)',
-                                boxShadow: 'inset 0 2px 0 var(--ghana-gold)',
-                            }
-                            : {};
 
                         return (
-                            <div key={tier.id}
-                                 className="p-6 md:p-7 flex flex-col relative transition-colors duration-300 hover:bg-white/[0.02]"
-                                 style={cardStyle}>
-
-                                {/* Badges */}
+                            <div
+                                key={tier.id}
+                                className={cn(
+                                    'relative p-6 md:p-7 flex flex-col transition-colors duration-300 hover:bg-card/40',
+                                    tier.highlighted &&
+                                        'bg-gradient-to-b from-[color:color-mix(in_oklch,var(--primary)_8%,transparent)] to-transparent shadow-[inset_0_2px_0_var(--ghana-gold)]'
+                                )}
+                            >
                                 {tier.highlighted && (
-                                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 text-[10px] font-bold uppercase tracking-widest rounded-full shadow-lg whitespace-nowrap"
-                                         style={{ background: 'var(--ghana-gold)', color: '#000' }}>
+                                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 text-[10px] font-bold uppercase tracking-widest rounded-full shadow-lg whitespace-nowrap bg-[var(--ghana-gold)] text-black">
                                         Most Popular
                                     </div>
                                 )}
                                 {isCurrent && (
-                                    <div className="absolute top-0 right-0 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest rounded-bl-xl rounded-tr-3xl"
-                                         style={{ background: 'var(--surface-3)', color: 'var(--ghana-green)' }}>
+                                    <div className="absolute top-0 right-0 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest rounded-bl-xl bg-card text-[var(--ghana-green)] border-l border-b border-border">
                                         Current
                                     </div>
                                 )}
 
-                                {/* Title row */}
                                 <div className="flex items-center gap-2 mb-1.5" style={{ color: tier.accent }}>
                                     {tier.icon}
                                     <h3 className="text-lg font-bold">{tier.name}</h3>
                                 </div>
 
-                                {/* Price */}
                                 <div className="flex items-baseline gap-1 mb-4 min-h-[44px]">
                                     {pricingLoading ? (
-                                        <span className="h-9 w-20 rounded-lg inline-block animate-pulse"
-                                              style={{ background: 'rgba(255,255,255,0.08)' }} />
+                                        <span className="h-9 w-20 rounded-lg inline-block animate-pulse bg-muted" />
                                     ) : tier.id === 'free' ? (
                                         <span className="text-3xl font-bold">Free</span>
                                     ) : (
                                         <>
-                                            <span className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>GHS</span>
-                                            <span className="text-3xl font-bold" style={{ color: 'var(--foreground)' }}>
+                                            <span className="text-xs font-medium text-muted-foreground">GHS</span>
+                                            <span className="text-3xl font-bold text-foreground">
                                                 {price.toLocaleString()}
                                             </span>
-                                            <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                                            <span className="text-xs text-muted-foreground">
                                                 /{cycle === 'monthly' ? 'mo' : 'yr'}
                                             </span>
                                         </>
                                     )}
                                 </div>
 
-                                <p className="text-xs mb-5 flex-shrink-0 min-h-[32px]" style={{ color: 'var(--muted-foreground)' }}>
+                                <p className="text-xs mb-5 flex-shrink-0 min-h-[32px] text-muted-foreground">
                                     {tier.description}
                                 </p>
 
-                                {/* Features */}
                                 <ul className="space-y-2 mb-6 flex-1">
-                                    {tier.features(pricing).map(f => (
-                                        <li key={f} className="flex gap-2 text-xs leading-relaxed" style={{ color: 'var(--foreground)' }}>
-                                            <Check size={14} className="flex-shrink-0 mt-0.5" style={{ color: tier.accent }} />
+                                    {tier.features(pricing).map((f) => (
+                                        <li key={f} className="flex gap-2 text-xs leading-relaxed text-foreground">
+                                            <Check
+                                                size={14}
+                                                className="flex-shrink-0 mt-0.5"
+                                                style={{ color: tier.accent }}
+                                            />
                                             <span>{f}</span>
                                         </li>
                                     ))}
                                 </ul>
 
-                                {/* CTA */}
-                                <button
+                                <Button
                                     type="button"
                                     onClick={cta.onClick}
                                     disabled={cta.disabled}
-                                    className="w-full py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed transition-transform hover:scale-[1.02] active:scale-[0.98]"
-                                    style={
+                                    size="sm"
+                                    variant={
                                         cta.disabled
-                                            ? { borderWidth: 1, borderStyle: 'solid', borderColor: 'var(--border)', color: 'var(--muted-foreground)' }
+                                            ? 'outline'
                                             : tier.highlighted
-                                                ? { background: 'var(--ghana-gold)', color: '#000', boxShadow: '0 6px 20px rgba(240,192,64,0.25)' }
-                                                : { background: tier.accent, color: '#fff' }
-                                    }>
+                                                ? 'gold'
+                                                : 'default'
+                                    }
+                                    className={cn(
+                                        'w-full text-xs',
+                                        !cta.disabled && !tier.highlighted && 'shadow-sm'
+                                    )}
+                                    style={
+                                        !cta.disabled && !tier.highlighted
+                                            ? { background: tier.accent, color: 'white' }
+                                            : undefined
+                                    }
+                                >
                                     {cta.label}
                                     {!cta.disabled && <ArrowRight size={13} />}
-                                </button>
+                                </Button>
                             </div>
                         );
                     })}
@@ -436,26 +439,22 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
 
                 {/* Status footers */}
                 {verifying && (
-                    <div className="px-6 py-3 flex items-center justify-center gap-2 text-sm"
-                         style={{ background: 'var(--surface-2)', color: 'var(--ghana-gold)', borderTop: '1px solid var(--border)' }}>
+                    <div className="px-6 py-3 flex items-center justify-center gap-2 text-sm bg-muted text-[var(--ghana-gold)] border-t border-border">
                         <Loader2 size={16} className="animate-spin" />
                         Confirming your payment — please don&apos;t close this window…
                     </div>
                 )}
                 {verifyError && !verifying && (
-                    <div className="px-6 py-3 text-sm text-center"
-                         style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--error)', borderTop: '1px solid var(--border)' }}>
+                    <div className="px-6 py-3 text-sm text-center bg-[color:color-mix(in_oklch,var(--destructive)_10%,transparent)] text-destructive border-t border-border">
                         {verifyError}
                     </div>
                 )}
 
-                <div className="p-3.5 text-center text-xs"
-                     style={{ background: 'var(--surface-1)', color: 'var(--muted-foreground)', borderTop: '1px solid var(--border)' }}>
-                    <Zap size={11} className="inline mr-1" style={{ color: 'var(--ghana-gold)' }} />
-                    Card payments auto-renew. Mobile Money / Bank / USSD require manual renewal each cycle.
-                    Securely processed by Paystack.
+                <div className="p-3.5 text-center text-xs bg-card text-muted-foreground border-t border-border">
+                    <Zap size={11} className="inline mr-1 text-[var(--ghana-gold)]" />
+                    Card payments auto-renew. Mobile Money / Bank / USSD require manual renewal each cycle. Securely processed by Paystack.
                 </div>
-            </form>
-        </div>
+            </DialogContent>
+        </Dialog>
     );
 }

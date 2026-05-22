@@ -7,10 +7,16 @@ import { MessageBubble } from '@/components/ui/message-bubble';
 import { ChatInput } from '@/components/ui/chat-input';
 import { TypingIndicator } from '@/components/ui/typing-indicator';
 import { UpgradeModal } from '@/components/ui/upgrade-modal';
-import { Menu, Scale, BookOpen, Gavel, ScrollText, Sparkles, Zap, Crown, ArrowUpRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { ThemeToggle } from '@/components/theme-toggle';
+import {
+    Menu, Scale, BookOpen, Gavel, ScrollText, Sparkles, Zap, Crown, ArrowUpRight,
+} from 'lucide-react';
 import { useChat } from '@/hooks/use-chat';
 import { useUsage } from '@/hooks/use-usage';
 import { LEGAL_EXPERTS, getLegalExpert } from '@/lib/legal-experts';
+import { cn } from '@/lib/utils';
 
 const SUGGESTED_PROMPTS = [
     {
@@ -35,6 +41,13 @@ const SUGGESTED_PROMPTS = [
     },
 ];
 
+const PLAN_LABELS: Record<string, string> = {
+    student: 'Student',
+    professional: 'Pro',
+    firm: 'Firm',
+    institution: 'Institution',
+};
+
 export default function ChatPage() {
     const [selectedExpertId, setSelectedExpertId] = useState('constitutional');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -42,11 +55,9 @@ export default function ChatPage() {
     const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
 
     const selectedExpert = getLegalExpert(selectedExpertId);
-
     const { usage, fetchUsage } = useUsage();
 
     const handleStreamComplete = useCallback(() => {
-        // Refresh usage count after each response completes
         fetchUsage();
     }, [fetchUsage]);
 
@@ -71,29 +82,28 @@ export default function ChatPage() {
     };
 
     return (
-        <div className="flex h-screen" style={{ background: 'var(--background)' }}>
-            <UpgradeModal
-                isOpen={isUpgradeModalOpen}
-                onClose={() => setIsUpgradeModalOpen(false)}
-            />
+        <div className="flex h-screen bg-background text-foreground">
+            <UpgradeModal isOpen={isUpgradeModalOpen} onClose={() => setIsUpgradeModalOpen(false)} />
 
-            {/* Mobile Sidebar Toggle */}
-            <button
-                className="lg:hidden fixed top-3.5 left-3.5 z-50 p-2.5 rounded-xl"
-                style={{
-                    background: 'var(--surface-2)',
-                    border: '1px solid var(--border)',
-                    boxShadow: 'var(--shadow-md)',
-                }}
+            {/* Mobile sidebar toggle */}
+            <Button
+                variant="outline"
+                size="icon"
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                 aria-label="Toggle sidebar"
+                className="lg:hidden fixed top-3 left-3 z-50 shadow-md"
             >
-                <Menu size={20} style={{ color: 'var(--foreground)' }} />
-            </button>
+                <Menu className="h-4 w-4" />
+            </Button>
 
-            {/* Sidebar — desktop: always visible, collapsible; mobile: slide in/out */}
-            <div className={`${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-                } lg:translate-x-0 fixed lg:relative z-40 h-full transition-transform duration-300 ease-out`}>
+            {/* Sidebar */}
+            <div
+                className={cn(
+                    'fixed lg:relative z-40 h-full transition-transform duration-300 ease-out',
+                    isSidebarOpen ? 'translate-x-0' : '-translate-x-full',
+                    'lg:translate-x-0'
+                )}
+            >
                 <Sidebar
                     experts={LEGAL_EXPERTS}
                     selectedExpertId={selectedExpertId}
@@ -107,223 +117,180 @@ export default function ChatPage() {
                 />
             </div>
 
-            {/* Mobile Overlay */}
+            {/* Mobile overlay */}
             {isSidebarOpen && (
                 <div
-                    className="lg:hidden fixed inset-0 z-30"
-                    style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(6px)' }}
+                    className="lg:hidden fixed inset-0 z-30 bg-black/65 backdrop-blur-[6px]"
                     onClick={() => setIsSidebarOpen(false)}
                 />
             )}
 
-            {/* Main Chat Area */}
+            {/* Main chat area */}
             <div className="flex-1 flex flex-col h-full w-full relative overflow-hidden">
                 {/* Header */}
-                <header className="h-16 flex items-center justify-between px-5 lg:px-6 flex-shrink-0"
-                        style={{
-                            background: 'var(--surface-1)',
-                            borderBottom: '1px solid var(--border)',
-                        }}>
-                    <div className="lg:pl-0 pl-12 flex items-center gap-3.5">
-                        <div className="w-9 h-9 rounded-full flex items-center justify-center"
-                             style={{
-                                 background: `linear-gradient(135deg, ${selectedExpert?.accentColor}30, ${selectedExpert?.accentColor}70)`,
-                                 border: `1.5px solid ${selectedExpert?.accentColor}44`,
-                             }}>
+                <header className="h-16 flex items-center justify-between px-5 lg:px-6 flex-shrink-0 bg-card/80 backdrop-blur-md border-b border-border">
+                    <div className="lg:pl-0 pl-12 flex items-center gap-3.5 min-w-0">
+                        <div
+                            className="w-9 h-9 rounded-full flex items-center justify-center border-[1.5px] shrink-0"
+                            style={{
+                                background: `linear-gradient(135deg, ${selectedExpert?.accentColor}30, ${selectedExpert?.accentColor}70)`,
+                                borderColor: `${selectedExpert?.accentColor}44`,
+                            }}
+                        >
                             {selectedExpert?.icon}
                         </div>
-                        <div>
-                            <h1 className="font-semibold text-[15px] leading-tight"
-                                style={{ color: 'var(--foreground)' }}>
+                        <div className="min-w-0">
+                            <h1 className="font-semibold text-[15px] leading-tight truncate">
                                 {selectedExpert?.name}
                             </h1>
-                            <span className="text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
+                            <span className="text-[12px] text-muted-foreground truncate block">
                                 {selectedExpert?.field}
                             </span>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                        {/* Plan & Usage Badge */}
+
+                    <div className="flex items-center gap-2 sm:gap-3">
+                        {/* Plan & usage */}
                         {usage && (
-                            <div className="hidden sm:flex items-center gap-2.5">
+                            <div className="hidden sm:flex items-center gap-2">
                                 {usage.plan === 'free' ? (
                                     <>
-                                        <div className="flex items-center gap-2 px-3.5 py-2 rounded-full"
-                                             style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
-                                            <Zap size={13} style={{ color: 'var(--ghana-gold)' }} />
-                                            <span className="text-[13px] font-semibold tabular-nums"
-                                                  style={{ color: usage.remaining > 0 ? 'var(--foreground)' : 'var(--error)' }}>
+                                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted border border-border">
+                                            <Zap className="h-3.5 w-3.5 text-[var(--ghana-gold)]" />
+                                            <span
+                                                className={cn(
+                                                    'text-[13px] font-semibold tabular-nums',
+                                                    usage.remaining > 0 ? 'text-foreground' : 'text-destructive'
+                                                )}
+                                            >
                                                 {usage.used_today}/{usage.daily_limit}
                                             </span>
-                                            <span className="text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
-                                                used today
-                                            </span>
+                                            <span className="text-[12px] text-muted-foreground">today</span>
                                         </div>
-                                        <button
+                                        <Button
+                                            variant="gradient"
+                                            size="sm"
                                             onClick={() => setIsUpgradeModalOpen(true)}
-                                            type="button"
-                                            aria-label="Upgrade to Pro"
-                                            className="group inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-[13px] font-semibold cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-1)] focus-visible:ring-[var(--primary)]"
-                                            style={{
-                                                background: 'linear-gradient(135deg, var(--primary), #8b5cf6)',
-                                                color: '#fff',
-                                                boxShadow: '0 4px 16px rgba(98,114,240,0.35)',
-                                                transition: 'transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease',
-                                            }}
-                                            onMouseEnter={(e) => {
-                                                e.currentTarget.style.transform = 'translateY(-1px)';
-                                                e.currentTarget.style.boxShadow = '0 6px 22px rgba(98,114,240,0.5)';
-                                                e.currentTarget.style.filter = 'brightness(1.08)';
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                e.currentTarget.style.transform = 'translateY(0)';
-                                                e.currentTarget.style.boxShadow = '0 4px 16px rgba(98,114,240,0.35)';
-                                                e.currentTarget.style.filter = 'brightness(1)';
-                                            }}
-                                            onMouseDown={(e) => {
-                                                e.currentTarget.style.transform = 'translateY(0)';
-                                            }}>
-                                            <Crown size={14} className="drop-shadow-sm" />
-                                            <span>Upgrade to Pro</span>
-                                        </button>
+                                            className="rounded-full"
+                                        >
+                                            <Crown className="h-3.5 w-3.5" />
+                                            Upgrade
+                                        </Button>
                                     </>
                                 ) : (
-                                    <div className="flex items-center gap-2 px-3.5 py-2 rounded-full"
-                                         style={{ background: 'rgba(98,114,240,0.10)', border: '1px solid rgba(98,114,240,0.20)' }}>
-                                        <Crown size={13} style={{ color: 'var(--primary)' }} />
-                                        <span className="text-[13px] font-semibold" style={{ color: 'var(--primary)' }}>
-                                            {({
-                                                student: 'Student',
-                                                professional: 'Pro',
-                                                firm: 'Firm',
-                                                institution: 'Institution',
-                                            } as Record<string, string>)[usage.plan] || usage.plan}
-                                        </span>
-                                    </div>
+                                    <Badge
+                                        variant="default"
+                                        className="px-3 py-1.5 bg-[color:color-mix(in_oklch,var(--primary)_15%,transparent)] text-primary border border-[color:color-mix(in_oklch,var(--primary)_30%,transparent)] normal-case tracking-normal text-[12px]"
+                                    >
+                                        <Crown className="h-3 w-3" />
+                                        {PLAN_LABELS[usage.plan] || usage.plan}
+                                    </Badge>
                                 )}
                             </div>
                         )}
-                        {/* Connection Status */}
-                        <div className="flex items-center gap-2 px-3 py-2 rounded-full"
-                             style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
-                            <div className="w-2 h-2 rounded-full animate-pulse"
-                                 style={{
-                                     background: connectionStatus === 'connected' ? 'var(--success)'
-                                         : connectionStatus === 'connecting' ? 'var(--warning)'
-                                         : 'var(--error)',
-                                 }} />
-                            <span className="text-[12px] font-medium"
-                                  style={{ color: 'var(--muted-foreground)' }}>
-                                {connectionStatus === 'connected' ? 'Online'
-                                    : connectionStatus === 'connecting' ? 'Connecting...'
-                                    : 'Offline'}
+
+                        {/* Connection */}
+                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted border border-border">
+                            <div
+                                className={cn(
+                                    'w-2 h-2 rounded-full animate-pulse',
+                                    connectionStatus === 'connected' && 'bg-[var(--ghana-green)]',
+                                    connectionStatus === 'connecting' && 'bg-[var(--ghana-gold)]',
+                                    (connectionStatus === 'disconnected' || connectionStatus === 'error') &&
+                                        'bg-destructive'
+                                )}
+                            />
+                            <span className="text-[12px] font-medium text-muted-foreground hidden md:inline">
+                                {connectionStatus === 'connected'
+                                    ? 'Online'
+                                    : connectionStatus === 'connecting'
+                                        ? 'Connecting…'
+                                        : 'Offline'}
                             </span>
                             {(connectionStatus === 'disconnected' || connectionStatus === 'error') && (
-                                <button onClick={reconnect}
-                                        type="button"
-                                        className="text-[12px] font-semibold ml-1 cursor-pointer hover:underline"
-                                        style={{ color: 'var(--primary)' }}>
+                                <Button
+                                    variant="link"
+                                    size="sm"
+                                    onClick={reconnect}
+                                    className="h-auto p-0 ml-1 text-[12px] font-semibold"
+                                >
                                     Retry
-                                </button>
+                                </Button>
                             )}
                         </div>
+
+                        <ThemeToggle />
                         <UserButton />
                     </div>
                 </header>
 
-                {/* Messages Area */}
+                {/* Messages */}
                 <div className="flex-1 overflow-y-auto">
                     {messages.length === 0 ? (
-                        /* Empty state */
                         <div className="h-full flex flex-col items-center justify-center p-8 animate-float-in">
-                            <div className="relative mb-8">
+                            <div className="relative mb-7">
                                 <div
                                     aria-hidden
                                     className="absolute inset-0 rounded-3xl blur-3xl opacity-40"
-                                    style={{ background: `radial-gradient(circle, ${selectedExpert?.accentColor || 'var(--primary)'}55, transparent 70%)` }}
+                                    style={{
+                                        background: `radial-gradient(circle, ${selectedExpert?.accentColor || 'var(--primary)'}55, transparent 70%)`,
+                                    }}
                                 />
-                                <div className="relative w-24 h-24 rounded-2xl flex items-center justify-center"
-                                     style={{
-                                         background: `linear-gradient(135deg, ${selectedExpert?.accentColor || 'var(--primary)'}20, ${selectedExpert?.accentColor || 'var(--primary)'}50)`,
-                                         border: `1px solid ${selectedExpert?.accentColor || 'var(--primary)'}44`,
-                                         boxShadow: `0 12px 36px ${selectedExpert?.accentColor || 'var(--primary)'}25`,
-                                     }}>
-                                    <Scale size={40} style={{ color: selectedExpert?.accentColor || 'var(--primary)' }} />
+                                <div
+                                    className="relative w-20 h-20 rounded-2xl flex items-center justify-center border"
+                                    style={{
+                                        background: `linear-gradient(135deg, ${selectedExpert?.accentColor || 'var(--primary)'}20, ${selectedExpert?.accentColor || 'var(--primary)'}50)`,
+                                        borderColor: `${selectedExpert?.accentColor || 'var(--primary)'}44`,
+                                        boxShadow: `0 12px 36px ${selectedExpert?.accentColor || 'var(--primary)'}25`,
+                                    }}
+                                >
+                                    <Scale className="h-8 w-8" style={{ color: selectedExpert?.accentColor || 'var(--primary)' }} />
                                 </div>
                             </div>
 
-                            <h2 className="text-3xl sm:text-4xl font-bold mb-3 tracking-tight text-center" style={{ color: 'var(--foreground)' }}>
+                            <h2 className="text-3xl sm:text-4xl font-bold mb-2 tracking-tight text-center">
                                 {selectedExpert?.name}
                             </h2>
-                            <p className="text-base sm:text-lg max-w-lg text-center mb-3 leading-relaxed"
-                               style={{ color: 'var(--muted-foreground)' }}>
+                            <p className="text-base sm:text-lg max-w-lg text-center mb-3 leading-relaxed text-muted-foreground">
                                 {selectedExpert?.tagline}
                             </p>
-                            <div className="flex items-center gap-2 mb-12 px-4 py-1.5 rounded-full"
-                                 style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
-                                <Sparkles size={13} style={{ color: 'var(--ghana-gold)' }} />
-                                <span className="text-[12px] font-medium tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
-                                    {selectedExpert?.era}
-                                </span>
-                            </div>
+                            <Badge variant="outline" className="mb-10 gap-1.5 normal-case tracking-normal">
+                                <Sparkles className="h-3 w-3 text-[var(--ghana-gold)]" />
+                                {selectedExpert?.era}
+                            </Badge>
 
                             <div className="w-full max-w-2xl">
-                                <div className="flex items-center justify-center mb-5">
-                                    <span className="text-[12px] font-semibold uppercase tracking-[0.18em]"
-                                          style={{ color: 'var(--muted-foreground)' }}>
+                                <div className="flex items-center justify-center mb-4">
+                                    <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                                         Try asking
                                     </span>
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     {SUGGESTED_PROMPTS.map(({ icon, label, prompt }) => (
                                         <button
                                             key={prompt}
                                             onClick={() => sendMessage(prompt)}
                                             type="button"
-                                            className="group relative px-5 py-4 text-left rounded-xl cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
-                                            style={{
-                                                background: 'var(--surface-1)',
-                                                border: '1px solid var(--border)',
-                                                transition: 'transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease',
-                                            }}
-                                            onMouseEnter={(e) => {
-                                                e.currentTarget.style.borderColor = 'var(--primary)';
-                                                e.currentTarget.style.background = 'var(--primary-muted)';
-                                                e.currentTarget.style.transform = 'translateY(-2px)';
-                                                e.currentTarget.style.boxShadow = '0 8px 28px rgba(98,114,240,0.18)';
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                e.currentTarget.style.borderColor = 'var(--border)';
-                                                e.currentTarget.style.background = 'var(--surface-1)';
-                                                e.currentTarget.style.transform = 'translateY(0)';
-                                                e.currentTarget.style.boxShadow = 'none';
-                                            }}
+                                            className="group relative px-5 py-4 text-left rounded-xl bg-card border border-border hover:border-primary hover:bg-[color:color-mix(in_oklch,var(--primary)_8%,transparent)] hover:-translate-y-0.5 hover:shadow-[0_8px_28px_color-mix(in_oklch,var(--primary)_18%,transparent)] transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                                         >
                                             <div className="flex items-start justify-between gap-3">
                                                 <div className="min-w-0 flex-1">
-                                                    <div className="flex items-center gap-2 mb-2"
-                                                         style={{ color: 'var(--primary)' }}>
+                                                    <div className="flex items-center gap-2 mb-1.5 text-primary">
                                                         {icon}
                                                         <span className="text-[13px] font-semibold tracking-wide">{label}</span>
                                                     </div>
-                                                    <p className="text-[14px] leading-relaxed"
-                                                       style={{ color: 'var(--muted-foreground)' }}>
+                                                    <p className="text-[13.5px] leading-relaxed text-muted-foreground">
                                                         {prompt}
                                                     </p>
                                                 </div>
-                                                <ArrowUpRight
-                                                    size={16}
-                                                    className="shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                    style={{ color: 'var(--primary)' }}
-                                                />
+                                                <ArrowUpRight className="h-4 w-4 shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity text-primary" />
                                             </div>
                                         </button>
                                     ))}
                                 </div>
 
-                                <p className="text-[12px] text-center mt-8"
-                                   style={{ color: 'var(--muted-foreground)', opacity: 0.6 }}>
+                                <p className="text-[12px] text-center mt-8 text-muted-foreground/70">
                                     Responses are grounded in Ghanaian statutes and case law. Verify before relying on them in legal practice.
                                 </p>
                             </div>

@@ -2,6 +2,7 @@
 
 import React, { useState, KeyboardEvent, useRef, useEffect } from 'react';
 import { ArrowUp, CornerDownLeft } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 interface ChatInputProps {
@@ -27,9 +28,7 @@ export function ChatInput({ onSend, disabled, expertName }: ChatInputProps) {
         if (input.trim() && !disabled) {
             onSend(input.trim());
             setInput('');
-            if (textareaRef.current) {
-                textareaRef.current.style.height = 'auto';
-            }
+            if (textareaRef.current) textareaRef.current.style.height = 'auto';
         }
     };
 
@@ -40,26 +39,19 @@ export function ChatInput({ onSend, disabled, expertName }: ChatInputProps) {
         }
     };
 
-    const hasInput = input.trim().length > 0;
-    const canSend = hasInput && !disabled;
-    const charCount = input.length;
-    const showCharHint = charCount > 600;
-
-    const containerStyle: React.CSSProperties = {
-        background: 'var(--surface-1)',
-        border: '1px solid var(--border)',
-        boxShadow: isFocused
-            ? '0 -2px 28px rgba(0,0,0,0.2), 0 0 0 2px rgba(98,114,240,0.3)'
-            : '0 -2px 24px rgba(0,0,0,0.18)',
-        borderColor: isFocused ? 'var(--primary)' : 'var(--border)',
-        transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
-    };
+    const canSend = input.trim().length > 0 && !disabled;
 
     return (
-        <div className="px-4 pt-3 pb-5"
-             style={{ background: 'linear-gradient(to top, var(--background) 60%, transparent)' }}>
+        <div className="border-t border-border bg-card/60 backdrop-blur-md p-4 sm:p-5 flex-shrink-0">
             <div className="max-w-4xl mx-auto">
-                <div className="rounded-2xl overflow-hidden" style={containerStyle}>
+                <div
+                    className={cn(
+                        'relative flex items-end gap-3 rounded-2xl border bg-background px-4 py-3 transition-all duration-200',
+                        isFocused
+                            ? 'border-primary shadow-[0_0_0_3px_color-mix(in_oklch,var(--primary)_18%,transparent)]'
+                            : 'border-border hover:border-border'
+                    )}
+                >
                     <textarea
                         ref={textareaRef}
                         value={input}
@@ -67,117 +59,43 @@ export function ChatInput({ onSend, disabled, expertName }: ChatInputProps) {
                         onKeyDown={handleKeyDown}
                         onFocus={() => setIsFocused(true)}
                         onBlur={() => setIsFocused(false)}
-                        placeholder={
-                            disabled
-                                ? 'Connecting...'
-                                : `Message ${expertName || 'Legal Expert'}...`
-                        }
+                        placeholder={`Ask ${expertName || 'the legal expert'} anything about Ghanaian law…`}
                         disabled={disabled}
                         rows={1}
-                        aria-label="Message input"
-                        className={cn(
-                            'w-full px-5 pt-4 pb-2 resize-none',
-                            'text-[16px] leading-relaxed',
-                            'focus:outline-none',
-                            'disabled:opacity-40 disabled:cursor-not-allowed',
-                            'placeholder:text-[var(--muted-foreground)]',
-                        )}
-                        style={{
-                            background: 'transparent',
-                            color: 'var(--foreground)',
-                            caretColor: 'var(--primary)',
-                            border: 'none',
-                        }}
+                        className="flex-1 resize-none bg-transparent text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none disabled:opacity-50 min-h-[24px] max-h-[200px]"
                     />
-                    {/* Bottom toolbar */}
-                    <div className="flex items-center justify-between gap-3 px-4 pb-3 pt-1">
-                        <div className="flex items-center gap-2 min-w-0">
-                            <KeyHint label="Enter" description="to send" />
-                            <span className="hidden sm:inline-block" style={{ color: 'var(--muted-foreground)', opacity: 0.4 }}>·</span>
-                            <KeyHint label="Shift+Enter" description="for new line" className="hidden sm:inline-flex" />
-                        </div>
-                        <div className="flex items-center gap-2">
-                            {showCharHint && (
-                                <span className="text-[12px] tabular-nums font-mono"
-                                      style={{ color: charCount > 2000 ? 'var(--warning)' : 'var(--muted-foreground)' }}>
-                                    {charCount.toLocaleString()}
-                                </span>
-                            )}
-                            <button
-                                onClick={handleSend}
-                                disabled={!canSend}
-                                type="button"
-                                aria-label="Send message"
-                                className="group flex items-center justify-center w-10 h-10 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-1)]"
-                                style={{
-                                    background: canSend
-                                        ? 'linear-gradient(135deg, var(--primary), #8b5cf6)'
-                                        : 'var(--surface-3)',
-                                    color: canSend ? '#fff' : 'var(--muted-foreground)',
-                                    cursor: canSend ? 'pointer' : 'not-allowed',
-                                    opacity: canSend ? 1 : 0.45,
-                                    boxShadow: canSend ? '0 4px 16px rgba(98,114,240,0.4)' : 'none',
-                                    transform: canSend ? 'scale(1)' : 'scale(0.92)',
-                                    transition: 'transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, background 0.2s ease',
-                                }}
-                                onMouseEnter={(e) => {
-                                    if (!canSend) return;
-                                    e.currentTarget.style.transform = 'scale(1.06)';
-                                    e.currentTarget.style.filter = 'brightness(1.08)';
-                                    e.currentTarget.style.boxShadow = '0 6px 22px rgba(98,114,240,0.55)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    if (!canSend) return;
-                                    e.currentTarget.style.transform = 'scale(1)';
-                                    e.currentTarget.style.filter = 'brightness(1)';
-                                    e.currentTarget.style.boxShadow = '0 4px 16px rgba(98,114,240,0.4)';
-                                }}
-                            >
-                                <ArrowUp size={18} strokeWidth={2.5} />
-                            </button>
-                        </div>
-                    </div>
+
+                    <Button
+                        type="button"
+                        size="icon"
+                        variant={canSend ? 'gradient' : 'secondary'}
+                        disabled={!canSend}
+                        onClick={handleSend}
+                        aria-label="Send message"
+                        className="self-end shrink-0 rounded-xl"
+                    >
+                        <ArrowUp className="h-4 w-4" />
+                    </Button>
                 </div>
-                <p className="text-center mt-3 text-[12px] leading-relaxed px-4"
-                   style={{ color: 'var(--muted-foreground)', opacity: 0.65 }}>
-                    LexGH may produce inaccurate information.{' '}
-                    <span className="hidden sm:inline">Always verify with official statutes and case law before relying on it in practice.</span>
-                    <span className="sm:hidden">Verify with official sources.</span>
-                </p>
+
+                <div className="flex items-center justify-between mt-3 px-1 text-[11px] text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                        <kbd className="px-1.5 py-0.5 rounded-md border border-border bg-muted font-mono text-[10px] inline-flex items-center gap-1">
+                            <CornerDownLeft size={10} />
+                            Enter
+                        </kbd>
+                        to send
+                        <span className="mx-1.5 opacity-40">·</span>
+                        <kbd className="px-1.5 py-0.5 rounded-md border border-border bg-muted font-mono text-[10px]">
+                            Shift+Enter
+                        </kbd>
+                        for new line
+                    </span>
+                    <span className="hidden sm:inline">
+                        Grounded in Ghanaian statutes &amp; case law
+                    </span>
+                </div>
             </div>
         </div>
-    );
-}
-
-function KeyHint({
-    label,
-    description,
-    className,
-}: {
-    label: string;
-    description: string;
-    className?: string;
-}) {
-    const isEnter = label === 'Enter';
-    return (
-        <span className={cn('inline-flex items-center gap-1.5 text-[12px] whitespace-nowrap', className)}
-              style={{ color: 'var(--muted-foreground)' }}>
-            <kbd className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md font-mono text-[11px] font-semibold"
-                 style={{
-                     background: 'var(--surface-2)',
-                     border: '1px solid var(--border)',
-                     color: 'var(--foreground)',
-                 }}>
-                {isEnter ? (
-                    <>
-                        <CornerDownLeft size={10} strokeWidth={2.5} />
-                        <span>Enter</span>
-                    </>
-                ) : (
-                    <span>{label}</span>
-                )}
-            </kbd>
-            <span>{description}</span>
-        </span>
     );
 }

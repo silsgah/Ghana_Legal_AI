@@ -1,7 +1,10 @@
 import type { Metadata } from 'next';
 import { DM_Sans, JetBrains_Mono } from 'next/font/google';
 import { ClerkProvider } from '@clerk/nextjs';
-import { Analytics } from "@vercel/analytics/next";
+import { Analytics } from '@vercel/analytics/next';
+import { ThemeProvider } from '@/components/theme-provider';
+import { Toaster } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import './globals.css';
 
 const dmSans = DM_Sans({
@@ -30,16 +33,17 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <ClerkProvider>
-      <html lang="en" className="dark">
-        <body className={`${dmSans.variable} ${jetbrainsMono.variable} antialiased`}>
-          {children}
+      <html lang="en" suppressHydrationWarning>
+        <body className={`${dmSans.variable} ${jetbrainsMono.variable} antialiased bg-background text-foreground`}>
+          <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+            <TooltipProvider delayDuration={150}>
+              {children}
+              <Toaster position="top-right" richColors />
+            </TooltipProvider>
+          </ThemeProvider>
           <Analytics />
         </body>
       </html>

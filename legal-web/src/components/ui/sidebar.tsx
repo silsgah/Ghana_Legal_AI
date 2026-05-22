@@ -2,11 +2,17 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Scale, Plus, Trash2, WifiOff, Loader2, Settings, PanelLeftClose, PanelLeft } from 'lucide-react';
+import {
+    Scale, Plus, Trash2, WifiOff, Loader2, Settings,
+    PanelLeftClose, PanelLeft,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LegalExpert } from '@/lib/legal-experts';
 import { ConnectionStatus } from '@/hooks/use-chat';
 import { useUser } from '@clerk/nextjs';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 
 interface SidebarProps {
     experts: LegalExpert[];
@@ -18,6 +24,78 @@ interface SidebarProps {
     onUpgradeClick: () => void;
     collapsed: boolean;
     onToggleCollapse: () => void;
+}
+
+function ConnectionPill({
+    status,
+    onReconnect,
+    collapsed,
+}: {
+    status: ConnectionStatus;
+    onReconnect: () => void;
+    collapsed: boolean;
+}) {
+    if (collapsed) {
+        return (
+            <div className="flex justify-center py-2.5 border-b border-border">
+                {status === 'connected' && (
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <div className="w-2.5 h-2.5 rounded-full bg-[var(--ghana-green)] shadow-[0_0_6px_var(--ghana-green)]" />
+                        </TooltipTrigger>
+                        <TooltipContent side="right">Connected</TooltipContent>
+                    </Tooltip>
+                )}
+                {status === 'connecting' && (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--ghana-gold)]" />
+                )}
+                {(status === 'disconnected' || status === 'error') && (
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button onClick={onReconnect} className="text-destructive">
+                                <WifiOff className="h-3.5 w-3.5" />
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="right">Offline — click to retry</TooltipContent>
+                    </Tooltip>
+                )}
+            </div>
+        );
+    }
+
+    return (
+        <div className="px-4 py-2.5 border-b border-border">
+            <div className="flex items-center gap-2 text-[13px]">
+                {status === 'connected' && (
+                    <>
+                        <div className="w-2 h-2 rounded-full bg-[var(--ghana-green)]" />
+                        <span className="text-[var(--ghana-green)] font-medium">Connected</span>
+                    </>
+                )}
+                {status === 'connecting' && (
+                    <>
+                        <Loader2 className="h-3 w-3 animate-spin text-[var(--ghana-gold)]" />
+                        <span className="text-[var(--ghana-gold)] font-medium">Connecting…</span>
+                    </>
+                )}
+                {(status === 'disconnected' || status === 'error') && (
+                    <>
+                        <WifiOff className="h-3 w-3 text-destructive" />
+                        <span className="text-destructive font-medium">Offline</span>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={onReconnect}
+                            className="ml-auto h-7 px-2 text-[12px] text-primary hover:bg-[color:color-mix(in_oklch,var(--primary)_12%,transparent)]"
+                        >
+                            Retry
+                        </Button>
+                    </>
+                )}
+            </div>
+        </div>
+    );
 }
 
 export function Sidebar({
@@ -35,276 +113,192 @@ export function Sidebar({
 
     return (
         <div
-            className="flex flex-col h-screen transition-all duration-300 ease-out"
-            style={{
-                width: collapsed ? '64px' : '280px',
-                background: 'var(--surface-1)',
-                borderRight: '1px solid var(--border)',
-            }}
+            className={cn(
+                'flex flex-col h-screen bg-card border-r border-border transition-[width] duration-300 ease-out',
+                collapsed ? 'w-16' : 'w-72'
+            )}
         >
-            {/* Brand Header */}
-            <div className="p-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
-                <div className={cn(
-                    'flex items-center mb-4',
-                    collapsed ? 'justify-center' : 'gap-3'
-                )}>
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                         style={{
-                             background: 'linear-gradient(135deg, var(--ghana-gold), #d4a017)',
-                             boxShadow: '0 4px 12px rgba(240,192,64,0.25)',
-                         }}>
-                        <Scale size={16} className="text-black" />
+            {/* Brand + New Consultation */}
+            <div className="p-3 border-b border-border space-y-3">
+                <div className={cn('flex items-center', collapsed ? 'justify-center' : 'gap-3 px-1')}>
+                    <div
+                        className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-[0_4px_12px_rgba(240,192,64,0.25)]"
+                        style={{ background: 'linear-gradient(135deg, var(--ghana-gold), #d4a017)' }}
+                    >
+                        <Scale className="h-4 w-4 text-black" />
                     </div>
                     {!collapsed && (
-                        <div>
-                            <span className="font-bold text-[16px] block leading-tight" style={{ color: 'var(--foreground)' }}>
-                                LexGH
-                            </span>
-                            <span className="text-[11px] font-medium" style={{ color: 'var(--ghana-gold)', opacity: 0.8 }}>
+                        <div className="min-w-0">
+                            <div className="font-bold text-[15px] leading-tight">LexGH</div>
+                            <div className="text-[11px] font-medium text-[var(--ghana-gold)]/80">
                                 Legal Research
-                            </span>
+                            </div>
                         </div>
                     )}
                 </div>
-                {!collapsed ? (
-                    <button
-                        onClick={onReset}
-                        className="w-full flex items-center gap-2.5 px-3.5 py-3 rounded-xl text-[14px] text-left font-medium"
-                        style={{
-                            border: '1px solid var(--border)',
-                            color: 'var(--foreground)',
-                            transition: 'all 0.2s ease',
-                        }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--primary)';
-                            e.currentTarget.style.background = 'var(--primary-muted)';
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--border)';
-                            e.currentTarget.style.background = 'transparent';
-                        }}
-                    >
-                        <Plus size={16} style={{ color: 'var(--primary)' }} />
-                        <span>New Consultation</span>
-                    </button>
+
+                {collapsed ? (
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={onReset}
+                                className="w-full rounded-xl text-primary border-border hover:border-primary hover:bg-[color:color-mix(in_oklch,var(--primary)_10%,transparent)]"
+                            >
+                                <Plus className="h-4 w-4" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="right">New Consultation</TooltipContent>
+                    </Tooltip>
                 ) : (
-                    <button
+                    <Button
+                        variant="outline"
                         onClick={onReset}
-                        className="w-full flex items-center justify-center p-2.5 rounded-xl"
-                        style={{
-                            border: '1px solid var(--border)',
-                            color: 'var(--primary)',
-                            transition: 'all 0.2s ease',
-                        }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--primary)';
-                            e.currentTarget.style.background = 'var(--primary-muted)';
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--border)';
-                            e.currentTarget.style.background = 'transparent';
-                        }}
-                        title="New Consultation"
+                        className="w-full justify-start gap-2 rounded-xl hover:border-primary hover:bg-[color:color-mix(in_oklch,var(--primary)_10%,transparent)]"
                     >
-                        <Plus size={18} />
-                    </button>
+                        <Plus className="h-4 w-4 text-primary" />
+                        <span className="font-medium">New Consultation</span>
+                    </Button>
                 )}
             </div>
 
-            {/* Connection Status — always visible */}
-            {!collapsed ? (
-                <div className="px-4 py-2.5" style={{ borderBottom: '1px solid var(--border)' }}>
-                    <div className="flex items-center gap-2 text-[13px]">
-                        {connectionStatus === 'connected' && (
-                            <>
-                                <div className="w-2 h-2 rounded-full" style={{ background: 'var(--success)' }} />
-                                <span style={{ color: 'var(--success)' }}>Connected</span>
-                            </>
-                        )}
-                        {connectionStatus === 'connecting' && (
-                            <>
-                                <Loader2 size={12} className="animate-spin" style={{ color: 'var(--warning)' }} />
-                                <span style={{ color: 'var(--warning)' }}>Connecting...</span>
-                            </>
-                        )}
-                        {(connectionStatus === 'disconnected' || connectionStatus === 'error') && (
-                            <>
-                                <WifiOff size={12} style={{ color: 'var(--error)' }} />
-                                <span style={{ color: 'var(--error)' }}>Offline</span>
-                                <button onClick={onReconnect}
-                                        className="ml-auto text-[12px] font-semibold px-2.5 py-1 rounded-lg"
-                                        style={{ color: 'var(--primary)', background: 'var(--primary-muted)' }}>
-                                    Retry
-                                </button>
-                            </>
-                        )}
-                    </div>
-                </div>
-            ) : (
-                <div className="flex justify-center py-2.5" style={{ borderBottom: '1px solid var(--border)' }}>
-                    {connectionStatus === 'connected' ? (
-                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: 'var(--success)' }} title="Connected" />
-                    ) : connectionStatus === 'connecting' ? (
-                        <Loader2 size={13} className="animate-spin" style={{ color: 'var(--warning)' }} />
-                    ) : (
-                        <button onClick={onReconnect} title="Offline — click to retry">
-                            <WifiOff size={13} style={{ color: 'var(--error)' }} />
-                        </button>
-                    )}
-                </div>
-            )}
+            <ConnectionPill status={connectionStatus} onReconnect={onReconnect} collapsed={collapsed} />
 
-            {/* Experts List */}
-            <div className="flex-1 overflow-y-auto px-2.5 py-4">
+            {/* Experts list */}
+            <div className="flex-1 overflow-y-auto px-2 py-3">
                 {!collapsed && (
-                    <div className="text-[11px] font-semibold uppercase tracking-widest mb-3 px-3"
-                         style={{ color: 'var(--muted-foreground)' }}>
+                    <div className="text-[11px] font-semibold uppercase tracking-widest mb-2 px-2 text-muted-foreground">
                         Legal Experts
                     </div>
                 )}
                 <div className="space-y-1">
                     {experts.map((expert) => {
                         const isSelected = selectedExpertId === expert.id;
-                        return (
+                        const button = (
                             <button
                                 key={expert.id}
                                 onClick={() => onSelectExpert(expert.id)}
                                 className={cn(
-                                    'w-full flex items-center rounded-xl text-left',
-                                    'transition-all duration-150',
-                                    collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-3',
+                                    'group w-full flex items-center rounded-lg text-left transition-colors duration-150 border',
+                                    collapsed ? 'justify-center p-2' : 'gap-3 px-2.5 py-2.5',
+                                    isSelected
+                                        ? 'bg-[color:color-mix(in_oklch,var(--primary)_12%,transparent)] border-[color:color-mix(in_oklch,var(--primary)_25%,transparent)] text-foreground'
+                                        : 'border-transparent text-muted-foreground hover:bg-accent hover:text-foreground'
                                 )}
-                                style={{
-                                    background: isSelected ? 'var(--primary-muted)' : 'transparent',
-                                    color: isSelected ? 'var(--foreground)' : 'var(--muted-foreground)',
-                                    border: isSelected ? '1px solid rgba(98,114,240,0.15)' : '1px solid transparent',
-                                }}
-                                onMouseEnter={(e) => {
-                                    if (!isSelected) {
-                                        e.currentTarget.style.background = 'var(--surface-2)';
-                                        e.currentTarget.style.color = 'var(--foreground)';
-                                    }
-                                }}
-                                onMouseLeave={(e) => {
-                                    if (!isSelected) {
-                                        e.currentTarget.style.background = 'transparent';
-                                        e.currentTarget.style.color = 'var(--muted-foreground)';
-                                    }
-                                }}
-                                title={collapsed ? expert.name : undefined}
                             >
-                                <div className={cn(
-                                    'rounded-full flex items-center justify-center text-base flex-shrink-0',
-                                    collapsed ? 'w-10 h-10' : 'w-9 h-9',
-                                )}
-                                     style={{
-                                         background: `linear-gradient(135deg, ${expert.accentColor}22, ${expert.accentColor}44)`,
-                                         border: isSelected
-                                             ? `2px solid ${expert.accentColor}`
-                                             : `2px solid ${expert.accentColor}22`,
-                                     }}>
+                                <div
+                                    className={cn(
+                                        'rounded-full flex items-center justify-center text-base flex-shrink-0 transition-all',
+                                        collapsed ? 'w-9 h-9' : 'w-9 h-9'
+                                    )}
+                                    style={{
+                                        background: `linear-gradient(135deg, ${expert.accentColor}22, ${expert.accentColor}44)`,
+                                        border: isSelected
+                                            ? `2px solid ${expert.accentColor}`
+                                            : `2px solid ${expert.accentColor}22`,
+                                    }}
+                                >
                                     {expert.icon}
                                 </div>
                                 {!collapsed && (
                                     <div className="flex-1 min-w-0">
-                                        <div className="font-semibold text-[14px] truncate">{expert.name}</div>
-                                        <div className="text-[12px] truncate" style={{ color: 'var(--muted-foreground)' }}>
+                                        <div className="font-semibold text-[13.5px] truncate">{expert.name}</div>
+                                        <div className="text-[11.5px] truncate text-muted-foreground">
                                             {expert.field}
                                         </div>
                                     </div>
                                 )}
                             </button>
                         );
+
+                        if (collapsed) {
+                            return (
+                                <Tooltip key={expert.id}>
+                                    <TooltipTrigger asChild>{button}</TooltipTrigger>
+                                    <TooltipContent side="right">
+                                        <div className="font-semibold">{expert.name}</div>
+                                        <div className="text-[11px] text-muted-foreground">{expert.field}</div>
+                                    </TooltipContent>
+                                </Tooltip>
+                            );
+                        }
+                        return button;
                     })}
                 </div>
             </div>
 
             {/* Footer */}
-            <div className="p-2.5 space-y-1 flex-shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
-                {!collapsed ? (
+            <div className="p-2 border-t border-border space-y-1">
+                {collapsed ? (
                     <>
                         {isAdmin && (
-                            <Link href="/admin"
-                                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium"
-                                  style={{ color: 'var(--muted-foreground)', transition: 'all 0.15s ease' }}
-                                  onMouseEnter={(e) => {
-                                      e.currentTarget.style.color = 'var(--primary)';
-                                      e.currentTarget.style.background = 'var(--primary-muted)';
-                                  }}
-                                  onMouseLeave={(e) => {
-                                      e.currentTarget.style.color = 'var(--muted-foreground)';
-                                      e.currentTarget.style.background = 'transparent';
-                                  }}>
-                                <Settings size={15} />
-                                <span>Admin</span>
-                            </Link>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button asChild variant="ghost" size="icon" className="w-full">
+                                        <Link href="/admin">
+                                            <Settings className="h-4 w-4" />
+                                        </Link>
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="right">Admin</TooltipContent>
+                            </Tooltip>
                         )}
-                        <button onClick={onReset}
-                                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium"
-                                style={{ color: 'var(--muted-foreground)', transition: 'all 0.15s ease' }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.color = 'var(--error)';
-                                    e.currentTarget.style.background = 'rgba(229,72,72,0.06)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.color = 'var(--muted-foreground)';
-                                    e.currentTarget.style.background = 'transparent';
-                                }}>
-                            <Trash2 size={15} />
-                            <span>Clear History</span>
-                        </button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={onReset}
+                                    className="w-full hover:text-destructive hover:bg-[color:color-mix(in_oklch,var(--destructive)_10%,transparent)]"
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="right">Clear History</TooltipContent>
+                        </Tooltip>
+                        <Separator className="my-1" />
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" onClick={onToggleCollapse} className="w-full">
+                                    <PanelLeft className="h-4 w-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="right">Expand sidebar</TooltipContent>
+                        </Tooltip>
                     </>
                 ) : (
                     <>
                         {isAdmin && (
-                            <Link href="/admin"
-                                  className="w-full flex items-center justify-center p-2.5 rounded-xl"
-                                  style={{ color: 'var(--muted-foreground)', transition: 'all 0.15s ease' }}
-                                  onMouseEnter={(e) => {
-                                      e.currentTarget.style.color = 'var(--primary)';
-                                      e.currentTarget.style.background = 'var(--primary-muted)';
-                                  }}
-                                  onMouseLeave={(e) => {
-                                      e.currentTarget.style.color = 'var(--muted-foreground)';
-                                      e.currentTarget.style.background = 'transparent';
-                                  }}
-                                  title="Admin">
-                                <Settings size={16} />
-                            </Link>
+                            <Button
+                                asChild
+                                variant="ghost"
+                                className="w-full justify-start gap-2.5 text-muted-foreground hover:text-primary"
+                            >
+                                <Link href="/admin">
+                                    <Settings className="h-4 w-4" />
+                                    <span className="text-[13px] font-medium">Admin</span>
+                                </Link>
+                            </Button>
                         )}
-                        <button onClick={onReset}
-                                className="w-full flex items-center justify-center p-2.5 rounded-xl"
-                                style={{ color: 'var(--muted-foreground)', transition: 'all 0.15s ease' }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.color = 'var(--error)';
-                                    e.currentTarget.style.background = 'rgba(229,72,72,0.06)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.color = 'var(--muted-foreground)';
-                                    e.currentTarget.style.background = 'transparent';
-                                }}
-                                title="Clear History">
-                            <Trash2 size={16} />
-                        </button>
+                        <Button
+                            variant="ghost"
+                            onClick={onReset}
+                            className="w-full justify-start gap-2.5 text-muted-foreground hover:text-destructive hover:bg-[color:color-mix(in_oklch,var(--destructive)_10%,transparent)]"
+                        >
+                            <Trash2 className="h-4 w-4" />
+                            <span className="text-[13px] font-medium">Clear History</span>
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            onClick={onToggleCollapse}
+                            className="w-full justify-start gap-2.5 text-muted-foreground"
+                        >
+                            <PanelLeftClose className="h-4 w-4" />
+                            <span className="text-[13px] font-medium">Collapse</span>
+                        </Button>
                     </>
                 )}
-                {/* Collapse toggle */}
-                <button
-                    onClick={onToggleCollapse}
-                    className="w-full flex items-center justify-center p-2.5 rounded-xl mt-1"
-                    style={{ color: 'var(--muted-foreground)', transition: 'all 0.15s ease' }}
-                    onMouseEnter={(e) => {
-                        e.currentTarget.style.color = 'var(--foreground)';
-                        e.currentTarget.style.background = 'var(--surface-2)';
-                    }}
-                    onMouseLeave={(e) => {
-                        e.currentTarget.style.color = 'var(--muted-foreground)';
-                        e.currentTarget.style.background = 'transparent';
-                    }}
-                    title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                >
-                    {collapsed ? <PanelLeft size={16} /> : <PanelLeftClose size={16} />}
-                </button>
             </div>
         </div>
     );
