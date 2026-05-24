@@ -72,7 +72,14 @@ function formatMarkdown(text: string): React.ReactNode[] {
     for (const line of lines) {
         const trimmed = line.trim();
 
-        if (trimmed.startsWith('### ')) {
+        if (trimmed.startsWith('#### ')) {
+            flushList();
+            elements.push(
+                <h5 key={key++} className="text-[14px] font-semibold mt-4 mb-1.5 tracking-tight text-foreground">
+                    {trimmed.slice(5)}
+                </h5>
+            );
+        } else if (trimmed.startsWith('### ')) {
             flushList();
             elements.push(
                 <h4 key={key++} className="text-[15px] font-bold mt-5 mb-2 tracking-tight text-foreground">
@@ -85,6 +92,13 @@ function formatMarkdown(text: string): React.ReactNode[] {
                 <h3 key={key++} className="text-base font-bold mt-6 mb-2.5 tracking-tight text-foreground">
                     {trimmed.slice(3)}
                 </h3>
+            );
+        } else if (trimmed.startsWith('# ')) {
+            flushList();
+            elements.push(
+                <h2 key={key++} className="text-lg font-bold mt-6 mb-3 tracking-tight text-foreground">
+                    {trimmed.slice(2)}
+                </h2>
             );
         } else if (/^[-*]\s/.test(trimmed)) {
             inList = true;

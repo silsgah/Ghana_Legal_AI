@@ -129,7 +129,7 @@ export default function ChatPage() {
             <div className="flex-1 flex flex-col h-full w-full relative overflow-hidden">
                 {/* Header */}
                 <header className="h-16 flex items-center justify-between px-5 lg:px-6 flex-shrink-0 bg-card/80 backdrop-blur-md border-b border-border">
-                    <div className="lg:pl-0 pl-12 flex items-center gap-3.5 min-w-0">
+                    <div className="lg:pl-0 pl-16 flex items-center gap-3.5 min-w-0">
                         <div
                             className="w-9 h-9 rounded-full flex items-center justify-center border-[1.5px] shrink-0"
                             style={{
