@@ -19,15 +19,17 @@ class SimpleCache:
         self.default_ttl = default_ttl
         self.max_size = 1000  # Maximum number of cached items
     
-    def _get_key(self, query: str, expert_id: str) -> str:
-        """Generate a unique key for the query and expert combination."""
-        key_string = f"{query}:{expert_id}"
+    def _get_key(self, query: str, expert_id: str, user_id: str) -> str:
+        """Generate a unique key. user_id MUST be included to prevent cross-user
+        response leaks — the cache stores per-user LLM outputs that other users
+        must never see, even when they ask the same question."""
+        key_string = f"{user_id}:{expert_id}:{query}"
         return hashlib.md5(key_string.encode()).hexdigest()
-    
-    def get(self, query: str, expert_id: str) -> Optional[Any]:
+
+    def get(self, query: str, expert_id: str, user_id: str) -> Optional[Any]:
         """Get value from cache if it exists and hasn't expired."""
-        key = self._get_key(query, expert_id)
-        
+        key = self._get_key(query, expert_id, user_id)
+
         if key in self.cache:
             # Check if expired
             if time.time() - self.timestamps[key] > self.default_ttl:
@@ -35,19 +37,19 @@ class SimpleCache:
                 del self.cache[key]
                 del self.timestamps[key]
                 return None
-            
+
             logger.debug(f"Cache hit for query: {query[:50]}...")
             return self.cache[key]
-        
+
         logger.debug(f"Cache miss for query: {query[:50]}...")
         return None
-    
-    def set(self, query: str, expert_id: str, value: Any, ttl: Optional[int] = None) -> None:
+
+    def set(self, query: str, expert_id: str, user_id: str, value: Any, ttl: Optional[int] = None) -> None:
         """Set value in cache with optional TTL."""
         if ttl is None:
             ttl = self.default_ttl
-            
-        key = self._get_key(query, expert_id)
+
+        key = self._get_key(query, expert_id, user_id)
         
         # Check if we need to evict old items
         if len(self.cache) >= self.max_size:
@@ -71,25 +73,23 @@ cache = SimpleCache()
 
 
 def cache_response(ttl: int = 3600):
-    """Decorator to cache function responses."""
+    """Decorator to cache function responses. Wrapped function must accept
+    query, expert_id, user_id as its first three positional args (or kwargs)."""
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            # Assume first two arguments are query and expert_id
             query = args[0] if len(args) > 0 else kwargs.get('query', '')
             expert_id = args[1] if len(args) > 1 else kwargs.get('expert_id', '')
-            
-            # Try to get from cache first
-            cached_result = cache.get(query, expert_id)
+            user_id = args[2] if len(args) > 2 else kwargs.get('user_id', '')
+
+            cached_result = cache.get(query, expert_id, user_id)
             if cached_result is not None:
                 return cached_result
-            
-            # Call the original function
+
             result = func(*args, **kwargs)
-            
-            # Cache the result
-            cache.set(query, expert_id, result, ttl)
-            
+
+            cache.set(query, expert_id, user_id, result, ttl)
+
             return result
         return wrapper
     return decorator

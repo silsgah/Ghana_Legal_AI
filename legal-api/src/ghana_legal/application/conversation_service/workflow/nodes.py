@@ -98,6 +98,12 @@ async def retriever_node(state: LegalExpertState, config: RunnableConfig):
     _retrieved_sources.set(sources)
     _retrieved_docs.set(full_docs)
 
+    # Slim copy for LangGraph state: drop page_content (the bulk of each doc)
+    # so PostgresSaver checkpoints don't carry the full judgment text on every
+    # node transition. Downstream consumers (validator, structure prompt) only
+    # read case_id/paragraph_id/title/court/year from state.retrieved.
+    slim_docs = [{k: v for k, v in d.items() if k != "page_content"} for d in full_docs]
+
     tool_msg = ToolMessage(
         content="\n\n---\n\n".join(formatted_parts) if formatted_parts else "No relevant documents found.",
         tool_call_id=tool_call.get("id", ""),
@@ -106,7 +112,7 @@ async def retriever_node(state: LegalExpertState, config: RunnableConfig):
 
     return {
         "messages": [tool_msg],
-        "retrieved": full_docs,
+        "retrieved": slim_docs,
     }
 
 

@@ -1,6 +1,6 @@
 """Pydantic envelope for grounded legal answers.
 
-The model emits a LegalAnswer via Groq's json_schema response format. The
+The model emits a LegalAnswer via Groq tool-calling (function_calling mode). The
 server-side validator (added in PR 3) checks that every Citation references a
 (case_id, paragraph_id) pair that was actually retrieved this turn — that is
 how the four-priority anti-hallucination system enforces grounding.

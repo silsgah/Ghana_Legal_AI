@@ -225,12 +225,8 @@ class ChatMessage(BaseModel):
 @app.post("/chat")
 async def chat(chat_message: ChatMessage):
     try:
-        # Check cache first
-        cache = get_cache()
-        cached_response = cache.get(chat_message.message, chat_message.expert_id)
-        if cached_response:
-            return {"response": cached_response}
-
+        # No cache on this unauthenticated endpoint — without a user_id the
+        # cache key would collide across users and leak responses.
         expert_factory = LegalExpertFactory()
         expert = expert_factory.get_legal_expert(chat_message.expert_id)
 
@@ -242,10 +238,6 @@ async def chat(chat_message: ChatMessage):
             style=expert.style,
             legal_context="",
         )
-
-        # Cache the response (only cache responses longer than 50 chars to avoid caching errors)
-        if len(response) > 50:
-            cache.set(chat_message.message, chat_message.expert_id, response, ttl=7200)  # 2 hours for legal responses
 
         return {"response": response}
     except Exception as e:
@@ -316,7 +308,7 @@ async def websocket_chat(websocket: WebSocket, token: str = None):
 
                 # 2. Check cache for non-streaming response first
                 cache = get_cache()
-                cached_response = cache.get(data["message"], data["expert_id"])
+                cached_response = cache.get(data["message"], data["expert_id"], clerk_id)
                 if cached_response:
                     await websocket.send_json({"response": cached_response, "streaming": False})
                     continue
@@ -354,7 +346,7 @@ async def websocket_chat(websocket: WebSocket, token: str = None):
 
                 # Cache the full response for future non-streaming requests
                 if len(full_response) > 50:
-                    cache.set(data["message"], data["expert_id"], full_response, ttl=7200)
+                    cache.set(data["message"], data["expert_id"], clerk_id, full_response, ttl=7200)
 
                 await websocket.send_json(
                     {"response": full_response, "streaming": False, "sources": sources}
@@ -412,7 +404,7 @@ async def stream_chat(
 
     # 2. Cache check (skip when no_cache=true, e.g. after a prompt or RAG update)
     cache = get_cache()
-    cached_response = None if no_cache else cache.get(body.message, body.expert_id)
+    cached_response = None if no_cache else cache.get(body.message, body.expert_id, clerk_id)
     if cached_response:
         async def cached_stream():
             yield f"data: {json.dumps({'chunk': cached_response})}\n\n"
@@ -470,7 +462,7 @@ async def stream_chat(
             # isn't served from cache for 2 hours.
             confidence = (envelope or {}).get("confidence")
             if len(full_response) > 50 and confidence not in ("low", "insufficient"):
-                cache.set(body.message, body.expert_id, full_response, ttl=7200)
+                cache.set(body.message, body.expert_id, clerk_id, full_response, ttl=7200)
 
             # Log usage
             await log_usage(clerk_id, body.message, body.expert_id)

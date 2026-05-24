@@ -95,6 +95,29 @@ _DEFINITIONAL_PREFIX_RE = re.compile(
 
 _PARAGRAPH_ID_TAIL_RE = re.compile(r"\.c(\d+)$")
 
+# Citation → canonical case_id shortcut. Catches both the bracketed Ghanaian
+# style ("[2022] GHACC 316", "(2020) GHACA 10") and the canonical form
+# ("GHACC_2022_316") that admin tooling sometimes pastes verbatim. Bare-citation
+# queries embed poorly (almost no semantic content), so when one is present we
+# bypass vector search and pull the case by case_id directly.
+_CITATION_BRACKET_RE = re.compile(
+    r"[\[\(](\d{4})[\]\)]\s*(GHA[A-Z]{2,4})\s+(\d+)", re.IGNORECASE
+)
+_CASE_ID_CANONICAL_RE = re.compile(r"\b(GHA[A-Z]{2,4})_(\d{4})_(\d+)\b", re.IGNORECASE)
+
+
+def _extract_case_id_from_query(query: str) -> Optional[str]:
+    """Return a canonical case_id if the query names one, else None."""
+    m = _CASE_ID_CANONICAL_RE.search(query)
+    if m:
+        court, year, num = m.groups()
+        return f"{court.upper()}_{year}_{num}"
+    m = _CITATION_BRACKET_RE.search(query)
+    if m:
+        year, court, num = m.groups()
+        return f"{court.upper()}_{year}_{num}"
+    return None
+
 # (b) Implicit case-summary trigger: top vector hit score ≥ this floor.
 # Voyage-law-2 cosine scores typically run 0.5–0.85 for relevant matches;
 # 0.55 separates "the embeddings are confident this is THE case" from
@@ -406,6 +429,26 @@ class LegalQdrantRetriever:
             f"Performing Qdrant vector search for query: {query[:80]}... "
             f"(explicit_full_judgment_intent={full_judgment_intent})"
         )
+
+        # Citation shortcut: if the query names a specific case_id (either as a
+        # bracketed citation "[2022] GHACC 316" or canonical "GHACC_2022_316"),
+        # fetch that case directly. Bare citations embed poorly — vector search
+        # against the judgment body finds unrelated cases at low similarity.
+        cited_case_id = _extract_case_id_from_query(query)
+        if cited_case_id:
+            logger.info(f"Citation shortcut: detected case_id={cited_case_id!r} in query")
+            cited_chunks = self._case_filtered_search(cited_case_id, limit=500)
+            if cited_chunks:
+                ordered = _order_by_document_position(cited_chunks)
+                logger.info(
+                    f"Citation shortcut hit: returning {len(ordered)} chunks for "
+                    f"{cited_case_id} in document order (bypassing vector search)"
+                )
+                return ordered
+            logger.info(
+                f"Citation shortcut miss: {cited_case_id} not in Qdrant; "
+                f"falling back to vector search"
+            )
 
         fetch_k = self.k * 4 if self.use_reranker else self.k
         results = self._vector_search(query, fetch_k)

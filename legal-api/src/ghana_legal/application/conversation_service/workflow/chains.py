@@ -121,7 +121,7 @@ def get_legal_expert_structure_chain():
         model_name=settings.GROQ_LLM_MODEL,  # 70b — instruction-following matters here
         temperature=0,
     )
-    structured = model.with_structured_output(LegalAnswer, method="json_schema")
+    structured = model.with_structured_output(LegalAnswer, method="function_calling")
 
     prompt = ChatPromptTemplate.from_messages(
         [("system", LEGAL_EXPERT_STRUCTURE_PROMPT.prompt)],

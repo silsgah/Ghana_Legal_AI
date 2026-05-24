@@ -13,10 +13,11 @@ class LegalExpertState(MessagesState):
         expertise (str): The area of expertise.
         style (str): The communication style.
         summary (str): A summary of the conversation.
-        retrieved (list[dict]): Structured per-doc payloads from the most recent
-            retrieval call (case_id, paragraph_id, page_content, etc.). Hoisted
-            from the tool's contextvar so the answer pass and downstream
-            validator can see it. Optional — older checkpoints lack this key.
+        retrieved (list[dict]): Slim per-doc metadata from the most recent
+            retrieval call (case_id, paragraph_id, title, court, year, score).
+            Excludes page_content to keep checkpoint payloads small — the
+            in-process _retrieved_docs contextvar carries the full text for
+            consumers that need it. Optional — older checkpoints lack this key.
         legal_answer (Optional[dict]): Serialized LegalAnswer envelope produced
             by the structured-output answer pass. Stored as a dict (not a
             Pydantic instance) so LangGraph PostgresSaver can checkpoint it.
