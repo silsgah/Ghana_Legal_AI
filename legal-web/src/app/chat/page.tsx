@@ -109,8 +109,6 @@ export default function ChatPage() {
                     selectedExpertId={selectedExpertId}
                     onSelectExpert={handleSelectExpert}
                     onReset={resetChat}
-                    connectionStatus={connectionStatus}
-                    onReconnect={reconnect}
                     onUpgradeClick={() => setIsUpgradeModalOpen(true)}
                     collapsed={isSidebarCollapsed}
                     onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
@@ -126,12 +124,12 @@ export default function ChatPage() {
             )}
 
             {/* Main chat area */}
-            <div className="flex-1 flex flex-col h-full w-full relative overflow-hidden">
+            <div className="flex-1 flex flex-col h-full w-full relative overflow-hidden bg-[radial-gradient(ellipse_at_top,rgba(98,114,240,0.07),transparent_36%)]">
                 {/* Header */}
-                <header className="h-[4.5rem] flex items-center justify-between px-5 lg:px-7 flex-shrink-0 bg-background/85 backdrop-blur-xl border-b border-border">
-                    <div className="lg:pl-0 pl-16 flex items-center gap-3.5 min-w-0">
+                <header className="h-14 flex items-center justify-between px-5 lg:px-7 flex-shrink-0 bg-background/75 backdrop-blur-xl border-b border-border">
+                    <div className="lg:pl-0 pl-16 flex items-center gap-2.5 min-w-0">
                         <div
-                            className="w-9 h-9 rounded-full flex items-center justify-center border-[1.5px] shrink-0"
+                            className="w-8 h-8 rounded-lg flex items-center justify-center border shrink-0"
                             style={{
                                 background: `linear-gradient(135deg, ${selectedExpert?.accentColor}30, ${selectedExpert?.accentColor}70)`,
                                 borderColor: `${selectedExpert?.accentColor}44`,
@@ -140,14 +138,10 @@ export default function ChatPage() {
                             {selectedExpert?.icon}
                         </div>
                         <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                                <span className="hidden sm:inline-flex h-1.5 w-1.5 rounded-full bg-[var(--ghana-green)] shadow-[0_0_8px_var(--ghana-green)]" />
-                                <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Research workspace</span>
-                            </div>
-                            <h1 className="font-semibold text-[16px] leading-tight truncate mt-0.5">
+                            <h1 className="font-medium text-[14px] leading-tight truncate">
                                 {selectedExpert?.name}
                             </h1>
-                            <span className="text-[12px] text-muted-foreground truncate block mt-0.5">
+                            <span className="text-[11px] text-muted-foreground truncate block mt-0.5">
                                 {selectedExpert?.field}
                             </span>
                         </div>
@@ -194,7 +188,7 @@ export default function ChatPage() {
                         )}
 
                         {/* Connection */}
-                        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/70 border border-border">
+                        <div className="hidden lg:flex items-center gap-2 px-2.5 py-1 rounded-full bg-muted/70 border border-border">
                             <div
                                 className={cn(
                                     'w-2 h-2 rounded-full animate-pulse',
@@ -231,8 +225,8 @@ export default function ChatPage() {
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto">
                     {messages.length === 0 ? (
-                        <div className="h-full flex flex-col items-center justify-center p-8 animate-float-in">
-                            <div className="relative mb-7">
+                        <div className="h-full flex flex-col items-center justify-center p-6 sm:p-8 animate-float-in">
+                            <div className="relative mb-6">
                                 <div
                                     aria-hidden
                                     className="absolute inset-0 rounded-3xl blur-3xl opacity-40"
@@ -241,42 +235,42 @@ export default function ChatPage() {
                                     }}
                                 />
                                 <div
-                                    className="relative w-20 h-20 rounded-2xl flex items-center justify-center border"
+                                    className="relative w-14 h-14 rounded-xl flex items-center justify-center border"
                                     style={{
                                         background: `linear-gradient(135deg, ${selectedExpert?.accentColor || 'var(--primary)'}20, ${selectedExpert?.accentColor || 'var(--primary)'}50)`,
                                         borderColor: `${selectedExpert?.accentColor || 'var(--primary)'}44`,
                                         boxShadow: `0 12px 36px ${selectedExpert?.accentColor || 'var(--primary)'}25`,
                                     }}
                                 >
-                                    <Scale className="h-8 w-8" style={{ color: selectedExpert?.accentColor || 'var(--primary)' }} />
+                                    <Scale className="h-6 w-6" style={{ color: selectedExpert?.accentColor || 'var(--primary)' }} />
                                 </div>
                             </div>
 
-                            <h2 className="text-3xl sm:text-4xl font-bold mb-2 tracking-tight text-center">
+                            <h2 className="text-2xl sm:text-3xl font-semibold mb-2 tracking-tight text-center">
                                 {selectedExpert?.name}
                             </h2>
-                            <p className="text-base sm:text-lg max-w-lg text-center mb-3 leading-relaxed text-muted-foreground">
+                            <p className="text-[15px] sm:text-base max-w-lg text-center mb-3 leading-relaxed text-muted-foreground">
                                 {selectedExpert?.tagline}
                             </p>
-                            <Badge variant="outline" className="mb-10 gap-1.5 normal-case tracking-normal">
+                            <Badge variant="outline" className="mb-8 gap-1.5 normal-case tracking-normal">
                                 <Sparkles className="h-3 w-3 text-[var(--ghana-gold)]" />
                                 {selectedExpert?.era}
                             </Badge>
 
-                            <div className="w-full max-w-2xl">
+                            <div className="w-full max-w-xl">
                                 <div className="flex items-center justify-center mb-4">
                                     <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                                         Try asking
                                     </span>
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                     {SUGGESTED_PROMPTS.map(({ icon, label, prompt }) => (
                                         <button
                                             key={prompt}
                                             onClick={() => sendMessage(prompt)}
                                             type="button"
-                                            className="group relative px-5 py-4 text-left rounded-xl bg-card border border-border hover:border-primary hover:bg-[color:color-mix(in_oklch,var(--primary)_8%,transparent)] hover:-translate-y-0.5 hover:shadow-[0_8px_28px_color-mix(in_oklch,var(--primary)_18%,transparent)] transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                                            className="group relative px-4 py-3.5 text-left rounded-xl bg-card/70 border border-border hover:border-primary/60 hover:bg-card hover:shadow-md transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                                         >
                                             <div className="flex items-start justify-between gap-3">
                                                 <div className="min-w-0 flex-1">

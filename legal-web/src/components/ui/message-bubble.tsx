@@ -21,7 +21,6 @@ interface MessageBubbleProps {
 function formatMarkdown(text: string): React.ReactNode[] {
     const lines = text.split('\n');
     const elements: React.ReactNode[] = [];
-    let inList = false;
     let listItems: React.ReactNode[] = [];
     let key = 0;
 
@@ -33,7 +32,6 @@ function formatMarkdown(text: string): React.ReactNode[] {
                 </ul>
             );
             listItems = [];
-            inList = false;
         }
     };
 
@@ -101,7 +99,6 @@ function formatMarkdown(text: string): React.ReactNode[] {
                 </h2>
             );
         } else if (/^[-*]\s/.test(trimmed)) {
-            inList = true;
             listItems.push(
                 <li key={`li-${key++}`} className="flex gap-2.5 text-[15px] leading-relaxed">
                     <span className="mt-2 w-1.5 h-1.5 rounded-full flex-shrink-0 bg-primary/60" />
@@ -109,7 +106,6 @@ function formatMarkdown(text: string): React.ReactNode[] {
                 </li>
             );
         } else if (/^\d+\.\s/.test(trimmed)) {
-            inList = true;
             const num = trimmed.match(/^(\d+)\./)?.[1];
             listItems.push(
                 <li key={`li-${key++}`} className="flex gap-3 text-[15px] leading-relaxed">
@@ -352,14 +348,14 @@ export function MessageBubble({ role, content, expert, timestamp, sources, envel
 
     return (
         <div className="animate-fade-in group">
-            <div className="max-w-4xl mx-auto px-5 py-5">
+            <div className="max-w-4xl mx-auto px-5 py-4 sm:px-7">
                 {isUser ? (
                     /* User — right-aligned gradient bubble */
                     <div className="flex justify-end">
                         <div className="max-w-[85%]">
                             <div
-                                className="px-5 py-3.5 rounded-2xl rounded-br-md text-white shadow-[0_4px_16px_rgba(98,114,240,0.25)]"
-                                style={{ background: 'linear-gradient(135deg, var(--primary), #7c5cf6)' }}
+                                className="px-4 py-3 rounded-2xl rounded-br-md text-white shadow-sm"
+                                style={{ background: 'linear-gradient(135deg, var(--primary), #7055d8)' }}
                             >
                                 <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{content}</p>
                             </div>
@@ -372,10 +368,10 @@ export function MessageBubble({ role, content, expert, timestamp, sources, envel
                     </div>
                 ) : (
                     /* Assistant — left-aligned with avatar */
-                    <div className="flex gap-4">
+                    <div className="flex gap-3.5">
                         <div className="flex-shrink-0 mt-0.5">
                             <div
-                                className="w-10 h-10 rounded-full flex items-center justify-center text-sm border-[1.5px]"
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-xs border"
                                 style={{
                                     background: expert
                                         ? `linear-gradient(135deg, ${expert.accentColor}30, ${expert.accentColor}70)`
@@ -388,9 +384,9 @@ export function MessageBubble({ role, content, expert, timestamp, sources, envel
                             </div>
                         </div>
                         <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2.5 mb-2.5 flex-wrap">
+                            <div className="flex items-center gap-2 mb-2 flex-wrap">
                                 <span
-                                    className="text-sm font-semibold"
+                                className="text-[13px] font-medium"
                                     style={{ color: expert?.accentColor || 'var(--primary)' }}
                                 >
                                     {expert?.name || 'Legal Expert'}
@@ -400,7 +396,7 @@ export function MessageBubble({ role, content, expert, timestamp, sources, envel
                                 )}
                                 {tier && tier !== 'insufficient' && <ConfidenceBadge tier={tier} />}
                             </div>
-                            <div className="rounded-2xl rounded-tl-md px-5 py-4 bg-card border border-border">
+                            <div className="py-1">
                                 {tier === 'low' && <LowConfidenceBanner />}
                                 {formatted}
                                 {envelope && envelope.claims.length > 0 && (

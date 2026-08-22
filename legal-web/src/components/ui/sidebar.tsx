@@ -2,13 +2,9 @@
 
 import React from 'react';
 import Link from 'next/link';
-import {
-    Scale, Plus, Trash2, WifiOff, Loader2, Settings,
-    PanelLeftClose, PanelLeft,
-} from 'lucide-react';
+import { Scale, Plus, Trash2, Settings, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LegalExpert } from '@/lib/legal-experts';
-import { ConnectionStatus } from '@/hooks/use-chat';
 import { useUser } from '@clerk/nextjs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
@@ -19,83 +15,9 @@ interface SidebarProps {
     selectedExpertId: string;
     onSelectExpert: (id: string) => void;
     onReset: () => void;
-    connectionStatus: ConnectionStatus;
-    onReconnect: () => void;
     onUpgradeClick: () => void;
     collapsed: boolean;
     onToggleCollapse: () => void;
-}
-
-function ConnectionPill({
-    status,
-    onReconnect,
-    collapsed,
-}: {
-    status: ConnectionStatus;
-    onReconnect: () => void;
-    collapsed: boolean;
-}) {
-    if (collapsed) {
-        return (
-            <div className="flex justify-center py-2.5 border-b border-border">
-                {status === 'connected' && (
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <div className="w-2.5 h-2.5 rounded-full bg-[var(--ghana-green)] shadow-[0_0_6px_var(--ghana-green)]" />
-                        </TooltipTrigger>
-                        <TooltipContent side="right">Connected</TooltipContent>
-                    </Tooltip>
-                )}
-                {status === 'connecting' && (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--ghana-gold)]" />
-                )}
-                {(status === 'disconnected' || status === 'error') && (
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <button onClick={onReconnect} className="text-destructive">
-                                <WifiOff className="h-3.5 w-3.5" />
-                            </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="right">Offline — click to retry</TooltipContent>
-                    </Tooltip>
-                )}
-            </div>
-        );
-    }
-
-    return (
-        <div className="px-4 py-2.5 border-b border-border">
-            <div className="flex items-center gap-2 text-[13px]">
-                {status === 'connected' && (
-                    <>
-                        <div className="w-2 h-2 rounded-full bg-[var(--ghana-green)]" />
-                        <span className="text-[var(--ghana-green)] font-medium">Connected</span>
-                    </>
-                )}
-                {status === 'connecting' && (
-                    <>
-                        <Loader2 className="h-3 w-3 animate-spin text-[var(--ghana-gold)]" />
-                        <span className="text-[var(--ghana-gold)] font-medium">Connecting…</span>
-                    </>
-                )}
-                {(status === 'disconnected' || status === 'error') && (
-                    <>
-                        <WifiOff className="h-3 w-3 text-destructive" />
-                        <span className="text-destructive font-medium">Offline</span>
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={onReconnect}
-                            className="ml-auto h-7 px-2 text-[12px] text-primary hover:bg-[color:color-mix(in_oklch,var(--primary)_12%,transparent)]"
-                        >
-                            Retry
-                        </Button>
-                    </>
-                )}
-            </div>
-        </div>
-    );
 }
 
 export function Sidebar({
@@ -103,8 +25,6 @@ export function Sidebar({
     selectedExpertId,
     onSelectExpert,
     onReset,
-    connectionStatus,
-    onReconnect,
     collapsed,
     onToggleCollapse,
 }: SidebarProps) {
@@ -114,24 +34,23 @@ export function Sidebar({
     return (
         <div
             className={cn(
-                'flex flex-col h-screen bg-card border-r border-border transition-[width] duration-300 ease-out',
-                collapsed ? 'w-16' : 'w-72'
+                'flex flex-col h-screen bg-background/95 border-r border-border transition-[width] duration-300 ease-out',
+                collapsed ? 'w-16' : 'w-64'
             )}
         >
             {/* Brand + New Consultation */}
-            <div className="p-3 border-b border-border space-y-3">
-                <div className={cn('flex items-center', collapsed ? 'justify-center' : 'gap-3 px-1')}>
+            <div className="p-3 space-y-4">
+                <div className={cn('flex items-center', collapsed ? 'justify-center' : 'gap-2.5 px-1')}>
                     <div
-                        className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-[0_4px_12px_rgba(240,192,64,0.25)]"
-                        style={{ background: 'linear-gradient(135deg, var(--ghana-gold), #d4a017)' }}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-primary text-primary-foreground shadow-sm"
                     >
-                        <Scale className="h-4 w-4 text-black" />
+                        <Scale className="h-4 w-4" />
                     </div>
                     {!collapsed && (
                         <div className="min-w-0">
-                            <div className="font-bold text-[15px] leading-tight">LexGH</div>
-                            <div className="text-[11px] font-medium text-[var(--ghana-gold)]/80">
-                                Legal Research
+                            <div className="font-semibold text-[14px] leading-tight tracking-tight">LexGH</div>
+                            <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                                Research
                             </div>
                         </div>
                     )}
@@ -155,21 +74,19 @@ export function Sidebar({
                     <Button
                         variant="outline"
                         onClick={onReset}
-                        className="w-full justify-start gap-2 rounded-xl hover:border-primary hover:bg-[color:color-mix(in_oklch,var(--primary)_10%,transparent)]"
+                        className="w-full justify-start gap-2 rounded-lg bg-primary text-primary-foreground border-primary shadow-sm hover:bg-primary/90 hover:text-primary-foreground"
                     >
-                        <Plus className="h-4 w-4 text-primary" />
+                        <Plus className="h-4 w-4" />
                         <span className="font-medium">New Consultation</span>
                     </Button>
                 )}
             </div>
 
-            <ConnectionPill status={connectionStatus} onReconnect={onReconnect} collapsed={collapsed} />
-
             {/* Experts list */}
-            <div className="flex-1 overflow-y-auto px-2 py-3">
+            <div className="flex-1 overflow-y-auto px-2 py-2">
                 {!collapsed && (
-                    <div className="text-[11px] font-semibold uppercase tracking-widest mb-2 px-2 text-muted-foreground">
-                        Legal Experts
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.14em] mb-2.5 px-2 text-muted-foreground">
+                        Research modes
                     </div>
                 )}
                 <div className="space-y-1">
@@ -180,31 +97,31 @@ export function Sidebar({
                                 key={expert.id}
                                 onClick={() => onSelectExpert(expert.id)}
                                 className={cn(
-                                    'group w-full flex items-center rounded-lg text-left transition-colors duration-150 border',
-                                    collapsed ? 'justify-center p-2' : 'gap-3 px-2.5 py-2.5',
+                                    'group w-full flex items-center rounded-lg text-left transition-colors duration-150 border border-transparent',
+                                    collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2',
                                     isSelected
-                                        ? 'bg-[color:color-mix(in_oklch,var(--primary)_12%,transparent)] border-[color:color-mix(in_oklch,var(--primary)_25%,transparent)] text-foreground'
-                                        : 'border-transparent text-muted-foreground hover:bg-accent hover:text-foreground'
+                                        ? 'bg-primary/10 text-foreground'
+                                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                                 )}
                             >
                                 <div
                                     className={cn(
-                                        'rounded-full flex items-center justify-center text-base flex-shrink-0 transition-all',
-                                        collapsed ? 'w-9 h-9' : 'w-9 h-9'
+                                        'rounded-md flex items-center justify-center text-sm flex-shrink-0 transition-all',
+                                        collapsed ? 'w-9 h-9' : 'w-8 h-8'
                                     )}
                                     style={{
                                         background: `linear-gradient(135deg, ${expert.accentColor}22, ${expert.accentColor}44)`,
                                         border: isSelected
-                                            ? `2px solid ${expert.accentColor}`
-                                            : `2px solid ${expert.accentColor}22`,
+                                            ? `1px solid ${expert.accentColor}99`
+                                            : `1px solid ${expert.accentColor}22`,
                                     }}
                                 >
                                     {expert.icon}
                                 </div>
                                 {!collapsed && (
                                     <div className="flex-1 min-w-0">
-                                        <div className="font-semibold text-[13.5px] truncate">{expert.name}</div>
-                                        <div className="text-[11.5px] truncate text-muted-foreground">
+                                        <div className="font-medium text-[13px] truncate">{expert.name}</div>
+                                        <div className="text-[11px] truncate text-muted-foreground">
                                             {expert.field}
                                         </div>
                                     </div>
@@ -229,7 +146,7 @@ export function Sidebar({
             </div>
 
             {/* Footer */}
-            <div className="p-2 border-t border-border space-y-1">
+            <div className="p-2 border-t border-border space-y-1 bg-muted/20">
                 {collapsed ? (
                     <>
                         {isAdmin && (
