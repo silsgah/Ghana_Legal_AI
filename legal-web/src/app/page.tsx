@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from 'react';
 import { config } from '@/lib/config';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import {
     Scale, Shield, Zap, BookOpen, Users, ArrowRight,
@@ -321,15 +320,9 @@ function Testimonials({ isSignedIn, getToken }: { isSignedIn: boolean; getToken:
 }
 
 export default function LandingPage() {
-    const router = useRouter();
     const { isSignedIn, getToken } = useAuth();
     const { pricing, loading: pricingLoading } = usePricing();
     const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
-
-    // Signed-in users should enter their research workspace immediately.
-    useEffect(() => {
-        if (isSignedIn) router.replace('/chat');
-    }, [isSignedIn, router]);
 
     const isYearly = billingCycle === 'yearly';
     const period = isYearly ? '/year' : '/month';
