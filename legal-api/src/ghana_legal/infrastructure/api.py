@@ -80,6 +80,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+SSE_HEADERS = {
+    "Cache-Control": "no-cache, no-transform",
+    "Connection": "keep-alive",
+    "X-Accel-Buffering": "no",
+}
+
 # Register routes
 app.include_router(webhooks_router)
 app.include_router(admin_router)
@@ -400,7 +406,7 @@ async def stream_chat(
         async def quota_error():
             msg = f"Daily limit reached. You have used {used}/{limit} free queries today. Please upgrade to Pro for unlimited access."
             yield f"data: {json.dumps({'error': msg, 'quota_exceeded': True})}\n\n"
-        return StreamingResponse(quota_error(), media_type="text/event-stream")
+        return StreamingResponse(quota_error(), media_type="text/event-stream", headers=SSE_HEADERS)
 
     # 2. Cache check (skip when no_cache=true, e.g. after a prompt or RAG update)
     cache = get_cache()
@@ -409,7 +415,7 @@ async def stream_chat(
         async def cached_stream():
             yield f"data: {json.dumps({'chunk': cached_response})}\n\n"
             yield f"data: {json.dumps({'done': True})}\n\n"
-        return StreamingResponse(cached_stream(), media_type="text/event-stream")
+        return StreamingResponse(cached_stream(), media_type="text/event-stream", headers=SSE_HEADERS)
 
 
     # 3. Stream LLM response
@@ -475,7 +481,7 @@ async def stream_chat(
             opik_tracer.flush()
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return StreamingResponse(event_stream(), media_type="text/event-stream", headers=SSE_HEADERS)
 
 @app.post("/reset-memory")
 async def reset_conversation(
