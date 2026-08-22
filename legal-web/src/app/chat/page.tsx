@@ -128,7 +128,7 @@ export default function ChatPage() {
             {/* Main chat area */}
             <div className="flex-1 flex flex-col h-full w-full relative overflow-hidden">
                 {/* Header */}
-                <header className="h-16 flex items-center justify-between px-5 lg:px-6 flex-shrink-0 bg-card/80 backdrop-blur-md border-b border-border">
+                <header className="h-[4.5rem] flex items-center justify-between px-5 lg:px-7 flex-shrink-0 bg-background/85 backdrop-blur-xl border-b border-border">
                     <div className="lg:pl-0 pl-16 flex items-center gap-3.5 min-w-0">
                         <div
                             className="w-9 h-9 rounded-full flex items-center justify-center border-[1.5px] shrink-0"
@@ -140,10 +140,14 @@ export default function ChatPage() {
                             {selectedExpert?.icon}
                         </div>
                         <div className="min-w-0">
-                            <h1 className="font-semibold text-[15px] leading-tight truncate">
+                            <div className="flex items-center gap-2">
+                                <span className="hidden sm:inline-flex h-1.5 w-1.5 rounded-full bg-[var(--ghana-green)] shadow-[0_0_8px_var(--ghana-green)]" />
+                                <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Research workspace</span>
+                            </div>
+                            <h1 className="font-semibold text-[16px] leading-tight truncate mt-0.5">
                                 {selectedExpert?.name}
                             </h1>
-                            <span className="text-[12px] text-muted-foreground truncate block">
+                            <span className="text-[12px] text-muted-foreground truncate block mt-0.5">
                                 {selectedExpert?.field}
                             </span>
                         </div>
@@ -190,7 +194,7 @@ export default function ChatPage() {
                         )}
 
                         {/* Connection */}
-                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted border border-border">
+                        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/70 border border-border">
                             <div
                                 className={cn(
                                     'w-2 h-2 rounded-full animate-pulse',
