@@ -94,12 +94,12 @@ function DatabaseStats() {
     const max = Math.max(...filteredCourts.map(c => c.value), 1);
 
     return (
-        <section className="px-6 max-w-4xl mx-auto -mt-8 mb-24 relative z-10 animate-fade-in">
-            <Card className="glass p-8 lg:p-10 border-[color:color-mix(in_oklch,var(--ghana-gold)_15%,var(--border))]">
-                <div className="flex items-center justify-between gap-4 mb-8 pb-6 border-b border-border/60">
+        <section className="px-5 sm:px-6 max-w-4xl mx-auto -mt-6 mb-20 relative z-10 animate-fade-in">
+            <Card className="glass p-6 sm:p-8 border-[color:color-mix(in_oklch,var(--ghana-gold)_15%,var(--border))]">
+                <div className="flex items-center justify-between gap-4 mb-6 pb-5 border-b border-border/60">
                     <div className="flex items-center gap-4 min-w-0">
-                        <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 bg-[color:color-mix(in_oklch,var(--ghana-gold)_10%,transparent)] border border-[color:color-mix(in_oklch,var(--ghana-gold)_18%,transparent)]">
-                            <Database size={24} className="text-[var(--ghana-gold)]" />
+                        <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-[color:color-mix(in_oklch,var(--ghana-gold)_10%,transparent)] border border-[color:color-mix(in_oklch,var(--ghana-gold)_18%,transparent)]">
+                            <Database size={20} className="text-[var(--ghana-gold)]" />
                         </div>
                         <div className="min-w-0">
                             <div className="text-[12px] font-bold uppercase tracking-widest mb-1 text-[var(--ghana-gold)]/80">
@@ -111,7 +111,7 @@ function DatabaseStats() {
                         </div>
                     </div>
                     <div className="text-right shrink-0">
-                        <div className="text-4xl sm:text-5xl font-extrabold tabular-nums text-gradient-gold leading-none">
+                        <div className="text-3xl sm:text-4xl font-bold tabular-nums text-gradient-gold leading-none">
                             {stats.total_cases.toLocaleString()}
                         </div>
                         <div className="text-[12px] font-semibold uppercase tracking-wider mt-1.5 text-muted-foreground">
@@ -120,7 +120,7 @@ function DatabaseStats() {
                     </div>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-3.5">
                     {filteredCourts.map(({ id, label, value }) => {
                         const pct = total > 0 ? (value / total) * 100 : 0;
                         const barWidth = (value / max) * 100;
@@ -139,7 +139,7 @@ function DatabaseStats() {
                                         </span>
                                     </div>
                                 </div>
-                                <div className="h-2.5 rounded-full overflow-hidden bg-muted">
+                                <div className="h-2 rounded-full overflow-hidden bg-muted">
                                     <div
                                         className="h-full rounded-full transition-all duration-700"
                                         style={{
@@ -218,24 +218,24 @@ function Testimonials({ isSignedIn, getToken }: { isSignedIn: boolean; getToken:
     };
 
     return (
-        <section className="py-28 px-6">
+        <section className="py-20 sm:py-24 px-5 sm:px-6">
             <div className="max-w-7xl mx-auto">
-                <div className="text-center mb-16">
+                <div className="text-center mb-12">
                     <span className="text-[12px] font-bold uppercase tracking-[0.2em] mb-4 block text-[var(--ghana-green)]">
                         Testimonials
                     </span>
-                    <h2 className="text-3xl sm:text-4xl font-bold mb-5 tracking-tight">What Our Users Say</h2>
-                    <p className="text-[17px] max-w-xl mx-auto leading-relaxed text-muted-foreground">
+                    <h2 className="text-2xl sm:text-3xl font-semibold mb-4 tracking-tight">What Our Users Say</h2>
+                    <p className="text-base max-w-xl mx-auto leading-relaxed text-muted-foreground">
                         Feedback from legal professionals using LexGH.
                     </p>
                 </div>
 
                 {feedbacks.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
                         {feedbacks.map(f => (
                             <Card
                                 key={f.id}
-                                className="p-7 flex flex-col relative overflow-hidden transition-all hover:-translate-y-0.5 hover:border-[color:color-mix(in_oklch,var(--ghana-gold)_30%,var(--border))]"
+                                className="p-6 flex flex-col relative overflow-hidden transition-all hover:-translate-y-0.5 hover:border-[color:color-mix(in_oklch,var(--ghana-gold)_30%,var(--border))]"
                             >
                                 <div
                                     className="absolute top-4 right-6 text-[48px] font-serif leading-none pointer-events-none text-[var(--ghana-gold)]/10"
@@ -439,33 +439,33 @@ export default function LandingPage() {
 
             {/* ===== Navigation ===== */}
             <nav className="fixed top-0 w-full z-50 glass border-b border-border/60">
-                <div className="max-w-7xl mx-auto px-6 h-[72px] flex items-center justify-between">
-                    <Link href="/" className="flex items-center gap-3 group">
+                <div className="max-w-7xl mx-auto px-5 sm:px-6 h-16 flex items-center justify-between">
+                    <Link href="/" className="flex items-center gap-2.5 group">
                         <div
-                            className="w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105"
+                            className="w-9 h-9 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105"
                             style={{
                                 background: 'linear-gradient(135deg, var(--ghana-gold), #d4a017)',
                                 boxShadow: '0 4px 12px rgba(240,192,64,0.3)',
                             }}
                         >
-                            <Scale size={18} className="text-black" />
+                            <Scale size={16} className="text-black" />
                         </div>
                         <div>
-                            <span className="font-bold text-[17px] block leading-tight">LexGH</span>
-                            <span className="text-[11px] font-medium text-[var(--ghana-gold)]/80">Legal Research</span>
+                            <span className="font-semibold text-base block leading-tight">LexGH</span>
+                            <span className="text-[10px] font-medium tracking-wide text-[var(--ghana-gold)]/80">LEGAL RESEARCH</span>
                         </div>
                     </Link>
                     <div className="flex items-center gap-3">
                         {isSignedIn ? (
-                            <Button asChild variant="gold" size="lg">
-                                <Link href="/chat">Go to Dashboard</Link>
+                            <Button asChild variant="gold">
+                                <Link href="/chat">Open research</Link>
                             </Button>
                         ) : (
                             <>
-                                <Button asChild variant="ghost" size="lg" className="hidden sm:inline-flex">
+                                <Button asChild variant="ghost" className="hidden sm:inline-flex">
                                     <Link href="/sign-in">Sign In</Link>
                                 </Button>
-                                <Button asChild variant="gold" size="lg">
+                                <Button asChild variant="gold">
                                     <Link href="/sign-up">Get Started Free</Link>
                                 </Button>
                             </>
@@ -475,62 +475,48 @@ export default function LandingPage() {
             </nav>
 
             {/* ===== Hero ===== */}
-            <section className="relative pt-36 pb-24 px-6 text-center overflow-hidden">
+            <section className="relative pt-28 sm:pt-32 pb-20 sm:pb-24 px-5 sm:px-6 text-center overflow-hidden">
                 <div className="absolute inset-0 pointer-events-none" aria-hidden>
                     <div
-                        className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[600px] rounded-full opacity-25"
+                        className="absolute top-0 left-1/2 -translate-x-1/2 w-[760px] h-[500px] rounded-full opacity-20"
                         style={{
                             background: 'radial-gradient(ellipse, rgba(240,192,64,0.35) 0%, rgba(34,160,91,0.15) 40%, transparent 70%)',
                             filter: 'blur(80px)',
                         }}
                     />
-                    <div
-                        className="absolute top-20 right-[10%] w-[300px] h-[300px] rounded-full opacity-20"
-                        style={{
-                            background: 'radial-gradient(circle, var(--ghana-gold), transparent 70%)',
-                            filter: 'blur(60px)',
-                        }}
-                    />
-                    <div
-                        className="absolute top-40 left-[5%] w-[200px] h-[200px] rounded-full opacity-15"
-                        style={{
-                            background: 'radial-gradient(circle, var(--ghana-green), transparent 70%)',
-                            filter: 'blur(50px)',
-                        }}
-                    />
                 </div>
 
-                <div className="max-w-5xl mx-auto animate-float-in relative z-10">
-                    <Badge variant="gold" className="mb-10 px-5 py-2 text-[13px]">
-                        <Scale size={14} />
+                <div className="max-w-4xl mx-auto animate-float-in relative z-10">
+                    <Badge variant="gold" className="mb-7 px-4 py-1.5 text-[11px]">
+                        <Scale size={12} />
                         <span>Ghana&apos;s Premier AI Legal Research Platform</span>
                     </Badge>
 
-                    <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold leading-[1.1] mb-8 tracking-tight">
+                    <h1 className="text-4xl sm:text-5xl lg:text-6xl font-semibold leading-[1.08] mb-6 tracking-[-0.035em]">
                         Legal Research,{' '}
                         <br className="hidden sm:block" />
                         <span className="text-gradient-gold">Reimagined</span>
                     </h1>
 
-                    <p className="text-lg sm:text-xl lg:text-[22px] max-w-2xl mx-auto mb-12 leading-relaxed text-muted-foreground">
+                    <p className="text-base sm:text-lg max-w-2xl mx-auto mb-9 leading-relaxed text-muted-foreground">
                         AI-powered research across thousands of Ghanaian judgments, constitutional provisions, and legal precedents — in seconds, not hours.
                     </p>
 
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                        <Button asChild variant="gold" size="xl" className="px-10">
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                        <Button asChild variant="gold" size="lg" className="px-7">
                             <Link href={isSignedIn ? '/chat' : '/sign-up'}>
-                                {isSignedIn ? 'Open Dashboard' : 'Start Researching — Free'}
-                                <ArrowRight size={20} />
+                                {isSignedIn ? 'Open research' : 'Start researching'}
+                                <ArrowRight size={18} />
                             </Link>
                         </Button>
-                        <Button asChild variant="outline" size="xl" className="px-10">
+                        <Button asChild variant="outline" size="lg" className="px-7">
                             <Link href="#pricing">
-                                View Pricing <ChevronRight size={20} />
+                                View pricing <ChevronRight size={18} />
                             </Link>
                         </Button>
                     </div>
 
-                    <div className="mt-14 flex items-center justify-center gap-2.5 flex-wrap">
+                    <div className="mt-10 flex items-center justify-center gap-2 flex-wrap">
                         {['Supreme Court Cases', 'Court of Appeal', 'High Court Rulings', 'Constitution Analysis'].map(t => (
                             <Badge key={t} variant="outline" className="text-muted-foreground normal-case tracking-normal font-medium">
                                 {t}
@@ -544,25 +530,25 @@ export default function LandingPage() {
             <DatabaseStats />
 
             {/* ===== Features ===== */}
-            <section className="py-28 px-6 relative">
+            <section className="py-20 sm:py-24 px-5 sm:px-6 relative">
                 <div className="max-w-7xl mx-auto">
-                    <div className="text-center mb-16">
+                    <div className="text-center mb-12">
                         <span className="text-[12px] font-bold uppercase tracking-[0.2em] mb-4 block text-[var(--ghana-gold)]">
                             Capabilities
                         </span>
-                        <h2 className="text-3xl sm:text-4xl font-bold mb-5 tracking-tight">
+                        <h2 className="text-2xl sm:text-3xl font-semibold mb-4 tracking-tight">
                             Everything You Need for Legal Research
                         </h2>
-                        <p className="text-[17px] max-w-xl mx-auto leading-relaxed text-muted-foreground">
+                        <p className="text-base max-w-xl mx-auto leading-relaxed text-muted-foreground">
                             Three specialized AI experts trained on the full corpus of Ghanaian law.
                         </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                         {FEATURES.map((feature) => (
                             <Card
                                 key={feature.title}
-                                className="group p-7 relative overflow-hidden transition-all hover:-translate-y-1 hover:shadow-lg"
+                                className="group p-6 relative overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-lg"
                                 style={{
                                     ['--feature-accent' as string]: feature.accent,
                                 }}
@@ -575,7 +561,7 @@ export default function LandingPage() {
                                     }}
                                 />
                                 <div
-                                    className="w-12 h-12 rounded-xl flex items-center justify-center mb-5"
+                                    className="w-11 h-11 rounded-xl flex items-center justify-center mb-4"
                                     style={{
                                         background: `color-mix(in oklch, ${feature.accent} 14%, transparent)`,
                                         color: feature.accent,
@@ -583,7 +569,7 @@ export default function LandingPage() {
                                 >
                                     {feature.icon}
                                 </div>
-                                <h3 className="font-bold text-[17px] mb-2.5">{feature.title}</h3>
+                                <h3 className="font-semibold text-base mb-2">{feature.title}</h3>
                                 <p className="text-[15px] leading-relaxed text-muted-foreground">
                                     {feature.description}
                                 </p>
@@ -594,21 +580,21 @@ export default function LandingPage() {
             </section>
 
             {/* ===== Pricing ===== */}
-            <section id="pricing" className="py-28 px-6 relative scroll-mt-24">
+            <section id="pricing" className="py-20 sm:py-24 px-5 sm:px-6 relative scroll-mt-20">
                 <div className="max-w-7xl mx-auto">
-                    <div className="text-center mb-16">
+                    <div className="text-center mb-12">
                         <span className="text-[12px] font-bold uppercase tracking-[0.2em] mb-4 block text-[var(--ghana-green)]">
                             Pricing
                         </span>
-                        <h2 className="text-3xl sm:text-4xl font-bold mb-5 tracking-tight">
+                        <h2 className="text-2xl sm:text-3xl font-semibold mb-4 tracking-tight">
                             Simple, Transparent Pricing
                         </h2>
-                        <p className="text-[17px] max-w-xl mx-auto leading-relaxed text-muted-foreground">
+                        <p className="text-base max-w-xl mx-auto leading-relaxed text-muted-foreground">
                             Start free, upgrade when you need more. No hidden fees.
                         </p>
 
                         {/* Billing-cycle toggle */}
-                        <div className="inline-flex items-center gap-1 p-1 rounded-full mt-8 bg-card border border-border">
+                        <div className="inline-flex items-center gap-1 p-1 rounded-full mt-7 bg-card border border-border">
                             <button
                                 onClick={() => setBillingCycle('monthly')}
                                 className={`px-5 py-2 text-[13px] font-semibold rounded-full transition-colors ${
@@ -641,11 +627,11 @@ export default function LandingPage() {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 max-w-7xl mx-auto">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5 max-w-7xl mx-auto">
                         {PRICING_TIERS.map((tier) => (
                             <Card
                                 key={tier.name}
-                                className={`relative p-7 flex flex-col transition-all ${
+                                className={`relative p-6 flex flex-col transition-all ${
                                     tier.highlighted
                                         ? 'border-2 border-[var(--ghana-gold)] bg-muted shadow-[0_8px_32px_rgba(240,192,64,0.12)]'
                                         : 'hover:-translate-y-0.5 hover:border-border/80'
@@ -676,7 +662,7 @@ export default function LandingPage() {
                                             <Loader2 size={24} className="animate-spin text-muted-foreground" />
                                         </div>
                                     ) : (
-                                        <span className="text-4xl font-extrabold">{tier.price}</span>
+                                    <span className="text-3xl font-bold">{tier.price}</span>
                                     )}
                                     {tier.period && !tier.priceLoading && (
                                         <span className="text-sm text-muted-foreground">
@@ -685,7 +671,7 @@ export default function LandingPage() {
                                     )}
                                 </div>
 
-                                <ul className="space-y-3 mb-8 flex-1">
+                                <ul className="space-y-2.5 mb-7 flex-1">
                                     {tier.features.map((feature) => (
                                         <li key={feature} className="flex items-start gap-3 text-sm">
                                             <Check
@@ -716,7 +702,7 @@ export default function LandingPage() {
             <Testimonials isSignedIn={!!isSignedIn} getToken={getToken} />
 
             {/* ===== Footer ===== */}
-            <footer className="py-14 px-6 relative border-t border-border/60">
+            <footer className="py-10 px-5 sm:px-6 relative border-t border-border/60">
                 <div className="max-w-7xl mx-auto">
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
                         <div className="flex items-center gap-3">
