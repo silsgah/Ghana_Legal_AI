@@ -21,6 +21,10 @@ from ghana_legal.config import settings
 _engine: AsyncEngine | None = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
 
+# LangGraph checkpointer singletons
+_checkpointer_pool = None
+_checkpointer = None
+
 
 def get_engine() -> AsyncEngine:
     """Get or create the async SQLAlchemy engine (singleton).
@@ -71,6 +75,42 @@ def get_session_factory() -> async_sessionmaker[AsyncSession]:
     return _session_factory
 
 
+async def get_checkpointer():
+    """Get or create the singleton LangGraph checkpointer and its connection pool."""
+    global _checkpointer_pool, _checkpointer
+    if _checkpointer is None:
+        from psycopg_pool import AsyncConnectionPool
+        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+
+        db_url = settings.DATABASE_URL
+        # Replace async driver with sync driver for psycopg_pool compatibility
+        db_uri = db_url.replace("postgresql+asyncpg", "postgresql")
+        if "pooler.supabase.com" in db_uri and ":5432" in db_uri:
+            db_uri = db_uri.replace(":5432", ":6543")
+
+        logger.info("Initializing checkpointer connection pool...")
+        # Free Tier Supabase has limited connections. We configure a pool size of max 5.
+        _checkpointer_pool = AsyncConnectionPool(
+            conninfo=db_uri,
+            min_size=1,
+            max_size=5,
+            kwargs={"prepare_threshold": None},
+            open=False
+        )
+        await _checkpointer_pool.open()
+        _checkpointer = AsyncPostgresSaver(_checkpointer_pool)
+        logger.info("Checkpointer connection pool initialized successfully")
+    return _checkpointer
+
+
+async def get_checkpointer_pool():
+    """Get or create the checkpointer pool (singleton)."""
+    global _checkpointer_pool
+    if _checkpointer_pool is None:
+        await get_checkpointer()
+    return _checkpointer_pool
+
+
 @asynccontextmanager
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     """Context manager that yields a database session.
@@ -101,18 +141,35 @@ async def init_db() -> None:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("PostgreSQL tables initialized successfully")
 
+    # Initialize checkpointer table setup
+    try:
+        checkpointer = await get_checkpointer()
+        await checkpointer.setup()
+        logger.info("LangGraph PostgreSQL checkpointer tables initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize checkpointer: {e}")
+
 
 async def close_db() -> None:
     """Close the database connection pool.
 
     Called during FastAPI shutdown lifecycle.
     """
-    global _engine, _session_factory
+    global _engine, _session_factory, _checkpointer_pool, _checkpointer
     if _engine is not None:
         await _engine.dispose()
         _engine = None
         _session_factory = None
         logger.info("PostgreSQL connection pool closed")
+
+    if _checkpointer_pool is not None:
+        try:
+            await _checkpointer_pool.close()
+            logger.info("Checkpointer connection pool closed")
+        except Exception as e:
+            logger.warning(f"Failed to close checkpointer connection pool: {e}")
+        _checkpointer_pool = None
+        _checkpointer = None
 
 
 async def seed_pipeline_cases() -> None:

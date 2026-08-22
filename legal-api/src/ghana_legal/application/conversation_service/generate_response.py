@@ -52,43 +52,36 @@ async def get_response(
     graph_builder = create_workflow_graph()
 
     try:
-        db_uri = settings.DATABASE_URL.replace("postgresql+asyncpg", "postgresql")
-        if "pooler.supabase.com" in db_uri and ":5432" in db_uri:
-            db_uri = db_uri.replace(":5432", ":6543")
-        
-        from psycopg_pool import AsyncConnectionPool
-        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-        
-        async with AsyncConnectionPool(conninfo=db_uri, kwargs={"prepare_threshold": None}) as pool:
-            checkpointer = AsyncPostgresSaver(pool)
-            await checkpointer.setup()
-            graph = graph_builder.compile(checkpointer=checkpointer)
-            opik_tracer = OpikTracer(graph=graph.get_graph(xray=True))
+        from ghana_legal.infrastructure.database import get_checkpointer
 
-            base_thread = f"{clerk_id}_{expert_id}" if clerk_id else expert_id
-            thread_id = (
-                base_thread if not new_thread else f"{base_thread}-{uuid.uuid4()}"
-            )
-            config = {
-                "configurable": {"thread_id": thread_id},
-                "callbacks": [opik_tracer],
-            }
-            output_state = await graph.ainvoke(
-                input={
-                    "messages": __format_messages(messages=messages),
-                    "expert_name": expert_name,
-                    "expertise": expertise,
-                    "style": style,
-                    "legal_context": legal_context,
-                    # Reset turn-scoped state so a prior turn's envelope or
-                    # retrieved docs cannot leak into this turn's validator
-                    # via the PostgresSaver checkpoint.
-                    "legal_answer": None,
-                    "retrieved": [],
-                    "repair_attempts": 0,
-                },
-                config=config,
-            )
+        checkpointer = await get_checkpointer()
+        graph = graph_builder.compile(checkpointer=checkpointer)
+        opik_tracer = OpikTracer(graph=graph.get_graph(xray=True))
+
+        base_thread = f"{clerk_id}_{expert_id}" if clerk_id else expert_id
+        thread_id = (
+            base_thread if not new_thread else f"{base_thread}-{uuid.uuid4()}"
+        )
+        config = {
+            "configurable": {"thread_id": thread_id},
+            "callbacks": [opik_tracer],
+        }
+        output_state = await graph.ainvoke(
+            input={
+                "messages": __format_messages(messages=messages),
+                "expert_name": expert_name,
+                "expertise": expertise,
+                "style": style,
+                "legal_context": legal_context,
+                # Reset turn-scoped state so a prior turn's envelope or
+                # retrieved docs cannot leak into this turn's validator
+                # via the PostgresSaver checkpoint.
+                "legal_answer": None,
+                "retrieved": [],
+                "repair_attempts": 0,
+            },
+            config=config,
+        )
         last_message = output_state["messages"][-1]
         response_text = last_message.content
         
@@ -143,44 +136,37 @@ async def get_streaming_response(
     graph_builder = create_workflow_graph()
 
     try:
-        db_uri = settings.DATABASE_URL.replace("postgresql+asyncpg", "postgresql")
-        if "pooler.supabase.com" in db_uri and ":5432" in db_uri:
-            db_uri = db_uri.replace(":5432", ":6543")
+        from ghana_legal.infrastructure.database import get_checkpointer
 
-        from psycopg_pool import AsyncConnectionPool
-        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-        
-        async with AsyncConnectionPool(conninfo=db_uri, kwargs={"prepare_threshold": None}) as pool:
-            checkpointer = AsyncPostgresSaver(pool)
-            await checkpointer.setup()
-            graph = graph_builder.compile(checkpointer=checkpointer)
-            opik_tracer = OpikTracer(graph=graph.get_graph(xray=True))
+        checkpointer = await get_checkpointer()
+        graph = graph_builder.compile(checkpointer=checkpointer)
+        opik_tracer = OpikTracer(graph=graph.get_graph(xray=True))
 
-            base_thread = f"{clerk_id}_{expert_id}" if clerk_id else expert_id
-            thread_id = (
-                base_thread if not new_thread else f"{base_thread}-{uuid.uuid4()}"
-            )
-            config = {
-                "configurable": {"thread_id": thread_id},
-                "callbacks": [opik_tracer],
-            }
+        base_thread = f"{clerk_id}_{expert_id}" if clerk_id else expert_id
+        thread_id = (
+            base_thread if not new_thread else f"{base_thread}-{uuid.uuid4()}"
+        )
+        config = {
+            "configurable": {"thread_id": thread_id},
+            "callbacks": [opik_tracer],
+        }
 
-            full_response = ""
-            async for chunk in graph.astream(
-                input={
-                    "messages": __format_messages(messages=messages),
-                    "expert_name": expert_name,
-                    "expertise": expertise,
-                    "style": style,
-                    "legal_context": legal_context,
-                    # Reset turn-scoped state — see get_response above.
-                    "legal_answer": None,
-                    "retrieved": [],
-                    "repair_attempts": 0,
-                },
-                config=config,
-                stream_mode="messages",
-            ):
+        full_response = ""
+        async for chunk in graph.astream(
+            input={
+                "messages": __format_messages(messages=messages),
+                "expert_name": expert_name,
+                "expertise": expertise,
+                "style": style,
+                "legal_context": legal_context,
+                # Reset turn-scoped state — see get_response above.
+                "legal_answer": None,
+                "retrieved": [],
+                "repair_attempts": 0,
+            },
+            config=config,
+            stream_mode="messages",
+        ):
                 msg, meta = chunk
                 if not isinstance(msg, AIMessageChunk):
                     continue
@@ -198,72 +184,89 @@ async def get_streaming_response(
                 full_response += content
                 yield content
 
-            # Pull final state to recover the structured LegalAnswer envelope.
-            # The structured-output answer pass does not yield AIMessageChunks,
-            # so full_response will be empty when retrieval ran successfully —
-            # we synthesize visible text from envelope.human_text below.
-            envelope = None
-            try:
-                snapshot = await graph.aget_state(config)
-                envelope = (snapshot.values or {}).get("legal_answer") if snapshot else None
-            except Exception as state_error:
-                logger.warning(f"Could not fetch final state for envelope: {state_error}")
+        # Pull final state to recover the structured LegalAnswer envelope.
+        # The structured-output answer pass does not yield AIMessageChunks,
+        # so full_response will be empty when retrieval ran successfully —
+        # we synthesize visible text from envelope.human_text below.
+        envelope = None
+        final_state = None
+        try:
+            snapshot = await graph.aget_state(config)
+            final_state = snapshot.values if snapshot else None
+            envelope = (final_state or {}).get("legal_answer")
+        except Exception as state_error:
+            logger.warning(f"Could not fetch final state for envelope: {state_error}")
 
-            # PR 4: refusal decision lives here (NOT in api.py) so streaming
-            # can flush chunks live instead of buffering an entire turn server-side
-            # to retroactively swap in a refusal — the buffering broke the SSE
-            # streaming experience entirely.
-            confidence = (envelope or {}).get("confidence")
-            refuse = confidence == "insufficient" or (
-                settings.REFUSE_BELOW == "low" and confidence == "low"
+        # PR 4: refusal decision lives here (NOT in api.py) so streaming
+        # can flush chunks live instead of buffering an entire turn server-side
+        # to retroactively swap in a refusal — the buffering broke the SSE
+        # streaming experience entirely.
+        confidence = (envelope or {}).get("confidence")
+        refuse = confidence == "insufficient" or (
+            settings.REFUSE_BELOW == "low" and confidence == "low"
+        )
+
+        if refuse:
+            refusal_text = (
+                "I don't have enough grounded retrieved material to answer "
+                "this confidently. Please rephrase or ask about a different "
+                "Ghana legal topic."
             )
+            envelope = {
+                "claims": [],
+                "holding": None,
+                "principle": None,
+                "human_text": refusal_text,
+                "retrieval_used": bool(get_retrieved_sources()),
+                "confidence": "insufficient",
+            }
+            if not full_response:
+                full_response = refusal_text
+                yield refusal_text
+        elif envelope and not full_response:
+            human_text = envelope.get("human_text", "") or ""
+            if human_text:
+                full_response = human_text
+                yield human_text
 
-            if refuse:
-                refusal_text = (
-                    "I don't have enough grounded retrieved material to answer "
-                    "this confidently. Please rephrase or ask about a different "
-                    "Ghana legal topic."
+        # A router-only answer does not go through the post-retrieval text
+        # chain, so it has neither text-answer stream tags nor an envelope.
+        # Recover it from the final graph state instead of ending the SSE
+        # response successfully with no visible content.
+        if not full_response and final_state:
+            final_messages = final_state.get("messages") or []
+            if final_messages:
+                direct_answer = getattr(final_messages[-1], "content", "") or ""
+                if isinstance(direct_answer, str) and direct_answer.strip():
+                    full_response = direct_answer
+                    yield direct_answer
+
+        if not full_response:
+            raise RuntimeError("Conversation completed without a visible answer")
+
+        # Yield sources captured during retrieval
+        sources = get_retrieved_sources()
+        if sources:
+            yield json.dumps({"__sources__": sources})
+
+        # Yield the structured envelope marker (PR 2 dual-write).
+        if envelope:
+            yield json.dumps({"__envelope__": envelope})
+
+        # Trigger async evaluation
+        try:
+            from ghana_legal.application.evaluation.evaluation_service import get_evaluator
+            evaluator = get_evaluator()
+            asyncio.create_task(
+                evaluator.evaluate_and_log(
+                    query=messages if isinstance(messages, str) else str(messages),
+                    response=full_response,
+                    context=[legal_context] if legal_context else [],
+                    expert_id=expert_id,
                 )
-                envelope = {
-                    "claims": [],
-                    "holding": None,
-                    "principle": None,
-                    "human_text": refusal_text,
-                    "retrieval_used": bool(get_retrieved_sources()),
-                    "confidence": "insufficient",
-                }
-                if not full_response:
-                    full_response = refusal_text
-                    yield refusal_text
-            elif envelope and not full_response:
-                human_text = envelope.get("human_text", "") or ""
-                if human_text:
-                    full_response = human_text
-                    yield human_text
-
-            # Yield sources captured during retrieval
-            sources = get_retrieved_sources()
-            if sources:
-                yield json.dumps({"__sources__": sources})
-
-            # Yield the structured envelope marker (PR 2 dual-write).
-            if envelope:
-                yield json.dumps({"__envelope__": envelope})
-
-            # Trigger async evaluation
-            try:
-                from ghana_legal.application.evaluation.evaluation_service import get_evaluator
-                evaluator = get_evaluator()
-                asyncio.create_task(
-                    evaluator.evaluate_and_log(
-                        query=messages if isinstance(messages, str) else str(messages),
-                        response=full_response,
-                        context=[legal_context] if legal_context else [],
-                        expert_id=expert_id,
-                    )
-                )
-            except Exception as eval_error:
-                logger.warning(f"Failed to start streaming evaluation: {eval_error}")
+            )
+        except Exception as eval_error:
+            logger.warning(f"Failed to start streaming evaluation: {eval_error}")
 
     except Exception as e:
         raise RuntimeError(
