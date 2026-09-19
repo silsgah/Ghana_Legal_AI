@@ -63,3 +63,30 @@ def minimal_retry_messages(messages: list[BaseMessage], is_post_retrieval: bool)
         if isinstance(message, HumanMessage):
             return [message]
     return messages[-1:]
+
+
+def messages_for_answer_after_retrieval(messages: list[BaseMessage]) -> list[BaseMessage]:
+    """Make a tool-free message history for the final answer model.
+
+    The router owns tool calling. Once it has supplied a ToolMessage, the
+    answer model receives no tools; passing the router's tool-call pair through
+    makes tool-capable models attempt another call and Groq rejects it with
+    ``Tool choice is none, but model called a tool``. Replace that pair with a
+    plain HumanMessage containing the retrieved material.
+    """
+    if not messages or not isinstance(messages[-1], ToolMessage):
+        return messages_for_model(messages, is_post_retrieval=False)
+
+    source_context = messages[-1].content
+    history = messages_for_model(messages[:-2], is_post_retrieval=False)
+    return [
+        *history,
+        HumanMessage(
+            content=(
+                "The following legal materials were retrieved for the current "
+                "question. Use only these materials as your legal authority; "
+                "do not call any tool.\n\n"
+                f"{source_context}"
+            )
+        ),
+    ]

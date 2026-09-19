@@ -2,6 +2,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from ghana_legal.domain.conversation_window import (
     is_context_length_error,
+    messages_for_answer_after_retrieval,
     messages_for_model,
     minimal_retry_messages,
 )
@@ -59,3 +60,20 @@ def test_context_length_retry_retains_only_current_tool_exchange():
 
     assert result == messages[-3:]
     assert is_context_length_error(Exception("400: Please reduce the length of the messages or completion."))
+
+
+def test_answer_history_replaces_tool_pair_with_plain_retrieved_context():
+    call = AIMessage(
+        content="",
+        tool_calls=[{"name": "retrieve_legal_context", "args": {}, "id": "current"}],
+    )
+    result = messages_for_answer_after_retrieval([
+        HumanMessage(content="What was decided?"),
+        call,
+        ToolMessage(content="[Source 1]\nThe holding", tool_call_id="current"),
+    ])
+
+    assert len(result) == 2
+    assert result[0].content == "What was decided?"
+    assert "do not call any tool" in result[-1].content
+    assert "The holding" in result[-1].content

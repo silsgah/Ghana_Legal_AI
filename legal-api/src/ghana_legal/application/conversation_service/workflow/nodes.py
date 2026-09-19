@@ -25,6 +25,7 @@ from ghana_legal.config import settings
 from ghana_legal.domain.answer_formatting import normalise_airac_markdown
 from ghana_legal.domain.conversation_window import (
     is_context_length_error,
+    messages_for_answer_after_retrieval,
     messages_for_model,
     minimal_retry_messages,
 )
@@ -99,7 +100,11 @@ async def conversation_node(state: LegalExpertState, config: RunnableConfig):
     summary = state.get("summary", "")
     messages = state["messages"]
     is_post_retrieval = bool(messages) and isinstance(messages[-1], ToolMessage)
-    model_messages = messages_for_model(messages, is_post_retrieval)
+    model_messages = (
+        messages_for_answer_after_retrieval(messages)
+        if is_post_retrieval
+        else messages_for_model(messages, is_post_retrieval=False)
+    )
 
     chain_inputs = {
         "messages": model_messages,

@@ -104,6 +104,12 @@ _CITATION_BRACKET_RE = re.compile(
     r"[\[\(](\d{4})[\]\)]\s*(GHA[A-Z]{2,4})\s+(\d+)", re.IGNORECASE
 )
 _CASE_ID_CANONICAL_RE = re.compile(r"\b(GHA[A-Z]{2,4})_(\d{4})_(\d+)\b", re.IGNORECASE)
+# Plain citations are routinely typed as "GHASC 2005 9" (including with
+# non-breaking spaces copied from a report). Accept this form so it does not
+# fall through to semantic search and select an unrelated judgment.
+_CITATION_PLAIN_RE = re.compile(
+    r"\b(GHA[A-Z]{2,4})\s+(\d{4})\s+(\d+)\b", re.IGNORECASE
+)
 
 
 def _extract_case_id_from_query(query: str) -> Optional[str]:
@@ -115,6 +121,10 @@ def _extract_case_id_from_query(query: str) -> Optional[str]:
     m = _CITATION_BRACKET_RE.search(query)
     if m:
         year, court, num = m.groups()
+        return f"{court.upper()}_{year}_{num}"
+    m = _CITATION_PLAIN_RE.search(query.replace("\u202f", " ").replace("\u00a0", " "))
+    if m:
+        court, year, num = m.groups()
         return f"{court.upper()}_{year}_{num}"
     return None
 

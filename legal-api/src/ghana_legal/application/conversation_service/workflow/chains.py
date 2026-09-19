@@ -22,6 +22,14 @@ TAG_TEXT_ANSWER = "legal_expert_text_answer"
 TAG_STRUCTURE = "legal_expert_structure"
 TAG_ROUTER = "legal_expert_router"
 
+ANSWER_AFTER_RETRIEVAL_INSTRUCTION = """
+Retrieval has already been completed by the research workflow. The retrieved
+legal materials are included in the conversation. Do NOT call, request, or
+attempt to use any tool. Produce the final grounded legal answer now, using
+only those retrieved materials and following the required AIRAC or
+case-analysis format.
+"""
+
 
 def get_chat_model(temperature: float = 0.7, model_name: str = None):
     """Get the appropriate chat model based on configuration.
@@ -95,6 +103,7 @@ def get_legal_expert_text_answer_chain():
     prompt = ChatPromptTemplate.from_messages(
         [
             ("system", LEGAL_EXPERT_CHARACTER_CARD.prompt),
+            ("system", ANSWER_AFTER_RETRIEVAL_INSTRUCTION),
             MessagesPlaceholder(variable_name="messages"),
         ],
         template_format="jinja2",
