@@ -21,6 +21,7 @@ from ghana_legal.application.conversation_service.workflow.validator import (
     validate,
 )
 from ghana_legal.config import settings
+from ghana_legal.domain.answer_formatting import normalise_airac_markdown
 from ghana_legal.domain.legal_answer import LegalAnswer
 
 
@@ -153,6 +154,7 @@ async def conversation_node(state: LegalExpertState, config: RunnableConfig):
     text_chain = get_legal_expert_text_answer_chain()
     text_response = await text_chain.ainvoke(chain_inputs, config)
     human_text = getattr(text_response, "content", "") or str(text_response)
+    human_text = normalise_airac_markdown(human_text)
 
     envelope = await _structure_envelope(human_text, retrieved, config)
 
