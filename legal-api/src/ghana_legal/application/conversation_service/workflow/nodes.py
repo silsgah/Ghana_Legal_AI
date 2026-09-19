@@ -1,4 +1,4 @@
-from langchain_core.messages import AIMessage, RemoveMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from loguru import logger
 
@@ -23,7 +23,11 @@ from ghana_legal.application.conversation_service.workflow.validator import (
 )
 from ghana_legal.config import settings
 from ghana_legal.domain.answer_formatting import normalise_airac_markdown
-from ghana_legal.domain.conversation_window import messages_for_model
+from ghana_legal.domain.conversation_window import (
+    is_context_length_error,
+    messages_for_model,
+    minimal_retry_messages,
+)
 from ghana_legal.domain.legal_answer import LegalAnswer
 
 
@@ -109,7 +113,7 @@ async def conversation_node(state: LegalExpertState, config: RunnableConfig):
     if not is_post_retrieval:
         # Router pass — unchanged from previous behavior.
         chain = get_legal_expert_response_chain()
-        response = await chain.ainvoke(chain_inputs, config)
+        response = await _ainvoke_with_length_retry(chain, chain_inputs, config, is_post_retrieval=False)
         return {"messages": response}
 
     # Answer pass (PR 6 two-stage):
@@ -121,7 +125,9 @@ async def conversation_node(state: LegalExpertState, config: RunnableConfig):
     retrieved = state.get("retrieved") or []
 
     text_chain = get_legal_expert_text_answer_chain()
-    text_response = await text_chain.ainvoke(chain_inputs, config)
+    text_response = await _ainvoke_with_length_retry(
+        text_chain, chain_inputs, config, is_post_retrieval=True
+    )
     human_text = getattr(text_response, "content", "") or str(text_response)
     human_text = normalise_airac_markdown(human_text)
 
@@ -131,6 +137,26 @@ async def conversation_node(state: LegalExpertState, config: RunnableConfig):
         "messages": AIMessage(content=human_text),
         "legal_answer": envelope.model_dump(),
     }
+
+
+async def _ainvoke_with_length_retry(chain, chain_inputs: dict, config: RunnableConfig, is_post_retrieval: bool):
+    """Retry a model call with a clean turn if the provider rejects context size."""
+    try:
+        return await chain.ainvoke(chain_inputs, config)
+    except Exception as error:
+        if not is_context_length_error(error):
+            raise
+
+        retry_messages = minimal_retry_messages(
+            chain_inputs["messages"], is_post_retrieval=is_post_retrieval
+        )
+        logger.warning(
+            "Provider rejected context length; retrying with current exchange only "
+            f"(messages={len(chain_inputs['messages'])} -> {len(retry_messages)})."
+        )
+        return await chain.ainvoke(
+            {**chain_inputs, "messages": retry_messages}, config
+        )
 
 
 def _format_retrieved_summary(retrieved: list[dict]) -> str:

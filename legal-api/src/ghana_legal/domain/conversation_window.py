@@ -1,6 +1,6 @@
 """Bound persisted conversations before sending them to an LLM provider."""
 
-from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 
 
 MAX_HISTORY_MESSAGES = 8
@@ -40,3 +40,26 @@ def messages_for_model(messages: list[BaseMessage], is_post_retrieval: bool) -> 
     if protected_start < len(messages):
         window.extend(messages[protected_start:])
     return window
+
+
+def is_context_length_error(error: Exception) -> bool:
+    """Return whether a provider rejected a request for its message size."""
+    message = str(error).lower()
+    return (
+        "reduce the length of the messages" in message
+        or "context length" in message
+        or ("messages" in message and "completion" in message and "400" in message)
+    )
+
+
+def minimal_retry_messages(messages: list[BaseMessage], is_post_retrieval: bool) -> list[BaseMessage]:
+    """Keep only the current exchange for a context-length retry."""
+    if is_post_retrieval:
+        # Current sequence is HumanMessage → AI tool call → ToolMessage. The
+        # provider requires the tool-call/result pair to stay together.
+        return messages[-3:]
+
+    for message in reversed(messages):
+        if isinstance(message, HumanMessage):
+            return [message]
+    return messages[-1:]

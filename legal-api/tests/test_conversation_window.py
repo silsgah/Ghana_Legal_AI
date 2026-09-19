@@ -1,6 +1,10 @@
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from ghana_legal.domain.conversation_window import messages_for_model
+from ghana_legal.domain.conversation_window import (
+    is_context_length_error,
+    messages_for_model,
+    minimal_retry_messages,
+)
 
 
 def test_conversation_window_drops_historical_retrieval_payloads():
@@ -36,3 +40,22 @@ def test_conversation_window_has_a_total_history_budget():
     result = messages_for_model(messages, is_post_retrieval=False)
 
     assert sum(len(message.content) for message in result) <= 8_000
+
+
+def test_context_length_retry_retains_only_current_tool_exchange():
+    current_call = AIMessage(
+        content="",
+        tool_calls=[{"name": "retrieve_legal_context", "args": {}, "id": "current"}],
+    )
+    messages = [
+        HumanMessage(content="Old question"),
+        AIMessage(content="Old answer"),
+        HumanMessage(content="Current question"),
+        current_call,
+        ToolMessage(content="Current sources", tool_call_id="current"),
+    ]
+
+    result = minimal_retry_messages(messages, is_post_retrieval=True)
+
+    assert result == messages[-3:]
+    assert is_context_length_error(Exception("400: Please reduce the length of the messages or completion."))
