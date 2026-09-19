@@ -23,6 +23,7 @@ from ghana_legal.application.conversation_service.workflow.validator import (
 )
 from ghana_legal.config import settings
 from ghana_legal.domain.answer_formatting import normalise_airac_markdown
+from ghana_legal.domain.conversation_window import messages_for_model
 from ghana_legal.domain.legal_answer import LegalAnswer
 
 
@@ -94,9 +95,10 @@ async def conversation_node(state: LegalExpertState, config: RunnableConfig):
     summary = state.get("summary", "")
     messages = state["messages"]
     is_post_retrieval = bool(messages) and isinstance(messages[-1], ToolMessage)
+    model_messages = messages_for_model(messages, is_post_retrieval)
 
     chain_inputs = {
-        "messages": messages,
+        "messages": model_messages,
         "legal_context": state.get("legal_context", ""),
         "expert_name": state["expert_name"],
         "expertise": state["expertise"],
@@ -219,7 +221,7 @@ async def summarize_conversation_node(state: LegalExpertState):
 
     response = await summary_chain.ainvoke(
         {
-            "messages": state["messages"],
+            "messages": messages_for_model(state["messages"], is_post_retrieval=False),
             "expert_name": state["expert_name"],
             "summary": summary,
         }
