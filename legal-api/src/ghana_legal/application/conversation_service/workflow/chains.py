@@ -40,6 +40,7 @@ def get_chat_model(temperature: float = 0.7, model_name: str = None):
             api_key=settings.GROQ_API_KEY,
             model_name=model_name or settings.GROQ_LLM_MODEL,
             temperature=temperature,
+            max_tokens=settings.GROQ_MAX_TOKENS,
         )
 
 
@@ -49,6 +50,7 @@ def get_groq_model(temperature: float = 0.7, model_name: str = None) -> ChatGroq
         api_key=settings.GROQ_API_KEY,
         model_name=model_name or settings.GROQ_LLM_MODEL_CONTEXT_SUMMARY,
         temperature=temperature,
+        max_tokens=settings.GROQ_MAX_TOKENS,
     )
 
 
@@ -120,6 +122,7 @@ def get_legal_expert_structure_chain():
         api_key=settings.GROQ_API_KEY,
         model_name=settings.GROQ_LLM_MODEL,  # 70b — instruction-following matters here
         temperature=0,
+        max_tokens=settings.GROQ_MAX_TOKENS,
     )
     structured = model.with_structured_output(LegalAnswer, method="function_calling")
 

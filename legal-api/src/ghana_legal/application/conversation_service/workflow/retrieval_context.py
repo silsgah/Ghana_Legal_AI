@@ -8,9 +8,9 @@ from typing import Any, Iterable
 # A full judgment may have hundreds of chunks.  These limits keep the answer
 # request comfortably below provider context limits while retaining excerpts
 # from throughout the judgment (opening, facts, reasoning and disposition).
-MAX_CONTEXT_DOCUMENTS = 32
-MAX_CONTEXT_CHARS = 48_000
-MAX_DOCUMENT_CHARS = 1_800
+MAX_CONTEXT_DOCUMENTS = 16
+MAX_CONTEXT_CHARS = 24_000
+MAX_DOCUMENT_CHARS = 1_500
 _CONTEXT_SEPARATOR = "\n\n---\n\n"
 
 

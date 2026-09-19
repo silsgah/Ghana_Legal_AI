@@ -3,8 +3,9 @@
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 
 
-MAX_HISTORY_MESSAGES = 12
-MAX_HISTORY_CHARS_PER_MESSAGE = 4_000
+MAX_HISTORY_MESSAGES = 8
+MAX_HISTORY_CHARS_PER_MESSAGE = 1_500
+MAX_HISTORY_TOTAL_CHARS = 8_000
 
 
 def messages_for_model(messages: list[BaseMessage], is_post_retrieval: bool) -> list[BaseMessage]:
@@ -32,6 +33,10 @@ def messages_for_model(messages: list[BaseMessage], is_post_retrieval: bool) -> 
         history.append(message)
 
     window = history[-MAX_HISTORY_MESSAGES:]
+    while sum(
+        len(message.content) for message in window if isinstance(message.content, str)
+    ) > MAX_HISTORY_TOTAL_CHARS and len(window) > 1:
+        window.pop(0)
     if protected_start < len(messages):
         window.extend(messages[protected_start:])
     return window

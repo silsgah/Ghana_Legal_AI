@@ -28,3 +28,11 @@ def test_conversation_window_keeps_current_tool_pair():
 
     assert result[-2] is call
     assert isinstance(result[-1], ToolMessage)
+
+
+def test_conversation_window_has_a_total_history_budget():
+    messages = [HumanMessage(content=str(index) * 1_500) for index in range(8)]
+
+    result = messages_for_model(messages, is_post_retrieval=False)
+
+    assert sum(len(message.content) for message in result) <= 8_000

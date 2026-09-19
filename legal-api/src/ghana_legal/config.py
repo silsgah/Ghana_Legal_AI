@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     # cannot turn every chat request into a stream error.
     GROQ_LLM_MODEL: str = "openai/gpt-oss-120b"
     GROQ_LLM_MODEL_CONTEXT_SUMMARY: str = "openai/gpt-oss-20b"
+    GROQ_MAX_TOKENS: int = Field(
+        default=3072,
+        description="Maximum completion tokens per Groq answer request.",
+    )
     
     # --- OpenAI Configuration (Required for evaluation) ---
     OPENAI_API_KEY: str
