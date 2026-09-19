@@ -9,6 +9,7 @@ from ghana_legal.application.conversation_service.workflow.chains import (
     get_legal_expert_text_answer_chain,
 )
 from ghana_legal.application.conversation_service.workflow.state import LegalExpertState
+from ghana_legal.application.conversation_service.workflow.retrieval_context import build_retrieval_context
 from ghana_legal.application.conversation_service.workflow.tools import (
     _retrieved_docs,
     _retrieved_sources,
@@ -57,41 +58,7 @@ async def retriever_node(state: LegalExpertState, config: RunnableConfig):
     docs = retriever.retrieve(query)
     logger.info(f"retriever_node: returned {len(docs)} doc(s)")
 
-    sources: list[dict] = []
-    full_docs: list[dict] = []
-    formatted_parts: list[str] = []
-
-    for i, doc in enumerate(docs, 1):
-        meta = doc.metadata or {}
-        title = (
-            meta.get("parties")
-            or meta.get("filename", "").replace(".pdf", "").replace("_", " ")
-        ).strip()
-        court = meta.get("court", "")
-        year = meta.get("year")
-        sources.append({
-            "title": title,
-            "court": court,
-            "year": str(year) if year is not None else "",
-            "document_type": meta.get("document_type", ""),
-            "case_id": meta.get("case_id", ""),
-            "paragraph_id": meta.get("paragraph_id", ""),
-        })
-        full_docs.append({
-            "case_id": meta.get("case_id", ""),
-            "paragraph_id": meta.get("paragraph_id", ""),
-            "paragraph_hash": meta.get("paragraph_hash", ""),
-            "case_title": title,
-            "court": court,
-            "year": year,
-            "document_type": meta.get("document_type", ""),
-            "score": meta.get("score"),
-            "page_content": doc.page_content,
-        })
-        header_parts = [str(p) for p in [title, court, year] if p]
-        header = " | ".join(header_parts) if header_parts else f"Source {i}"
-        content = meta.get("parent_content", doc.page_content)
-        formatted_parts.append(f"[Source {i}: {header}]\n{content}")
+    sources, full_docs, context = build_retrieval_context(docs)
 
     # Sources contextvar still feeds the post-graph SSE 'sources' event read by
     # generate_response.py. The docs contextvar is preserved as a fallback but
@@ -106,7 +73,7 @@ async def retriever_node(state: LegalExpertState, config: RunnableConfig):
     slim_docs = [{k: v for k, v in d.items() if k != "page_content"} for d in full_docs]
 
     tool_msg = ToolMessage(
-        content="\n\n---\n\n".join(formatted_parts) if formatted_parts else "No relevant documents found.",
+        content=context or "No relevant documents found.",
         tool_call_id=tool_call.get("id", ""),
         name="retrieve_legal_context",
     )
@@ -168,8 +135,14 @@ def _format_retrieved_summary(retrieved: list[dict]) -> str:
     """Compact one-line-per-doc summary of retrieved sources for the structuring prompt."""
     if not retrieved:
         return "  (none — no retrieval results for this turn)"
+    # The answer model only saw excerpts marked in_llm_context. Keeping the
+    # extraction prompt to that same bounded set prevents a second provider
+    # context overflow and stops it binding a claim to unseen material.
+    visible_docs = [doc for doc in retrieved if doc.get("in_llm_context")]
+    if not visible_docs:
+        visible_docs = retrieved[:32]
     lines = []
-    for d in retrieved:
+    for d in visible_docs:
         cid = d.get("case_id", "?")
         pid = d.get("paragraph_id", "?")
         title = d.get("case_title", "")
